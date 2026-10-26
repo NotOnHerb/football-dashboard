@@ -78,8 +78,21 @@ OL=[[r.player_display_name,r.recent_team,r.position,int(r.penalties),int(r.penal
 G_FALLBACK=[['NE','CHI','Thu Oct 22, 7:15 PM CT (live now)'],['PIT','NO','Sun Oct 25, 8:30 AM CT'],['IND','MIN','Sun Oct 25, 12:00 PM CT'],['MIA','NYJ','Sun Oct 25, 12:00 PM CT'],['CIN','BAL','Sun Oct 25, 12:00 PM CT'],['CLE','TEN','Sun Oct 25, 12:00 PM CT'],['TB','CAR','Sun Oct 25, 12:00 PM CT'],['SF','ATL','Sun Oct 25, 12:00 PM CT'],['NYG','HOU','Sun Oct 25, 12:00 PM CT'],['DEN','ARI','Sun Oct 25, 3:05 PM CT'],['LA','LV','Sun Oct 25, 3:25 PM CT'],['GB','DET','Sun Oct 25, 3:25 PM CT'],['KC','SEA','Sun Oct 25, 7:20 PM CT'],['DAL','PHI','Mon Oct 26, 7:15 PM CT']]
 G=get_games(G_FALLBACK,{t[0] for t in T})
 print('game teams missing from data:',sorted({x for g in G for x in g[:2]}-{t[0] for t in T}),'| DL',len(DL),'OL',len(OL))
+dx=df[df.position_group.isin(['DL','LB','DB'])].copy()
+for cc in ['def_sacks','def_qb_hits','def_interceptions','def_pass_defended','def_fumbles_forced','fumble_recovery_opp','def_tds','def_tackles_for_loss','def_tackles_solo','def_tackle_assists']: dx[cc]=dx[cc].fillna(0)
+dx['tk']=dx.def_tackles_solo+dx.def_tackle_assists
+dx=dx[(dx.tk>=1)|(dx.def_sacks>0)|(dx.def_interceptions>0)].sort_values('tk',ascending=False)
+X=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.tk),int(r.def_tackles_solo),round(float(r.tk/r.games),1),int(r.def_tackles_for_loss),round(float(r.def_sacks),1),int(r.def_qb_hits),int(r.def_interceptions),int(r.def_pass_defended),int(r.def_fumbles_forced),int(r.fumble_recovery_opp),int(r.def_tds)] for _,r in dx.iterrows()]
+kx=df[df.position=='K'].copy()
+for cc in [c for c in kx.columns if c.startswith(('fg_made_','fg_missed_'))]+['fg_made','fg_att','fg_missed','pat_made','pat_att']: kx[cc]=kx[cc].fillna(0)
+a39=kx.fg_made_0_19+kx.fg_made_20_29+kx.fg_made_30_39; a50=kx.fg_made_50_59+kx.fg_made_60_; m40=kx.fg_missed_40_49+kx.fg_missed_50_59+kx.fg_missed_60_
+kx['pts']=a39*3+kx.fg_made_40_49*4+a50*5+kx.pat_made-kx.fg_missed
+print('kicker check: FG made by range matches total for',int(((a39+kx.fg_made_40_49+a50)==kx.fg_made).sum()),'of',len(kx))
+kx=kx.assign(a39=a39,a50=a50,m40=m40).sort_values('pts',ascending=False)
+K=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts),round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
+print('defenders',len(X),'| kickers',len(K),'| top kicker',K[0][:2],K[0][-2:])
 names={t:N[t] for t in set(df.recent_team)}
-data=json.dumps({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'DL':DL,'OL':OL,'G':G},separators=(',',':'),ensure_ascii=False)
+data=json.dumps({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'K':K,'DL':DL,'OL':OL,'G':G},separators=(',',':'),ensure_ascii=False)
 b64=base64.b64encode(gzip.compress(data.encode(),9)).decode()
 html=open('template.html').read().replace('__B64__',b64).replace('__DATE__',DATE)
 open('index.html','w').write(html)

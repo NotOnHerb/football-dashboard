@@ -33,16 +33,34 @@ th:first-child,td:first-child{position:sticky;left:0;background:var(--panel)}td.
 h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
 .back{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;font:600 15px Barlow,system-ui,sans-serif;padding:6px 14px;cursor:pointer}
 .note{margin-top:24px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;color:var(--mute);font-size:14px}
+.picks{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.pick{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}.pick.a{border-top:4px solid var(--a)}.pick.b{border-top:4px solid var(--b)}.pick input{width:100%;min-width:0}
+.verdict{font:700 clamp(22px,5vw,30px)/1.1 "Barlow Condensed","Arial Narrow",sans-serif;margin:16px 0 8px}
+.tally{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:12px}.tally i{display:block}.tally .a{background:var(--a)}.tally .b{background:var(--b)}.tally .t{background:var(--line)}
+.sec{font:600 15px Barlow,system-ui,sans-serif;color:var(--mute);margin:18px 0 4px}
+.row{padding:10px 0;border-top:1px solid var(--line)}.lbl{text-align:center;font-weight:500;font-size:15px;margin-bottom:6px}
+.line{display:grid;grid-template-columns:64px 1fr 64px;gap:10px;align-items:center}
+.cv{font:700 22px/1 "Barlow Condensed","Arial Narrow",sans-serif;color:var(--mute)}.cv.a{text-align:right}.cv.win.a{color:var(--a)}.cv.win.b{color:var(--b)}
+.field{position:relative;display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--line)}
+.field::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),rgba(128,128,128,.35) calc(10% - 1px) 10%)}
+.fa{background:var(--a);opacity:.4}.fb{background:var(--b);opacity:.4}.row.wa .fa,.row.wb .fb{opacity:1}
 </style></head><body><main>
 <h1>Football dashboard</h1>
 <p class="sub">2026 regular season so far. Browse players, then open a team for its summary and roster.</p>
-<div class="bar"><div class="seg" id="tabs"><button data-v="p" aria-pressed="true">Players</button><button data-v="t" aria-pressed="false">Teams</button><button data-v="n" aria-pressed="false">Trenches</button></div></div>
+<div class="bar"><div class="seg" id="tabs"><button data-v="p" aria-pressed="true">Players</button><button data-v="t" aria-pressed="false">Teams</button><button data-v="n" aria-pressed="false">Trenches</button><button data-v="c" aria-pressed="false">Compare</button><button data-v="d" aria-pressed="false">Defense</button></div></div>
 <section id="vp">
  <div class="bar"><input id="q" type="search" placeholder="Search players" aria-label="Search players"><select id="tm" aria-label="Team"></select><select id="mn" aria-label="Minimum usage"><option value="0">Any usage</option><option value="10">10+ touches or targets</option><option value="25">25+</option><option value="50">50+</option></select></div>
  <div class="bar"><div class="seg" id="pos"></div></div>
  <div class="wrap" id="pt"></div><p class="sub" id="ld">Loading stats…</p>
 </section>
 <section id="vt" hidden><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
+<section id="vc" hidden><div class="bar"><div class="seg" id="cpos"></div></div>
+<div class="picks"><div class="pick a"><input id="ca" list="cl" aria-label="Player A" onfocus="this.select()"></div><div class="pick b"><input id="cb" list="cl" aria-label="Player B" onfocus="this.select()"></div></div><datalist id="cl"></datalist>
+<div class="verdict" id="cv"></div><div class="tally" id="ct"></div><div id="cr"></div>
+<p class="sub">Tap a name box and start typing to search every player at that position.</p></section>
+<section id="vd" hidden><div class="bar"><div class="seg" id="xg"></div></div>
+<div class="bar"><input id="xq" type="search" placeholder="Search players" aria-label="Search players"><select id="xt" aria-label="Team"></select></div>
+<div class="wrap" id="xp"></div>
+<div class="note">Defenders appear if they recorded a tackle, sack or interception. A player’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Kicker fantasy points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and your league may score differently. Punters aren’t included.</div></section>
 <section id="vn" hidden><h2>Matchup</h2><p class="sub">Pick a game to see each line against the unit it faces. Rank 1 is best in the league.</p>
 <div class="bar"><select id="gm" aria-label="Game"></select></div><div id="mu"></div>
 <h3>Offensive line units</h3><div class="wrap" id="ou"></div>
@@ -106,7 +124,7 @@ function wire(){
   $('tm').onchange=function(){st.tm=this.value;renderP()};
   $('q').oninput=function(){st.q=this.value;renderP()};
 }
-function tab(v){st.v=v;[].forEach.call($('tabs').children,function(b){b.setAttribute('aria-pressed',b.dataset.v===v)});$('vp').hidden=v!=='p';$('vt').hidden=v!=='t';$('vn').hidden=v!=='n'}
+function tab(v){st.v=v;[].forEach.call($('tabs').children,function(b){b.setAttribute('aria-pressed',b.dataset.v===v)});$('vp').hidden=v!=='p';$('vt').hidden=v!=='t';$('vn').hidden=v!=='n';$('vc').hidden=v!=='c';$('vd').hidden=v!=='d'}
 function ix(l){for(var k=0;k<D.TC.length;k++)if(D.TC[k][0]===l)return k}
 var TS={tt:[1,-1,0],ou:[null,1,['Sack % allowed','Pass EPA/dropback','Yds/carry','Rush EPA/carry','OL penalties','OL penalty yds']],du:[null,-1,['Sacks','QB hits','Tackles for loss','DL sacks','DL QB hits','DL tackles for loss']]};
 function teamTbl(id){
@@ -135,6 +153,48 @@ function initN(){
   ['dp','op'].forEach(function(id){$(id).addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c,s=TB[id];if(s.c===c)s.d*=-1;else{s.c=c;s.d=c<=2?1:-1}renderTB(id)})});
   teamTbl('ou');teamTbl('du');renderTB('dp');renderTB('op');matchup();
 }
+var CP={pos:'QB',a:null,b:null},LOWER=['INT','Sack %','Fum lost'];
+function cList(){return A.filter(function(r){return r[2]===CP.pos}).sort(function(x,y){return y[4]*y[3]-x[4]*x[3]})}
+function cLab(r){return r[0]+' ('+r[1]+')'}
+function cSetup(){var l=cList();CP.a=l[0];CP.b=l[1];$('cl').innerHTML=l.map(function(r){return '<option value="'+cLab(r)+'">'}).join('');$('ca').value=cLab(l[0]);$('cb').value=cLab(l[1]);cRender()}
+function cPick(k,el){var r=cList().filter(function(x){return cLab(x)===el.value})[0];if(r){CP[k]=r;cRender()}}
+function cRender(){
+  var a=CP.a,b=CP.b,wa=0,wb=0,rows='';
+  D.PC[CP.pos].forEach(function(s,k){var x=a[4+k],y=b[4+k];if(x==null&&y==null)return;
+    var low=LOWER.indexOf(s[0])>-1,nul=x==null||y==null,aw=(nul||x===y)?0:((low?x<y:x>y)?1:-1),sh=.5;
+    if(aw===1)wa++;else if(aw===-1)wb++;
+    if(!nul&&x!==y){var lo=Math.min(x,y),up=Math.max(x,y);sh=((x-lo)+.5*(up-lo))/(2*(up-lo));if(low)sh=1-sh}
+    if(k===0)rows+='<div class="sec">The box score</div>';if(k===5)rows+='<div class="sec">Under the hood</div>';
+    rows+='<div class="row '+(aw===1?'wa':aw===-1?'wb':'')+'"><div class="lbl">'+s[0]+(low?' (lower is better)':'')+'</div><div class="line"><span class="cv a '+(aw===1?'win':'')+'">'+f(x,s[1])+'</span><div class="field" role="img" aria-label="'+s[0]+': '+a[0]+' '+f(x,s[1])+', '+b[0]+' '+f(y,s[1])+'"><div class="fa" style="flex:'+sh.toFixed(3)+'"></div><div class="fb" style="flex:'+(1-sh).toFixed(3)+'"></div></div><span class="cv b '+(aw===-1?'win':'')+'">'+f(y,s[1])+'</span></div></div>';
+  });
+  $('cr').innerHTML=rows;
+  $('cv').textContent=a===b?'Pick two different players':wa===wb?'Dead even: '+wa+' categories each':(wa>wb?a[0]:b[0])+' wins '+Math.max(wa,wb)+' of '+(wa+wb)+' decided categories';
+  $('ct').innerHTML='<i class="a" style="flex:'+wa+'"></i><i class="b" style="flex:'+wb+'"></i>';
+}
+function cInit(){
+  $('cpos').innerHTML=['QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='QB')+'">'+p+'</button>'}).join('');
+  $('cpos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;CP.pos=p;[].forEach.call($('cpos').children,function(x){x.setAttribute('aria-pressed',x.dataset.p===p)});cSetup()});
+  $('ca').oninput=function(){cPick('a',this)};$('cb').oninput=function(){cPick('b',this)};
+  cSetup();
+}
+var DX={g:'ALL',c:4,d:-1,q:'',t:'ALL'};
+var XC=[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Tackles',4,0],['Solo',5,0],['Tkl/g',6,1],['TFL',7,0],['Sacks',8,1],['QB hits',9,0],['INT',10,0],['PD',11,0],['FF',12,0],['Fum rec',13,0],['Def TD',14,0]];
+var KC=[['Player',0,-1],['Team',1,-1],['GP',3,0],['FG made',4,0],['FG att',5,0],['FG %',6,1],['Long',7,0],['0-39',8,0],['40-49',9,0],['50+',10,0],['Missed',11,0],['Missed 40+',12,0],['XP made',13,0],['XP att',14,0],['Fantasy pts',15,0],['Pts/g',16,1]];
+var XG={DL:['DE','DT','NT','DL'],LB:['LB','ILB','MLB','OLB'],CB:['CB'],S:['S','SAF','FS','SS','DB']};
+function renderX(){
+  var k=DX.g==='K',cols=k?KC:XC,q=DX.q.toLowerCase();
+  if(!cols.some(function(c){return c[1]===DX.c}))DX.c=k?15:4;
+  var rows=(k?D.K:D.X).filter(function(r){return(k||DX.g==='ALL'||XG[DX.g].indexOf(r[2])>-1)&&(DX.t==='ALL'||r[1]===DX.t)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
+  $('xp').innerHTML=rows.length?tbl(cols,sortRows(rows,DX.c,DX.d),DX.c,DX.d):'<p class="sub" style="padding:14px">No players match. Try clearing the search or filters.</p>';
+}
+function initX(){
+  $('xg').innerHTML=['ALL','DL','LB','CB','S','K'].map(function(g){return '<button data-g="'+g+'" aria-pressed="'+(g==='ALL')+'">'+(g==='ALL'?'All defense':g==='K'?'Kickers':g)+'</button>'}).join('');
+  $('xg').addEventListener('click',function(e){var g=e.target.dataset.g;if(!g)return;DX.g=g;[].forEach.call($('xg').children,function(b){b.setAttribute('aria-pressed',b.dataset.g===g)});renderX()});
+  $('xt').innerHTML=$('tm').innerHTML;$('xt').onchange=function(){DX.t=this.value;renderX()};
+  $('xq').oninput=function(){DX.q=this.value;renderX()};
+  $('xp').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c;if(DX.c===c)DX.d*=-1;else{DX.c=c;DX.d=c<=2?1:-1}renderX()});
+  renderX();
+}
 async function load(){
   if(typeof DecompressionStream==='undefined'){$('ld').textContent='This browser can’t open the stats. Try a recent Chrome, Safari or Firefox.';return}
   try{
@@ -142,7 +202,7 @@ async function load(){
     D=JSON.parse(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
   }catch(err){$('ld').textContent='Couldn’t read the stats data. Refresh the page to try again.';return}
   ['QB','RB','WR','TE'].forEach(function(p){D.P[p].forEach(function(r){A.push([r[0],r[1],p,r[2]].concat(r[3]))})});
-  $('ld').hidden=true;wire();renderP();renderT();initN();
+  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();
 }
 load();
 </script></body></html>
