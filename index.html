@@ -115,11 +115,15 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 <div id="dml" hidden><div class="bar"><input id="su" type="text" placeholder="Your Sleeper username" aria-label="Sleeper username" autocomplete="username"><button class="back" id="sgo">Load my leagues</button><select id="sl" aria-label="League" hidden></select></div><p class="sub" id="sms"></p><div id="mlo"></div></div>
 <div class="note" id="dnote"></div></section>
 <section id="sf" hidden><h2>Fantasy &amp; Betting</h2>
-<div class="bar"><div class="seg" id="fv"><button data-x="s" aria-pressed="true">Start / sit</button><button data-x="b" aria-pressed="false">Betting</button></div></div>
+<div class="bar"><div class="seg" id="fv"><button data-x="s" aria-pressed="true">Start / sit</button><button data-x="m" aria-pressed="false">My league</button><button data-x="b" aria-pressed="false">Betting</button></div></div>
 <div id="fs"><div class="bar"><div class="seg" id="fpos"></div><div class="seg" id="fsc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div><p class="sub" id="fsub"></p><div class="wrap" id="ft"></div><div class="note" id="fnote"></div></div>
+<div id="fm" hidden><div class="bar"><div class="seg" id="fpl"><button data-p="s" aria-pressed="true">Sleeper</button><button data-p="e" aria-pressed="false">ESPN</button></div></div>
+<div class="bar" id="fsl"><input id="fsu" type="text" placeholder="Your Sleeper username" aria-label="Sleeper username" autocomplete="username"><button class="back" id="fsgo">Load my leagues</button><select id="fsls" aria-label="League" hidden></select></div>
+<div class="bar" id="fel" hidden><input id="fei" type="text" inputmode="numeric" placeholder="ESPN league ID" aria-label="ESPN league ID"><input id="fet" type="text" inputmode="numeric" placeholder="Your team ID (optional)" aria-label="ESPN team ID"><button class="back" id="fego">Load league</button></div>
+<p class="sub" id="fms"></p><div id="fmo"></div></div>
 <div id="fb" hidden><div class="card"><h3>Lines, props and picks are next</h3><p>This is where game lines (spread, total, moneyline), player props next to each player’s averages and matchup, flagged lines that look off, and a tracker that keeps score on your bets will live.</p><p>To switch it on, it needs a free key from the-odds-api.com. When you’re ready, Claude will walk you through storing it as a GitHub secret so it never appears on the page.</p></div></div>
 <div class="note">Start/sit grades come from a simple, open formula, not a projection model: base points = 60% season average + 40% last 3 games, then multiplied by the matchup factor (what the opponent allows to that position after adjusting for schedule, divided by the league average). Grade A means the matchup factor is 1.15 or higher, B 1.05 to 1.15, C 0.95 to 1.05, D 0.85 to 0.95, F under 0.85. Only depth-chart starters on teams with an upcoming game are listed, and anyone Out or on IR is flagged. A guide, not a guarantee.</div></section>
-<div class="note">Real stats from nflverse (CC-BY 4.0), updated Oct 27, 2026 at 10:32 UTC. <span id="fr"></span> Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently. Defense: players appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. A defender’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Offensive linemen: this data only grades them by penalties; starting spots come from the latest depth chart, and starters with no flag show no games played. Punters aren’t included.</div>
+<div class="note">Real stats from nflverse (CC-BY 4.0), updated Oct 27, 2026 at 23:09 UTC. <span id="fr"></span> Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently. Defense: players appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. A defender’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Offensive linemen: this data only grades them by penalties; starting spots come from the latest depth chart, and starters with no flag show no games played. Punters aren’t included.</div>
 <details id="gls"><summary>What every stat means</summary><dl id="glist"></dl></details>
 </main>
 <script>
@@ -498,7 +502,7 @@ function sRender(){
   teams.sort(function(a,b){return b.tv-a.tv});teams.forEach(function(T,i){T.rk=i+1});
   ['QB','RB','WR','TE'].forEach(function(p){teams.slice().sort(function(a,b){return b.pos[p]-a.pos[p]}).forEach(function(T,i){T['r'+p]=i+1})});
   ML.teams=teams;ML.me=me;ML.vi=vi;ML.VR=VR;ML.PR=PR;ML.pp=pp;
-  var n=teams.length,h='<h3>'+lg.name.replace(/</g,'&lt;')+'</h3><p class="sub">'+n+' teams · '+({0:'Redraft',1:'Keeper',2:'Dynasty'}[lg.settings&&lg.settings.type]||'')+' · '+(sf?'Superflex':'1QB')+' · '+(rec>=1?'PPR':rec<=0?'Standard':'Half PPR')+(idp?' · IDP':'')+'. Using '+(sf?'Superflex':'1QB')+' trade values.</p>';
+  var n=teams.length,h=((lg.settings&&lg.settings.type)!==2?'<div class="card" style="margin-bottom:10px"><b>This is a '+({0:'redraft',1:'keeper'}[lg.settings&&lg.settings.type]||'non-dynasty')+' league.</b> Long-term trade values matter less here. For this week’s lineup and waiver help, open <b>Fantasy &amp; Betting → My league</b>.</div>':'')+'<h3>'+lg.name.replace(/</g,'&lt;')+'</h3><p class="sub">'+n+' teams · '+({0:'Redraft',1:'Keeper',2:'Dynasty'}[lg.settings&&lg.settings.type]||'')+' · '+(sf?'Superflex':'1QB')+' · '+(rec>=1?'PPR':rec<=0?'Standard':'Half PPR')+(idp?' · IDP':'')+'. Using '+(sf?'Superflex':'1QB')+' trade values.</p>';
   h+='<h3>Power rankings by roster value</h3><div class="wrap"><table><tr><th>#</th><th>Team</th><th>Record</th><th>Total value</th><th>Players</th><th>Picks</th><th>QB</th><th>RB</th><th>WR</th><th>TE</th></tr>'+teams.map(function(T){
     return '<tr'+(T===me?' class="me"':'')+'><td>'+T.rk+'</td><td class="nm">'+T.name.replace(/</g,'&lt;')+'</td><td>'+T.w+'-'+T.l+'</td><td><b>'+T.tv.toLocaleString()+'</b></td><td>'+T.pv.toLocaleString()+'</td><td>'+T.kv.toLocaleString()+'</td>'+['QB','RB','WR','TE'].map(function(p){var k=T['r'+p];return '<td><span class="'+(k<=3?'up':k>n-3?'dn':'')+'">'+nth(k)+'</span></td>'}).join('')+'</tr>'}).join('')+'</table></div>';
   if(!me){$('mlo').innerHTML=h+'<p class="sub">Couldn’t find your team in this league.</p>';return}
@@ -543,11 +547,88 @@ function renderF(){var W=D.ALW;if(!W||!D.G||!D.G.length){$('ft').innerHTML='<p c
   $('ft').innerHTML=rows.length?'<table><tr>'+cols.map(function(c){var on=c[1]===FS.c;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(FS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+rows.map(function(r){var out=r.inj&&OUTS[r.inj[0]];
     return '<tr><td class="nm">'+r[0]+tags(r)+(out?' <span class="why">Don’t start</span>':'')+'</td><td><span class="tag '+r[2]+'">'+r[2]+'</span></td><td>'+r[1]+'</td><td>'+r.opp+'</td><td>'+f(r[4],1)+'</td><td>'+f(r.l3,1)+'</td><td>'+f(r.base,1)+'</td><td>'+r.m.toFixed(2)+'×</td><td><span class="gr g'+r.g+'">'+r.g+'</span></td><td><b>'+f(r.adj,1)+'</b></td></tr>'}).join('')+'</table>':'<p class="sub" style="padding:14px">No starters match.</p>';
   $('fnote').textContent=''}
+// ---------------- Redraft My league (Sleeper + ESPN)
+var RL={};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function fMsg(x){$('fms').textContent=x}
+var ESPOS={1:'QB',2:'RB',3:'WR',4:'TE',5:'K',16:'DEF'},ESLOT={0:'QB',2:'RB',4:'WR',6:'TE',23:'FLEX',7:'SF',16:'DEF',17:'K',20:'BN',21:'IR'};
+var ELIG={QB:['QB'],RB:['RB'],WR:['WR'],TE:['TE'],FLEX:['RB','WR','TE'],SF:['QB','RB','WR','TE'],WRTE:['WR','TE'],WRRB:['RB','WR']};
+function slotsFrom(list){var s={};list.forEach(function(x){var k={QB:'QB',RB:'RB',WR:'WR',TE:'TE',FLEX:'FLEX',SUPER_FLEX:'SF',REC_FLEX:'WRTE',WRRB_FLEX:'WRRB',SF:'SF'}[x];if(k)s[k]=(s[k]||0)+1});return s}
+async function fSleeper(){var u=$('fsu').value.trim();if(!u){fMsg('Type your Sleeper username first.');return}try{localStorage.setItem('sleeper_user',u)}catch(e){}
+  fMsg('Looking up '+u+'…');$('fmo').innerHTML='';
+  try{var user=await slp('user/'+encodeURIComponent(u));if(!user||!user.user_id){fMsg('No Sleeper account found for “'+u+'”.');return}
+    var stt=await slp('state/nfl'),S=+(stt.league_season||stt.season),lg=await slp('user/'+user.user_id+'/leagues/nfl/'+S);
+    if(!lg.length){fMsg('No '+S+' NFL leagues found for '+u+'.');return}
+    RL.user=user;var TY={0:'Redraft',1:'Keeper',2:'Dynasty'};
+    $('fsls').innerHTML=lg.map(function(l){return '<option value="'+l.league_id+'">'+esc(l.name)+' · '+(TY[l.settings&&l.settings.type]||'League')+'</option>'}).join('');
+    $('fsls').hidden=lg.length<2;$('fsls').onchange=function(){fSleeperLeague(this.value)};fSleeperLeague(lg[0].league_id)}
+  catch(e){fMsg('Couldn’t reach Sleeper ('+e.message+'). Try again in a minute.')}}
+async function fSleeperLeague(id){fMsg('Loading league…');
+  try{var r=await Promise.all([slp('league/'+id),slp('league/'+id+'/rosters'),slp('league/'+id+'/users')]),lg=r[0],nm={};
+    r[2].forEach(function(u){nm[u.user_id]=(u.metadata&&u.metadata.team_name)||u.display_name});
+    var M={platform:'Sleeper',name:lg.name,rec:(lg.scoring_settings||{}).rec||0,type:({0:'Redraft',1:'Keeper',2:'Dynasty'})[lg.settings&&lg.settings.type]||'',slots:slotsFrom(lg.roster_positions||[]),
+      teams:r[1].map(function(ro){var st=ro.starters||[],ir=ro.reserve||[],tx=ro.taxi||[];return {name:nm[ro.owner_id]||('Team '+ro.roster_id),me:ro.owner_id===RL.user.user_id||(ro.co_owners||[]).indexOf(RL.user.user_id)>-1,w:(ro.settings||{}).wins||0,l:(ro.settings||{}).losses||0,pf:((ro.settings||{}).fpts||0)+((ro.settings||{}).fpts_decimal||0)/100,
+        ps:(ro.players||[]).map(function(k){return {k:k,st:ir.indexOf(k)>-1?'IR':tx.indexOf(k)>-1?'Taxi':st.indexOf(k)>-1?'S':'B'}})}})};
+    fMsg('');fRender(M)}catch(e){fMsg('Couldn’t load that league ('+e.message+').')}}
+async function fEspn(){var id=$('fei').value.replace(/\D/g,''),tm=$('fet').value.replace(/\D/g,'');if(!id){fMsg('Type your ESPN league ID first. It’s the number after leagueId= in your league’s web address.');return}
+  try{localStorage.setItem('espn_league',id);localStorage.setItem('espn_team',tm)}catch(e){}
+  fMsg('Loading ESPN league…');$('fmo').innerHTML='';var S=(D.META&&D.META.season)||new Date().getFullYear();
+  try{var res=await fetch('https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/'+S+'/segments/0/leagues/'+id+'?view=mTeam&view=mRoster&view=mSettings');
+    if(res.status===401){fMsg('This ESPN league is private. The commissioner can turn on League Settings → Basic Settings → “Make league viewable to public”, then try again.');return}
+    if(res.status===404){fMsg('No ESPN league found with ID '+id+' for '+S+'. Check the number in your league’s web address.');return}
+    if(!res.ok)throw new Error('ESPN said '+res.status);var L=await res.json(),st=L.settings||{},rs=(st.rosterSettings||{}).lineupSlotCounts||{},sl={},rec=0;
+    Object.keys(rs).forEach(function(k){var n=ESLOT[k];if(n&&ELIG[n])sl[n]=(sl[n]||0)+rs[k]});
+    ((st.scoringSettings||{}).scoringItems||[]).forEach(function(s){if(s.statId===53)rec=s.points});
+    var mem={};(L.members||[]).forEach(function(m){mem[m.id]=((m.firstName||'')+' '+(m.lastName||'')).trim()||m.displayName});
+    var M={platform:'ESPN',name:st.name||('League '+id),rec:rec,type:'',slots:sl,teams:(L.teams||[]).map(function(T){var rcd=(T.record||{}).overall||{};
+      return {name:T.name||((T.location||'')+' '+(T.nickname||'')).trim()||mem[(T.owners||[])[0]]||('Team '+T.id),me:tm?String(T.id)===tm:false,w:rcd.wins||0,l:rcd.losses||0,pf:rcd.pointsFor||0,
+        ps:((T.roster||{}).entries||[]).map(function(en){var pl=(en.playerPoolEntry||{}).player||{},k=D.DY.E[String(en.playerId)];return {k:k||('espn:'+en.playerId),nm:pl.fullName,pos:ESPOS[pl.defaultPositionId],st:en.lineupSlotId===21?'IR':en.lineupSlotId===20?'B':'S'}})}})};
+    if(!M.teams.some(function(T){return T.me})){fMsg('Showing the whole league. Add your team ID (the number after teamId= in your team page’s web address) to get your lineup and waiver help.')}else fMsg('');
+    fRender(M)}catch(e){fMsg('Couldn’t load the ESPN league ('+e.message+').')}}
+function wkPts(k,rec){var x=D.DY.L[k];if(!x)return null;var pos=x[1],tm=x[2],W=D.ALW;if(['QB','RB','WR','TE'].indexOf(pos)<0)return {x:x,pos:pos,pts:null};
+  var ppg=x[6]==null?null:rec>=1?x[6]:rec<=0?x[7]:(x[6]+x[7])/2,l3=x[9]==null?null:rec>=1?x[9]:rec<=0?(x[13]==null?x[9]:x[13]):(x[9]+(x[13]==null?x[9]:x[13]))/2;
+  var o={x:x,pos:pos,ppg:ppg,l3:l3,inj:x[11],dl:x[12]},opp=null,home=null;(D.G||[]).forEach(function(g){if(g[0]===tm){opp=g[1];home=false}if(g[1]===tm){opp=g[0];home=true}});
+  o.opp=opp?(home?'vs ':'at ')+opp:'Bye';var base=ppg==null?0:(l3!=null?.6*ppg+.4*l3:ppg),m=1;
+  if(opp&&W&&W.T[opp]&&W.T[opp].aa&&W.T[opp].aa[pos]){var al=W.T[opp].aa[pos],lg=W.lg[pos];m=rec>=1?al[0]/lg[0]:rec<=0?al[1]/lg[1]:(al[0]+al[1])/(lg[0]+lg[1])}
+  o.m=m;o.g=grade(m);o.out=!!(o.inj&&OUTS[o.inj[0]]);o.pts=!opp||o.out?0:Math.round(base*m*10)/10;return o}
+function bestLineup(ps,slots,rec){var pool=ps.filter(function(p){return p.st!=='IR'&&p.st!=='Taxi'}).map(function(p){var w=wkPts(p.k,rec);return w&&w.pts!=null?{p:p,w:w}:null}).filter(Boolean).sort(function(a,b){return b.w.pts-a.w.pts});
+  var used={},out=[],order=['QB','RB','WR','TE','WRTE','WRRB','FLEX','SF'];
+  order.forEach(function(s){for(var i=0;i<(slots[s]||0);i++){var c=pool.filter(function(e){return !used[e.p.k]&&ELIG[s].indexOf(e.w.pos)>-1})[0];if(c){used[c.p.k]=1;out.push({slot:s,e:c})}else out.push({slot:s,e:null})}});
+  return {list:out,total:Math.round(out.reduce(function(a,b){return a+(b.e?b.e.w.pts:0)},0)*10)/10,used:used,pool:pool}}
+function pName(p){var x=D.DY.L[p.k];return x?x[0]:(p.nm||'Unknown player')}
+function fRender(M){RL.M=M;var rec=M.rec,me=M.teams.filter(function(T){return T.me})[0],n=M.teams.length;
+  M.teams.forEach(function(T){T.best=bestLineup(T.ps,M.slots,rec)});
+  var rk=M.teams.slice().sort(function(a,b){return b.best.total-a.best.total});rk.forEach(function(T,i){T.prk=i+1});
+  var h='<h3>'+esc(M.name)+'</h3><p class="sub">'+M.platform+' · '+n+' teams'+(M.type?' · '+M.type:'')+' · '+(rec>=1?'PPR':rec<=0?'Standard':rec===.5?'Half PPR':rec+' per catch')+' · Starting spots: '+Object.keys(M.slots).map(function(s){return M.slots[s]+' '+({SF:'Superflex',WRTE:'WR/TE flex',WRRB:'RB/WR flex'}[s]||s)}).join(', ')+'. Kickers, defenses and IDP spots aren’t projected yet.</p>';
+  h+='<h3>Standings and this week’s strength</h3><div class="wrap"><table><tr><th>Team</th><th>Record</th><th>Points for</th><th>Best lineup this week</th><th>Week rank</th></tr>'+M.teams.slice().sort(function(a,b){return b.w-a.w||b.pf-a.pf}).map(function(T){return '<tr'+(T.me?' class="me"':'')+'><td class="nm">'+esc(T.name)+'</td><td>'+T.w+'-'+T.l+'</td><td>'+f(+T.pf,1)+'</td><td>'+f(T.best.total,1)+'</td><td>'+nth(T.prk)+' of '+n+'</td></tr>'}).join('')+'</table></div>';
+  if(me){var B=me.best,cur=me.ps.filter(function(p){return p.st==='S'}).map(function(p){return p.k}),sugg=[];
+    B.list.forEach(function(s){if(s.e&&cur.indexOf(s.e.p.k)<0)sugg.push(s.e)});
+    var benchStarters=me.ps.filter(function(p){return p.st==='S'&&!B.used[p.k]&&wkPts(p.k,rec)&&wkPts(p.k,rec).pts!=null});
+    h+='<h3>Your best lineup this week ('+f(B.total,1)+' adjusted points, '+nth(me.prk)+' of '+n+')</h3>';
+    if(sugg.length)h+='<p class="sub"><b>Lineup changes to consider:</b> start '+sugg.map(function(e){return '<b>'+pName(e.p)+'</b>'}).join(', ')+(benchStarters.length?' over '+benchStarters.map(function(p){return '<b>'+pName(p)+'</b>'}).join(', '):'')+'.</p>';else h+='<p class="sub">Your current lineup already matches the best one.</p>';
+    h+='<div class="wrap"><table class="olt"><tr><th>Spot</th><th>Player</th><th>Opponent</th><th>Season</th><th>Last 3</th><th>Matchup</th><th>Grade</th><th>Adj. pts</th><th>Now</th></tr>'+B.list.map(function(s){if(!s.e)return '<tr><td>'+s.slot+'</td><td colspan="8" class="sub">Nobody eligible</td></tr>';var w=s.e.w,r={inj:w.inj,dl:w.dl};
+      return '<tr><td>'+({SF:'SF',WRTE:'W/T',WRRB:'R/W'}[s.slot]||s.slot)+'</td><td class="nm">'+pName(s.e.p)+' <span class="tag '+w.pos+'">'+w.pos+'</span>'+tags(r)+'</td><td>'+w.opp+'</td><td>'+f(w.ppg,1)+'</td><td>'+f(w.l3,1)+'</td><td>'+w.m.toFixed(2)+'×</td><td><span class="gr g'+w.g+'">'+w.g+'</span></td><td><b>'+f(w.pts,1)+'</b></td><td>'+(cur.indexOf(s.e.p.k)>-1?'Starting':'<span class="up">Start</span>')+'</td></tr>'}).join('')+'</table></div>';
+    var bench=me.ps.filter(function(p){return !B.used[p.k]});
+    h+='<h3>Bench and the rest</h3><div class="wrap"><table class="olt"><tr><th>Player</th><th>Status</th><th>Opponent</th><th>Adj. pts</th></tr>'+bench.map(function(p){var w=wkPts(p.k,rec),x=D.DY.L[p.k];return '<tr><td class="nm">'+pName(p)+(x?' <span class="tag '+x[1]+'">'+x[1]+'</span>'+tags({inj:x[11],dl:x[12]}):(p.pos?' <span class="tag '+p.pos+'">'+p.pos+'</span>':''))+'</td><td>'+({S:'Starting',B:'Bench',IR:'IR',Taxi:'Taxi'}[p.st])+'</td><td>'+(w&&w.opp?w.opp:'–')+'</td><td>'+(w&&w.pts!=null?f(w.pts,1):'–')+'</td></tr>'}).join('')+'</table></div>';
+    // waivers
+    var own={};M.teams.forEach(function(T){T.ps.forEach(function(p){own[p.k]=1})});
+    var weakest=Object.keys(M.slots).filter(function(s){return ['QB','RB','WR','TE'].indexOf(s)>-1}).map(function(s){var mine=B.list.filter(function(x){return x.slot===s&&x.e});return {s:s,v:mine.length?Math.min.apply(null,mine.map(function(x){return x.e.w.pts})):0}}).sort(function(a,b){return a.v-b.v})[0];
+    var fa=Object.keys(D.DY.L).filter(function(k){var x=D.DY.L[k];return !own[k]&&['QB','RB','WR','TE'].indexOf(x[1])>-1&&x[8]>=1}).map(function(k){var w=wkPts(k,rec);return {k:k,w:w}}).filter(function(e){return e.w&&!e.w.out&&e.w.pts>0}).sort(function(a,b){return b.w.pts-a.w.pts});
+    RL.fa=fa;RL.fap=weakest?weakest.s:'ALL';
+    h+='<h3>Waiver wire</h3><p class="sub">Best players not on any roster in your league, by this week’s adjusted points'+(weakest?'. Your weakest starting spot this week is <b>'+weakest.s+'</b>':'')+'. Waiver claims and free agents can lag a little behind Sleeper and ESPN.</p><div class="bar"><div class="seg" id="fwp">'+['ALL','QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p===RL.fap)+'">'+(p==='ALL'?'All':p)+'</button>'}).join('')+'</div></div><div id="fwo"></div>';
+  }else h+='<p class="sub">Your team wasn’t found in this league, so lineup and waiver help are hidden.</p>';
+  h+='<div class="note">Adjusted points use the same open formula as Start / sit: 60% season average plus 40% last 3 games, times how soft this week’s opponent is at that position (adjusted for schedule). Players who are out, on IR or on bye count as 0. The best lineup fills each starting spot with your highest adjusted points, flex spots last. It’s a guide, not a projection model. League data loads straight from '+M.platform+' each time.</div>';
+  $('fmo').innerHTML=h;if(me){$('fwp').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;RL.fap=p;[].forEach.call($('fwp').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});fWaiver()});fWaiver()}}
+function fWaiver(){var rows=RL.fa.filter(function(e){return RL.fap==='ALL'||e.w.pos===RL.fap}).slice(0,20);
+  $('fwo').innerHTML=rows.length?'<div class="wrap"><table class="olt"><tr><th>Player</th><th>Team</th><th>Opponent</th><th>Season</th><th>Last 3</th><th>Grade</th><th>Adj. pts</th></tr>'+rows.map(function(e){var w=e.w,x=w.x;return '<tr><td class="nm">'+x[0]+' <span class="tag '+w.pos+'">'+w.pos+'</span>'+tags({inj:w.inj,dl:w.dl})+'</td><td>'+x[2]+'</td><td>'+w.opp+'</td><td>'+f(w.ppg,1)+'</td><td>'+f(w.l3,1)+'</td><td><span class="gr g'+w.g+'">'+w.g+'</span></td><td><b>'+f(w.pts,1)+'</b></td></tr>'}).join('')+'</table></div>':'<p class="sub">No available players at that position with a game this week.</p>'}
+function initFM(){try{var su=localStorage.getItem('sleeper_user');if(su)$('fsu').value=su;var el=localStorage.getItem('espn_league');if(el)$('fei').value=el;var et=localStorage.getItem('espn_team');if(et)$('fet').value=et}catch(e){}
+  $('fpl').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;[].forEach.call($('fpl').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});$('fsl').hidden=p!=='s';$('fel').hidden=p!=='e';fMsg('');$('fmo').innerHTML=''});
+  $('fsgo').onclick=fSleeper;$('fsu').addEventListener('keydown',function(e){if(e.key==='Enter')fSleeper()});$('fego').onclick=fEspn;['fei','fet'].forEach(function(id){$(id).addEventListener('keydown',function(e){if(e.key==='Enter')fEspn()})})}
 function initF(){
   $('fpos').innerHTML=['ALL','QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
   $('fpos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;FS.p=p;[].forEach.call($('fpos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});renderF()});
   $('fsc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
-  $('fv').addEventListener('click',function(e){var x=e.target.dataset.x;if(!x)return;[].forEach.call($('fv').children,function(b){b.setAttribute('aria-pressed',b.dataset.x===x)});$('fs').hidden=x!=='s';$('fb').hidden=x!=='b'});
+  $('fv').addEventListener('click',function(e){var x=e.target.dataset.x;if(!x)return;[].forEach.call($('fv').children,function(b){b.setAttribute('aria-pressed',b.dataset.x===x)});$('fs').hidden=x!=='s';$('fb').hidden=x!=='b';$('fm').hidden=x!=='m'});
   $('ft').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=ck(th);if(FS.c===c)FS.d*=-1;else{FS.c=c;FS.d=(c===0||c===2||c===1||c==='opp'||c==='g')?1:-1}renderF()});
   $('sec').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)showSec(s)});
 }
@@ -563,14 +644,14 @@ function initGloss(){glTip=document.createElement('div');glTip.className='tip';g
   var keys=Object.keys(GL).sort(function(a,b){return a.localeCompare(b)});$('glist').innerHTML=keys.map(function(k){return '<dt>'+k+'</dt><dd>'+GL[k]+'</dd>'}).join('')}
 async function load(){
   try{
-    var res=await fetch('data.json?v=202610271032',{cache:'no-cache'});
+    var res=await fetch('data.json?v=202610272309',{cache:'no-cache'});
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
   }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
   ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];a.inj=r[5];a.dl=r[6];a.fm=r[7];if(r[7]){a.sn=r[7][2];a.sn3=r[7][3]}setForm(a);A.push(a)})});
   D.X.forEach(function(r){r.inj=r[17];r.dl=r[18];if(r[19]){r.sn=r[19][2];r.sn3=r[19][3]}});(D.OLP||[]).forEach(function(r){r.inj=r[7]});
   fresh();
-  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initC();initF();initGloss();
+  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initC();initF();initGloss();initFM();
 }
 load();
 </script></body></html>
