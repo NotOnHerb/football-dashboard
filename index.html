@@ -11,8 +11,14 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}*,*::before,*::after{box-si
 body{margin:0;background:var(--sky,var(--bg));color:var(--ink);font:400 16px/1.45 Barlow,system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:900px;margin:16px auto;padding:20px 16px 48px;position:relative;z-index:1;background:color-mix(in srgb,var(--bg) 84%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 #scene{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
-:root[data-theme="dark"]{--sky:#04101f}:root[data-theme="light"]{--sky:#a9d6ff}
-.top .ctl{display:flex;gap:8px;flex-shrink:0}.top .ctl button{white-space:nowrap}
+:root[data-theme="dark"]{--sky:#04101f}:root[data-theme="light"]{--sky:#a9d6ff}:root[data-scene="snow"]{--sky:#cfe6fb}
+.top .ctl{display:flex;gap:8px;flex-shrink:0;align-items:center}
+select.back{font:600 15px Barlow,system-ui,sans-serif;padding:6px 12px;cursor:pointer}
+.seg.sec button[aria-pressed="true"]{background:var(--b);color:var(--bg)}
+tr:not(.grp):hover td{background:color-mix(in srgb,var(--b) 10%,var(--panel))}
+table tr:nth-child(even):not(.grp):not(:hover) td{background:color-mix(in srgb,var(--panel) 94%,var(--ink))}
+.wrap{box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.upd{display:inline-block;font:600 12px Barlow,system-ui,sans-serif;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:8px;vertical-align:2px}.top .ctl button{white-space:nowrap}
 @media (max-width:420px){.top .ctl{flex-direction:column;gap:6px}.top .ctl button{padding:5px 10px;font-size:14px}}
 @media (max-width:600px){main{margin:8px 6px;border-radius:14px;padding:16px 12px 40px}}
 h1,h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;margin:8px 0 4px;line-height:1}h1{font-size:clamp(30px,7vw,44px)}h2{font-size:clamp(26px,6vw,36px)}
@@ -79,8 +85,8 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 #gls summary{cursor:pointer;font-weight:600;margin:24px 0 8px}#glist{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:14px}#glist dt{font-weight:600}#glist dd{margin:0;color:var(--mute)}
 @media (max-width:600px){#glist{grid-template-columns:1fr}#glist dd{margin-bottom:8px}}
 </style></head><body><canvas id="scene" aria-hidden="true"></canvas><main>
-<div class="top"><h1>Football dashboard</h1><div class="ctl"><button class="back" id="thm" aria-label="Switch between day and night scene"></button><button class="back" id="mot" aria-label="Turn background motion on or off"></button></div></div>
-<p class="sub">2026 regular season so far.</p>
+<div class="top"><h1>Football dashboard</h1><div class="ctl"><select class="back" id="scn" aria-label="Background scene"><option value="ocean">Night ocean</option><option value="grass">Day grassland</option><option value="snow">Snowy peak</option></select><button class="back" id="mot" aria-label="Turn background motion on or off"></button></div></div>
+<p class="sub">2026 regular season so far.<span class="upd" id="upd"></span></p>
 <nav class="bar"><div class="seg sec" id="sec"><button data-s="nfl" aria-pressed="true">NFL</button><button data-s="dyn" aria-pressed="false">Dynasty</button><button data-s="fan" aria-pressed="false">Fantasy &amp; Betting</button></div></nav>
 <div class="bar" id="nflnav"><div class="seg" id="tabs"><button data-v="t" aria-pressed="true">Teams</button><button data-v="p" aria-pressed="false">Players</button><button data-v="n" aria-pressed="false">Matchups</button><button data-v="c" aria-pressed="false">Compare</button></div></div>
 <section id="vp" hidden>
@@ -113,23 +119,26 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 <div id="fs"><div class="bar"><div class="seg" id="fpos"></div><div class="seg" id="fsc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div><p class="sub" id="fsub"></p><div class="wrap" id="ft"></div><div class="note" id="fnote"></div></div>
 <div id="fb" hidden><div class="card"><h3>Lines, props and picks are next</h3><p>This is where game lines (spread, total, moneyline), player props next to each player’s averages and matchup, flagged lines that look off, and a tracker that keeps score on your bets will live.</p><p>To switch it on, it needs a free key from the-odds-api.com. When you’re ready, Claude will walk you through storing it as a GitHub secret so it never appears on the page.</p></div></div>
 <div class="note">Start/sit grades come from a simple, open formula, not a projection model: base points = 60% season average + 40% last 3 games, then multiplied by the matchup factor (what the opponent allows to that position after adjusting for schedule, divided by the league average). Grade A means the matchup factor is 1.15 or higher, B 1.05 to 1.15, C 0.95 to 1.05, D 0.85 to 0.95, F under 0.85. Only depth-chart starters on teams with an upcoming game are listed, and anyone Out or on IR is flagged. A guide, not a guarantee.</div></section>
-<div class="note">Real stats from nflverse (CC-BY 4.0), updated Oct 27, 2026 at 04:20 UTC. <span id="fr"></span> Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently. Defense: players appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. A defender’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Offensive linemen: this data only grades them by penalties; starting spots come from the latest depth chart, and starters with no flag show no games played. Punters aren’t included.</div>
+<div class="note">Real stats from nflverse (CC-BY 4.0), updated Oct 27, 2026 at 04:27 UTC. <span id="fr"></span> Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently. Defense: players appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. A defender’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Offensive linemen: this data only grades them by penalties; starting spots come from the latest depth chart, and starters with no flag show no games played. Punters aren’t included.</div>
 <details id="gls"><summary>What every stat means</summary><dl id="glist"></dl></details>
 </main>
 <script>
-(function(){var m='dark';try{m=localStorage.getItem('theme')||'dark'}catch(e){}document.documentElement.setAttribute('data-theme',m)})();
+var SCENE=(function(){var s=null,m=null;try{s=localStorage.getItem('scene');m=localStorage.getItem('theme')}catch(e){}return s||(m==='light'?'grass':'ocean')})();
+document.documentElement.setAttribute('data-theme',SCENE==='ocean'?'dark':'light');document.documentElement.setAttribute('data-scene',SCENE);
 var MOTION=(function(){var v=null;try{v=localStorage.getItem('motion')}catch(e){}if(v)return v==='on';return !(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)})();
-function setTheme(m){document.documentElement.setAttribute('data-theme',m);try{localStorage.setItem('theme',m)}catch(e){}var b=document.getElementById('thm');if(b)b.textContent=m==='dark'?'Day':'Night';SC.reset()}
+function setScene(s){SCENE=s;document.documentElement.setAttribute('data-theme',s==='ocean'?'dark':'light');document.documentElement.setAttribute('data-scene',s);try{localStorage.setItem('scene',s)}catch(e){}var b=document.getElementById('scn');if(b)b.value=s;SC.reset()}
 function setMotion(on){MOTION=on;try{localStorage.setItem('motion',on?'on':'off')}catch(e){}var b=document.getElementById('mot');if(b)b.textContent=on?'Motion on':'Motion off';SC.reset()}
 // ---------------- animated scenes: night ocean, day grassland
 var SC=(function(){
-  var cv,cx,W,H,dpr,stars=[],blades=[],clouds=[],raf=0,last=0;
+  var cv,cx,W,H,dpr,stars=[],blades=[],clouds=[],ranges=[],flakes=[],raf=0,last=0;
   function rnd(a,b){return a+Math.random()*(b-a)}
   function size(){dpr=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;cx.setTransform(dpr,0,0,dpr,0,0);build()}
   function build(){stars=[];for(var i=0;i<Math.round(W*H/5000);i++)stars.push({x:rnd(0,W),y:rnd(0,H*.55),r:rnd(.4,1.5),p:rnd(0,6.3),s:rnd(.5,2)});
     blades=[];var n=Math.min(900,Math.round(W*.8));for(var j=0;j<n;j++){var layer=j/n;blades.push({x:rnd(-20,W+20),l:layer,h:rnd(.12,.26)*H*(.55+layer*.65),w:rnd(1.5,3.5)*(.6+layer*.8),c:Math.floor(rnd(0,5)),ph:rnd(0,6.3)})}
     blades.sort(function(a,b){return a.l-b.l});
-    clouds=[];for(var k=0;k<6;k++)clouds.push({x:rnd(-.2,1.1)*W,y:rnd(.06,.38)*H,s:rnd(.6,1.4),v:rnd(4,12)})}
+    clouds=[];for(var k=0;k<6;k++)clouds.push({x:rnd(-.2,1.1)*W,y:rnd(.06,.38)*H,s:rnd(.6,1.4),v:rnd(4,12)});
+    ranges=[[.50,.30,'#c9dcef','#9fb9d6',22],[.60,.26,'#e6f0fa','#a7bfd9',14],[.74,.18,'#f7fbff','#b8cde3',9]].map(function(R){var pts=[],x=-40,y;while(x<W+40){y=H*R[0]-H*R[1]*Math.pow(Math.random(),1.6);pts.push([x,y]);x+=rnd(W/R[4]*.5,W/R[4]*1.4)}return {pts:pts,base:R[0],hi:R[2],lo:R[3]}});
+    flakes=[];for(var f=0;f<Math.round(W*H/2600);f++)flakes.push({x:rnd(0,W),y:rnd(0,H),r:rnd(.6,2.6),vx:rnd(60,160),vy:rnd(20,70),p:rnd(0,6.3)})}
   function night(t){var hz=H*.56,g=cx.createLinearGradient(0,0,0,hz);g.addColorStop(0,'#020814');g.addColorStop(.7,'#0a1d38');g.addColorStop(1,'#163558');cx.fillStyle=g;cx.fillRect(0,0,W,hz);
     stars.forEach(function(s){var a=.5+.5*Math.sin(s.p+t*s.s);cx.globalAlpha=.35+.65*a;cx.fillStyle='#e8f1ff';cx.beginPath();cx.arc(s.x,s.y,s.r,0,6.283);cx.fill()});cx.globalAlpha=1;
     var mx=W>1000?W*.91:W*.78,my=H*.13,mr=Math.max(22,Math.min(W,H)*.045),mg=cx.createRadialGradient(mx,my,mr*.5,mx,my,mr*6);mg.addColorStop(0,'rgba(220,235,255,.35)');mg.addColorStop(1,'rgba(220,235,255,0)');cx.fillStyle=mg;cx.fillRect(mx-mr*6,my-mr*6,mr*12,mr*12);
@@ -147,12 +156,21 @@ var SC=(function(){
     var C=['#9fbf4a','#86aa3c','#b9c86a','#6f9a34','#cdbb6a'];
     blades.forEach(function(b){var base=hz+H*.04+b.l*(H-hz)*.95,gust=Math.sin(t*.9+b.x*.004)*.6+Math.sin(t*2.3+b.x*.011+b.ph)*.25,bend=(.35+gust*.5)*b.h*.45,tipx=b.x+bend,tipy=base-b.h*(1-Math.abs(gust)*.08);
       cx.strokeStyle=C[b.c];cx.globalAlpha=.55+b.l*.45;cx.lineWidth=b.w;cx.lineCap='round';cx.beginPath();cx.moveTo(b.x,base);cx.quadraticCurveTo(b.x+bend*.15,base-b.h*.55,tipx,tipy);cx.stroke()});cx.globalAlpha=1}
+  function snow(t){var g=cx.createLinearGradient(0,0,0,H*.75);g.addColorStop(0,'#1f6fd1');g.addColorStop(.55,'#86c2f2');g.addColorStop(1,'#eef7ff');cx.fillStyle=g;cx.fillRect(0,0,W,H);
+    var sx=W*.82,sy=H*.12,sr=Math.max(22,Math.min(W,H)*.04),sg=cx.createRadialGradient(sx,sy,sr*.3,sx,sy,sr*8);sg.addColorStop(0,'rgba(255,255,255,.95)');sg.addColorStop(.2,'rgba(255,250,235,.45)');sg.addColorStop(1,'rgba(255,250,235,0)');cx.fillStyle=sg;cx.fillRect(0,0,W,H*.6);
+    cx.fillStyle='#ffffff';cx.beginPath();cx.arc(sx,sy,sr,0,6.283);cx.fill();
+    ranges.forEach(function(R,ri){var gr=cx.createLinearGradient(0,H*(R.base-.32),0,H*R.base+40);gr.addColorStop(0,R.hi);gr.addColorStop(1,R.lo);cx.fillStyle=gr;cx.beginPath();cx.moveTo(-40,H);R.pts.forEach(function(p){cx.lineTo(p[0],p[1])});cx.lineTo(W+40,H);cx.fill();
+      cx.fillStyle='rgba(70,100,140,'+(.16-ri*.03)+')';for(var i=1;i<R.pts.length-1;i++){var p=R.pts[i],q=R.pts[i+1];if(p[1]<q[1]){cx.beginPath();cx.moveTo(p[0],p[1]);cx.lineTo(q[0],q[1]);cx.lineTo(p[0]+(q[0]-p[0])*.35,H*R.base+30);cx.fill()}}
+      if(ri===1)R.pts.forEach(function(p,i){if(i%2)return;var a=.25+.2*Math.sin(t*1.7+i);var sp=cx.createLinearGradient(p[0],p[1],p[0]+90,p[1]-14);sp.addColorStop(0,'rgba(255,255,255,'+a+')');sp.addColorStop(1,'rgba(255,255,255,0)');cx.fillStyle=sp;cx.beginPath();cx.ellipse(p[0]+40+((t*30+i*17)%30),p[1]-6,48,6,-.15,0,6.283);cx.fill()})});
+    var fg=cx.createLinearGradient(0,H*.8,0,H);fg.addColorStop(0,'#f4f9ff');fg.addColorStop(1,'#dbe8f6');cx.fillStyle=fg;cx.beginPath();cx.moveTo(0,H);for(var x=0;x<=W+10;x+=14)cx.lineTo(x,H*.86+Math.sin(x*.004)*H*.025+Math.sin(x*.013)*H*.008);cx.lineTo(W,H);cx.fill();
+    var gust=1+.6*Math.sin(t*.7);cx.fillStyle='#ffffff';
+    flakes.forEach(function(f){var x=((f.x+t*f.vx*gust)%(W+40)+W+40)%(W+40)-20,y=((f.y+t*f.vy+Math.sin(t*2+f.p)*12)%(H+20)+H+20)%(H+20)-10;cx.globalAlpha=.45+f.r*.2;cx.beginPath();cx.ellipse(x,y,f.r*(1+gust*.6),f.r*.8,.12,0,6.283);cx.fill()});cx.globalAlpha=1}
   function frame(ms){raf=0;var t=ms/1000;if(MOTION&&ms-last<30){raf=requestAnimationFrame(frame);return}last=ms;
-    (document.documentElement.getAttribute('data-theme')==='light'?day:night)(MOTION?t:12);if(MOTION&&!document.hidden)raf=requestAnimationFrame(frame)}
+    ({ocean:night,grass:day,snow:snow}[SCENE]||night)(MOTION?t:12);if(MOTION&&!document.hidden)raf=requestAnimationFrame(frame)}
   function reset(){if(!cv)return;if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(frame)}
   function init(){cv=document.getElementById('scene');if(!cv||!cv.getContext)return;cx=cv.getContext('2d');size();var rt_;addEventListener('resize',function(){clearTimeout(rt_);rt_=setTimeout(function(){size();reset()},150)});document.addEventListener('visibilitychange',reset);reset()}
   return {init:init,reset:reset}})();
-document.addEventListener('DOMContentLoaded',function(){SC.init();var b=document.getElementById('thm');setTheme(document.documentElement.getAttribute('data-theme'));b.onclick=function(){setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')};var m=document.getElementById('mot');setMotion(MOTION);m.onclick=function(){setMotion(!MOTION)}});
+document.addEventListener('DOMContentLoaded',function(){SC.init();var b=document.getElementById('scn');setScene(SCENE);b.onchange=function(){setScene(this.value)};var m=document.getElementById('mot');setMotion(MOTION);m.onclick=function(){setMotion(!MOTION)}});
 var D,A=[];
 var $=function(i){return document.getElementById(i)};
 var st={sec:'nfl',v:'t',pos:'ALL',tm:'ALL',q:'',pc:4,pd:-1,tc:1,td:-1,mn:0,dq:'',tv:'W',side:'O',sc:'ppr',mv:'t'};
@@ -349,7 +367,7 @@ function render(){if(st.side==='D')renderX();else if(st.pos==='OL')renderOL();el
 var SCL={ppr:'PPR/g',half:'Half PPR/g',std:'Std/g'};
 function setForm(r){var fm=r.fm;if(!fm)return;r.l3=fm[0]==null?null:st.sc==='ppr'?fm[0]:st.sc==='std'?fm[1]:Math.round((fm[0]+fm[1])*5)/10;r.tr=r.l3==null||r[4]==null?null:Math.round((r.l3-r[4])*10)/10}
 function setSc(m){st.sc=m;A.forEach(function(r){r[4]=m==='ppr'?r.pp:m==='std'?r.sd:Math.round((r.pp+r.sd)*5)/10;setForm(r)});[].forEach.call($('fsc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});[].forEach.call($('csc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});if(st.sec==='dyn'&&DS.v==='c')renderD();['QB','RB','WR','TE'].forEach(function(p){D.PC[p][0][0]=SCL[m]});[].forEach.call($('sc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});render();if(CP.a)cRender();if(D.G)skillRender();if(st.sec==='fan')renderF()}
-function fresh(){var s=D.META&&D.META.sources;if(!s)return;var x=[];
+function fresh(){var s=D.META&&D.META.sources;if(D.META&&D.META.built)$('upd').textContent='Updated '+D.META.built.replace(/ at .*/,'');if(!s)return;var x=[];
   if(s.weekly_stats)x.push('Game stats through week '+s.weekly_stats.week);if(s.depth)x.push('depth chart from '+s.depth.asof);if(s.injuries)x.push('injury report from week '+s.injuries.week);
   $('fr').textContent=x.length?x.join(', ')+'.':''}
 function showSec(s){st.sec=s;[].forEach.call($('sec').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===s)});
@@ -545,7 +563,7 @@ function initGloss(){glTip=document.createElement('div');glTip.className='tip';g
   var keys=Object.keys(GL).sort(function(a,b){return a.localeCompare(b)});$('glist').innerHTML=keys.map(function(k){return '<dt>'+k+'</dt><dd>'+GL[k]+'</dd>'}).join('')}
 async function load(){
   try{
-    var res=await fetch('data.json?v=202610270420',{cache:'no-cache'});
+    var res=await fetch('data.json?v=202610270427',{cache:'no-cache'});
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
   }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
