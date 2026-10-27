@@ -19,7 +19,7 @@ tr:not(.grp):hover td{background:color-mix(in srgb,var(--b) 10%,var(--panel))}
 table tr:nth-child(even):not(.grp):not(:hover) td{background:color-mix(in srgb,var(--panel) 94%,var(--ink))}
 .wrap{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 .upd{display:inline-block;font:600 12px Barlow,system-ui,sans-serif;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:8px;vertical-align:2px}.top .ctl button{white-space:nowrap}
-@media (max-width:420px){.top .ctl{flex-direction:column;gap:6px}.top .ctl button{padding:5px 10px;font-size:14px}}
+@media (max-width:420px){.top .ctl{flex-direction:column;gap:6px;align-items:flex-end}.top .ctl button,.top .ctl select{padding:5px 10px;font-size:14px;max-width:140px}}
 @media (max-width:600px){main{margin:8px 6px;border-radius:14px;padding:16px 12px 40px}}
 h1,h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;margin:8px 0 4px;line-height:1}h1{font-size:clamp(30px,7vw,44px)}h2{font-size:clamp(26px,6vw,36px)}
 .sub{color:var(--mute);margin:0 0 16px}
@@ -85,7 +85,7 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 #gls summary{cursor:pointer;font-weight:600;margin:24px 0 8px}#glist{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:14px}#glist dt{font-weight:600}#glist dd{margin:0;color:var(--mute)}
 @media (max-width:600px){#glist{grid-template-columns:1fr}#glist dd{margin-bottom:8px}}
 </style></head><body><canvas id="scene" aria-hidden="true"></canvas><main>
-<div class="top"><h1>Football dashboard</h1><div class="ctl"><select class="back" id="scn" aria-label="Background scene"><option value="ocean">Night ocean</option><option value="grass">Day grassland</option><option value="snow">Snowy peak</option></select><button class="back" id="mot" aria-label="Turn background motion on or off"></button></div></div>
+<div class="top"><h1>Football dashboard</h1><div class="ctl"><select class="back" id="scn" aria-label="Background scene"><option value="ocean">Night ocean</option><option value="grass">Day grassland</option><option value="snow">Snowy peak</option></select><button class="back" id="mot" aria-label="Turn background motion on or off"></button><button class="back" id="clr" aria-label="Turn stat colors on or off"></button></div></div>
 <p class="sub">2026 regular season so far.<span class="upd" id="upd"></span></p>
 <nav class="bar"><div class="seg sec" id="sec"><button data-s="nfl" aria-pressed="true">NFL</button><button data-s="fan" aria-pressed="false">Fantasy</button><button data-s="bet" aria-pressed="false">Betting</button></div></nav>
 <div class="bar" id="nflnav"><div class="seg" id="tabs"><button data-v="t" aria-pressed="true">Teams</button><button data-v="p" aria-pressed="false">Players</button><button data-v="n" aria-pressed="false">Matchups</button><button data-v="c" aria-pressed="false">Compare</button></div></div>
@@ -668,8 +668,27 @@ var GLR=[[/allows\/g/,'Fantasy points per game this defense allows to the positi
 function glFor(t){if(GL[t])return GL[t];for(var i=0;i<GLR.length;i++)if(GLR[i][0].test(t))return GLR[i][1];return null}
 var glTip,glT;
 function gloss(){document.querySelectorAll('th:not([data-g]),td:not([data-g])').forEach(function(el){el.setAttribute('data-g','');var t=el.textContent.replace(/[▲▼]/g,'').trim();if(el.tagName==='TD'&&(t.length<4||el.children.length))return;var d=glFor(t);if(d){el.setAttribute('aria-label',t+': '+d);el.dataset.tip=d;el.classList.add('gl')}})}
+// ---------------- colored stat cells
+var COLORS=(function(){try{return localStorage.getItem('colors')!=='off'}catch(e){return true}})();
+var LOWB=['INT','Sack %','Fum lost','Fumbles lost','Giveaways','Penalties','Penalty yds','Penalties/g','Penalty yds/g','Sack % allowed','OL penalties','OL penalty yds','FG missed','Missed','Missed 40+','Punts blocked against','Kicks blocked against','Flags','Interceptions thrown','Consensus','Avg rank','Pos rank','Prod rank','Recruit rank','Rank','Week rank','#'];
+var NEUT=['GP','Age','Team games','Pass att/g','Rush att/g','Dropbacks/g','Pass rate % (approx)','Run rate % (approx)','Pass yds share %','Pass TD share %','Drafted','Class','Ht / Wt','Long','Long FG','Spot','Starting spot','Depth spot','Record','Points for','Players','Picks','Vs yours','Season ','Snap % L3 ','Att','Car','Rec','Pick','Range','Boards'];
+function cnum(s){s=s.replace(/[▲▼,×%+]/g,'').replace('−','-').trim();var m=s.match(/^(-?\d+(?:\.\d+)?)(?:st|nd|rd|th)?(?: of \d+)?$/);return m?parseFloat(m[1]):null}
+function colorize(){document.querySelectorAll('main table').forEach(function(tb){
+  if(tb.dataset.cz===(COLORS?'1':'0'))return;tb.dataset.cz=COLORS?'1':'0';
+  var rows=[].slice.call(tb.rows);if(rows.length<6)return;var hdr=[].slice.call(rows[0].cells).map(function(c){return c.textContent.replace(/[▲▼]/g,'').trim()});
+  var statTable=hdr.indexOf('Stat')>-1,boards=(D&&D.CF&&D.CF.CB)?D.CF.CB.S.map(function(s){return s[0]}):[];
+  hdr.forEach(function(h,ci){if(ci===0)return;var cells=rows.slice(1).map(function(r){return r.cells[ci]}).filter(Boolean);
+    cells.forEach(function(c){c.style.background=''});if(!COLORS)return;
+    if(NEUT.indexOf(h)>-1||(statTable&&h!=='Rank')||/^(Team|Player|Pos|School|Conf|College|Owner|Opponent|Verdict|Grade|Why|Now|Status|Edge|Threat|Matchup)$/.test(h))return;
+    var low=LOWB.indexOf(h)>-1||/rank/i.test(h)||boards.indexOf(h)>-1;
+    var vals=cells.map(function(c){return c.colSpan>1?null:cnum(c.textContent)}),nums=vals.filter(function(v){return v!=null}).sort(function(a,b){return a-b});
+    if(nums.length<5||nums[0]===nums[nums.length-1])return;
+    cells.forEach(function(c,i){var v=vals[i];if(v==null)return;var lo=0,hi=0;for(var k=0;k<nums.length;k++){if(nums[k]<v)lo++;else if(nums[k]===v)hi++}
+      var p=(lo+hi/2)/nums.length;if(low)p=1-p;var d=(p-.5)*2;if(Math.abs(d)<.3)return;
+      var a=Math.round((Math.abs(d)-.3)/.7*30+6);c.style.background='color-mix(in srgb,'+(d>0?'#2e9e5b':'#d9534f')+' '+a+'%,var(--panel))'})})})}
+function setColors(on){COLORS=on;try{localStorage.setItem('colors',on?'on':'off')}catch(e){}var b=$('clr');if(b)b.textContent=on?'Colors on':'Colors off';document.querySelectorAll('main table').forEach(function(tb){delete tb.dataset.cz});colorize()}
 function initGloss(){glTip=document.createElement('div');glTip.className='tip';glTip.hidden=true;document.body.appendChild(glTip);
-  new MutationObserver(function(){clearTimeout(glT);glT=setTimeout(gloss,30)}).observe(document.querySelector('main'),{childList:true,subtree:true});gloss();
+  new MutationObserver(function(){clearTimeout(glT);glT=setTimeout(function(){gloss();colorize()},30)}).observe(document.querySelector('main'),{childList:true,subtree:true});gloss();
   document.addEventListener('mouseover',function(e){var el=e.target.closest('.gl');if(!el){glTip.hidden=true;return}glTip.textContent=el.dataset.tip;glTip.hidden=false;var r=el.getBoundingClientRect(),w=Math.min(300,innerWidth-24);glTip.style.maxWidth=w+'px';var x=Math.max(12,Math.min(r.left,innerWidth-w-12));glTip.style.left=x+'px';glTip.style.top=(r.bottom+window.scrollY+6)+'px'});
   document.addEventListener('scroll',function(){glTip.hidden=true},{passive:true});
   var keys=Object.keys(GL).sort(function(a,b){return a.localeCompare(b)});$('glist').innerHTML=keys.map(function(k){return '<dt>'+k+'</dt><dd>'+GL[k]+'</dd>'}).join('')}
@@ -682,7 +701,7 @@ async function load(){
   ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];a.inj=r[5];a.dl=r[6];a.fm=r[7];if(r[7]){a.sn=r[7][2];a.sn3=r[7][3]}setForm(a);A.push(a)})});
   D.X.forEach(function(r){r.inj=r[17];r.dl=r[18];if(r[19]){r.sn=r[19][2];r.sn3=r[19][3]}});(D.OLP||[]).forEach(function(r){r.inj=r[7]});
   fresh();
-  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initC();initF();initGloss();initFM();
+  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initC();initF();initGloss();initFM();setColors(COLORS);$('clr').onclick=function(){setColors(!COLORS)};
 }
 load();
 </script></body></html>
