@@ -119,6 +119,15 @@ print('defenders',len(X),'| kickers',len(K),'| top kicker',K[0][:2],K[0][-2:])
 P['K']=[[r.player_display_name,r.recent_team,int(r.games),[round(float(r.pts/r.games),1),None,None,round(float(r.fg_att/r.games),1),None,int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts)],round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
 PCout['K']=[['Pts/g',1],['Yds/g',0],['TD',0],['Opps/g',1],['Tgt %',0],['FG made',0],['FG att',0],['FG %',1],['Long',0],['0-39',0],['40-49',0],['50+',0],['Missed',0],['Missed 40+',0],['XP made',0],['XP att',0],['Fantasy pts',0]]
 OLSTART={}
+def load_inj():
+    try:
+        i=pd.read_csv(fetch(BASE+'injuries/injuries_%d.csv'%SEASON))
+        i=i[(i.season==SEASON)&(i.week==i.week.max())&i.report_status.notna()]
+        print('injury report ok: week',int(i.week.max()) if len(i) else '-','|',len(i),'players listed')
+        return {r.gsis_id:[str(r.report_status),str(r.report_primary_injury) if pd.notna(r.report_primary_injury) else '',int(r.week)] for _,r in i.iterrows()}
+    except Exception as ex:
+        print('injury fetch failed:',ex); return {}
+INJ=load_inj()
 def load_depth(teams):
     try:
         c=pd.read_csv(fetch(BASE+'depth_charts/depth_charts_%d.csv'%SEASON),usecols=['dt','team','player_name','gsis_id','pos_grp','pos_abb','pos_rank'])
@@ -157,7 +166,17 @@ def load_depth(teams):
             for sl in ['LT','LG','C','RG','RT']:
                 r=ct[(ct.pos_abb==sl)&~ct.pos_grp.str.startswith('Base',na=False)&(ct.pos_grp!='Special Teams')]
                 if not r.empty: OLSTART[r.iloc[0].gsis_id]=(t,sl,r.iloc[0].player_name)
-            out[t]={'s':sch,'ol':ols,'fr':frs,'db':dbs}
+            sk={}
+            for p,n in [('QB',1),('RB',2),('WR',3),('TE',1)]:
+                rr=CALL[(CALL.team==t)&(CALL.pos_abb==p)&~CALL.pos_grp.str.startswith('Base',na=False)&(CALL.pos_grp!='Special Teams')].drop_duplicates('gsis_id').head(n)
+                lst=[]
+                for _,r in rr.iterrows():
+                    s=ST.loc[r.gsis_id] if r.gsis_id in ST.index else None
+                    gm=float(s.games) if s is not None and pd.notna(s.games) and s.games>0 else 0
+                    pp=round(float(s.fantasy_points_ppr)/gm,1) if gm else None; sd=round(float(s.fantasy_points)/gm,1) if gm else None
+                    lst.append([r.player_name,pp,sd,INJ.get(r.gsis_id)])
+                sk[p]=lst
+            out[t]={'s':sch,'ol':ols,'fr':frs,'db':dbs,'sk':sk}
         allv=np.array([x[6] for v in out.values() for x in v['fr']])
         p90,p75,p50=np.percentile(allv,[90,75,50])
         for v in out.values():

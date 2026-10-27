@@ -199,10 +199,12 @@ function skillSide(o,d){
   var W=D.ALW.T;if(!W[o]||!W[d])return '<p class="sub">No game data for this team yet.</p>';
   var h='<h3>'+o+' skill players vs '+d+' defense</h3><div class="wrap"><table class="olt"><tr><th>Pos</th><th>'+o+' players ('+SCL[st.sc]+')</th><th>'+o+' pts/g at spot</th><th>'+d+' allows/g</th><th>Yds allowed/g</th><th>TD allowed/g</th><th>Edge</th></tr>',ox=[],dy=[];
   ['QB','RB','WR','TE'].forEach(function(p){
-    var pl=A.filter(function(r){return r[1]===o&&r[2]===p}).sort(function(x,y){return y[7]*y[3]-x[7]*x[3]}).slice(0,SKN[p]);
+    var DK=D.DEP&&D.DEP.T[o]&&D.DEP.T[o].sk&&D.DEP.T[o].sk[p],pl;
+    if(DK&&DK.length)pl=DK.map(function(x){var v=st.sc==='std'?x[2]:st.sc==='half'&&x[1]!=null?Math.round((x[1]+x[2])*5)/10:x[1];return [x[0],o,p,0,v,x[3]]});
+    else pl=A.filter(function(r){return r[1]===o&&r[2]===p}).sort(function(x,y){return y[7]*y[3]-x[7]*x[3]}).slice(0,SKN[p]);
     var so=W[o].s[p],al=W[d].a[p],ro=srank(o,'s',p),rd=srank(d,'a',p);
     if(!so||!al)return;ox.push(ro);dy.push(rd);
-    h+='<tr><td><span class="tag '+p+'">'+p+'</span></td><td class="wr">'+(pl.length?pl.map(function(r){return '<b>'+r[0]+'</b> '+f(r[4],1)}).join('<br>'):'–')+'</td><td>'+f(sp(so),1)+' ('+ord(ro)+')</td><td>'+f(sp(al),1)+' ('+ord(rd)+')</td><td>'+f(al[2],0)+'</td><td>'+f(al[3],1)+'</td><td>'+edgeChip(rd-ro)+'</td></tr>';
+    h+='<tr><td><span class="tag '+p+'">'+p+'</span></td><td class="wr">'+(pl.length?pl.map(function(r){var j=r[5];return '<b>'+r[0]+'</b> '+f(r[4],1)+(j?' <span class="thr '+(j[0]==='Out'?'t4':'t3')+'" title="'+j[1]+', week '+j[2]+' report">'+j[0]+' · wk '+j[2]+'</span>':'')}).join('<br>'):'–')+'</td><td>'+f(sp(so),1)+' ('+ord(ro)+')</td><td>'+f(sp(al),1)+' ('+ord(rd)+')</td><td>'+f(al[2],0)+'</td><td>'+f(al[3],1)+'</td><td>'+edgeChip(rd-ro)+'</td></tr>';
   });
   h+='</table></div>';
   if(ox.length)h+=meter('Overall skill-position matchup',o,d,[ox.reduce(function(a,b){return a+b},0)/ox.length,ox.reduce(function(a,b){return a+b},0)/ox.length],[dy.reduce(function(a,b){return a+b},0)/dy.length,dy.reduce(function(a,b){return a+b},0)/dy.length]);
@@ -213,7 +215,7 @@ function skillSide(o,d){
 function skillRender(){
   if(!D.ALW){$('ms').innerHTML='<p class="sub">Game-by-game stats aren’t available right now, so skill matchups are hidden. They come back with the next refresh.</p>';return}
   var g=D.G[+$('gm').value||0];
-  $('ms').innerHTML=skillSide(g[0],g[1])+skillSide(g[1],g[0])+'<div class="note">How it works: “pts/g at spot” is the fantasy points per game this offense gets from that position, ranked 1st (most) to 32nd. “Allows/g” is the fantasy points per game this defense gives up to that position, ranked 1st (toughest, fewest allowed) to 32nd (softest). The edge compares those two ranks with the same levels as the trenches: Even under 4 spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. Through week '+D.ALW.wk+'. Points follow the PPR, Half PPR or Standard setting on the Players tab. Players shown are the team’s top options by usage. Strength of schedule isn’t adjusted for yet, so a defense that faced weak offenses can look tougher than it is. A guide, not a prediction.</div>';
+  $('ms').innerHTML=skillSide(g[0],g[1])+skillSide(g[1],g[0])+'<div class="note">How it works: “pts/g at spot” is the fantasy points per game this offense gets from that position, ranked 1st (most) to 32nd. “Allows/g” is the fantasy points per game this defense gives up to that position, ranked 1st (toughest, fewest allowed) to 32nd (softest). The edge compares those two ranks with the same levels as the trenches: Even under 4 spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. Through week '+D.ALW.wk+'. Points follow the PPR, Half PPR or Standard setting on the Players tab. Players shown are the current starters from the latest depth chart (top QB, two RBs, three WRs, top TE), so injured and benched players drop off; tags show their status on the latest injury report (Questionable, Doubtful or Out). A dash means no stats yet this season. Strength of schedule isn’t adjusted for yet, so a defense that faced weak offenses can look tougher than it is. A guide, not a prediction.</div>';
 }
 function initN(){
   $('gm').innerHTML=D.G.map(function(g,i){return '<option value="'+i+'">'+g[0]+' at '+g[1]+' · '+g[2]+'</option>'}).join('');
