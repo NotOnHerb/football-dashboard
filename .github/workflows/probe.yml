@@ -1,0 +1,25 @@
+name: Probe Sleeper (temporary)
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -e
+          U=$(curl -s https://api.sleeper.app/v1/user/notonHerb10)
+          echo "USER keys: $(echo "$U" | jq -c 'keys')"
+          ID=$(echo "$U" | jq -r .user_id)
+          echo "CORS header:"; curl -sI -H "Origin: https://notonherb.github.io" https://api.sleeper.app/v1/user/notonHerb10 | grep -i access-control || echo none
+          for S in 2026 2025; do L=$(curl -s https://api.sleeper.app/v1/user/$ID/leagues/nfl/$S); echo "LEAGUES $S count: $(echo "$L" | jq length)"; done
+          L=$(curl -s https://api.sleeper.app/v1/user/$ID/leagues/nfl/2026)
+          echo "LEAGUE keys: $(echo "$L" | jq -c '.[0]|keys')"
+          echo "LEAGUE settings.type per league: $(echo "$L" | jq -c '[.[]|{type:.settings.type,teams:.total_rosters,rp:(.roster_positions|join(",")),rec:.scoring_settings.rec,te:.scoring_settings.bonus_rec_te}]')"
+          LID=$(echo "$L" | jq -r '.[0].league_id')
+          R=$(curl -s https://api.sleeper.app/v1/league/$LID/rosters)
+          echo "ROSTER keys: $(echo "$R" | jq -c '.[0]|keys') | rosters $(echo "$R" | jq length) | players on first: $(echo "$R" | jq '.[0].players|length') | sample ids: $(echo "$R" | jq -c '.[0].players[:3]')"
+          echo "ROSTER settings keys: $(echo "$R" | jq -c '.[0].settings|keys')"
+          US=$(curl -s https://api.sleeper.app/v1/league/$LID/users)
+          echo "USERS keys: $(echo "$US" | jq -c '.[0]|keys') | metadata keys: $(echo "$US" | jq -c '.[0].metadata|keys')"
+          TP=$(curl -s https://api.sleeper.app/v1/league/$LID/traded_picks)
+          echo "TRADED PICKS count: $(echo "$TP" | jq length) keys: $(echo "$TP" | jq -c '.[0]|keys')"
+          ST=$(curl -s https://api.sleeper.app/v1/state/nfl); echo "STATE: $(echo "$ST" | jq -c '{season,week,season_type,league_season}')"
