@@ -3,9 +3,13 @@ on: workflow_dispatch
 jobs:
   probe:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@v4
       - run: |
           set -e
+          exec > probe.txt 2>&1
           U=$(curl -s https://api.sleeper.app/v1/user/notonHerb10)
           echo "USER keys: $(echo "$U" | jq -c 'keys')"
           ID=$(echo "$U" | jq -r .user_id)
@@ -23,3 +27,6 @@ jobs:
           TP=$(curl -s https://api.sleeper.app/v1/league/$LID/traded_picks)
           echo "TRADED PICKS count: $(echo "$TP" | jq length) keys: $(echo "$TP" | jq -c '.[0]|keys')"
           ST=$(curl -s https://api.sleeper.app/v1/state/nfl); echo "STATE: $(echo "$ST" | jq -c '{season,week,season_type,league_season}')"
+      - run: |
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git add probe.txt; git commit -m "probe output"; git push
