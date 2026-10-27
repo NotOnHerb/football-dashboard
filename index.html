@@ -475,7 +475,7 @@ function initF(){
 }
 async function load(){
   try{
-    var res=await fetch('data.json?v=202610270318',{cache:'no-cache'});
+    var res=await fetch('data.json?v=202610270319',{cache:'no-cache'});
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
   }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
