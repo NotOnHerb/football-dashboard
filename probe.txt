@@ -1,0 +1,36 @@
+== https://site.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/news?limit=5
+status 404
+access-control-allow-origin: *
+top keys: ["code","message"]
+news items: 0
+first headline: {"headline":null,"published":null}
+categories sample: []
+items tagged athlete 3918298: []
+overview news: 
+== https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/overview
+status 200
+access-control-allow-origin: *
+top keys: ["awards","fantasy","gameLog","news","nextGame","rotowire","statistics"]
+news items: 9
+first headline: {"headline":"Knockout league pickups: Prioritize running backs while they're available","published":"2026-10-27T20:57:34.000+00:00"}
+categories sample: []
+items tagged athlete 3918298: []
+overview news: [{"headline":"Knockout league pickups: Prioritize running backs while they're available","published":"2026-10-27T20:57:34.000+00:00"},{"headline":"Is Bills' Josh Allen the best goal-line rusher ever?","published":"2026-10-27T13:22:40.000+00:00"}]
+== https://site.api.espn.com/apis/fantasy/v2/games/ffl/news/players?days=30&playerId=3918298
+status 200
+access-control-allow-origin: *
+top keys: ["feed","resultsCount","resultsLimit","resultsOffset","status","timestamp"]
+news items: 9
+first headline: {"headline":"Knockout league pickups: Prioritize running backs while they're available","published":"2026-10-27T20:57:34Z"}
+categories sample: []
+items tagged athlete 3918298: []
+overview news: 
+== https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50
+status 200
+access-control-allow-origin: *
+top keys: ["articles","header","link"]
+news items: 50
+first headline: {"headline":"Buckner, Nelson trades signal Colts' rebuild under way","published":"2026-10-27T23:30:17Z"}
+categories sample: [{"type":"league","id":9572,"d":"NFL"},{"type":"team","id":11,"d":"Indianapolis Colts"},{"type":"athlete","id":3129308,"d":"Quenton Nelson"},{"type":"athlete","id":2971282,"d":"DeForest Buckner"},{"type":"athlete","id":4242335,"d":"Jonathan Taylor"},{"type":"contributor","id":698425,"d":"Stephen Holder"}]
+items tagged athlete 3918298: ["Knockout league pickups: Prioritize running backs while they're available"]
+overview news: 
