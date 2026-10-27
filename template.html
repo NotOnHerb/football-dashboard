@@ -61,17 +61,24 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 .dl{display:inline-block;font:600 11px/1.5 Barlow,system-ui,sans-serif;border-radius:4px;padding:0 5px;margin-left:2px;border:1px solid var(--line);color:var(--mute);vertical-align:1px}
 .dl.on{border-color:var(--ink);color:var(--ink)}
 .ptag{margin-top:6px;font-size:14px;color:var(--mute)}
+.sec button{font-size:16px;padding:8px 16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;max-width:70ch}.card h3{margin-top:0}
+.up{color:#2e9e5b;font-weight:600}.dn{color:#d9534f;font-weight:600}
+.why{display:inline-block;font:600 12px Barlow,system-ui,sans-serif;border-radius:999px;padding:1px 8px;margin:1px 2px;background:var(--line);color:var(--ink)}
+.gr{display:inline-block;min-width:1.8em;text-align:center;font:700 15px/1.4 "Barlow Condensed",sans-serif;border-radius:4px;color:var(--bg)}
+.gA{background:#2e9e5b}.gB{background:#7cb342}.gC{background:var(--mute)}.gD{background:#e67e22}.gF{background:#d9534f}
 </style></head><body><main>
 <div class="top"><h1>Football dashboard</h1><button class="back" id="thm" aria-label="Switch light or dark mode"></button></div>
-<p class="sub">2026 regular season so far. Browse players, then open a team for its summary and roster.</p>
-<div class="bar"><div class="seg" id="tabs"><button data-v="p" aria-pressed="true">Players</button><button data-v="t" aria-pressed="false">Teams</button><button data-v="n" aria-pressed="false">Matchups</button><button data-v="c" aria-pressed="false">Compare</button></div></div>
-<section id="vp">
+<p class="sub">2026 regular season so far.</p>
+<nav class="bar"><div class="seg sec" id="sec"><button data-s="nfl" aria-pressed="true">NFL</button><button data-s="dyn" aria-pressed="false">Dynasty</button><button data-s="fan" aria-pressed="false">Fantasy &amp; Betting</button></div></nav>
+<div class="bar" id="nflnav"><div class="seg" id="tabs"><button data-v="t" aria-pressed="true">Teams</button><button data-v="p" aria-pressed="false">Players</button><button data-v="n" aria-pressed="false">Matchups</button><button data-v="c" aria-pressed="false">Compare</button></div></div>
+<section id="vp" hidden>
  <div class="bar"><div class="seg" id="side"><button data-d="O" aria-pressed="true">Offense</button><button data-d="D" aria-pressed="false">Defense</button></div></div>
  <div class="bar"><input id="q" type="search" placeholder="Search players" aria-label="Search players"><select id="tm" aria-label="Team"></select><select id="mn" aria-label="Minimum usage"><option value="0">Any usage</option><option value="10">10+ touches or targets</option><option value="25">25+</option><option value="50">50+</option></select></div>
  <div class="bar"><div class="seg" id="pos"></div><div class="seg" id="xg" hidden></div><div class="seg" id="sc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div>
  <div class="wrap" id="pt"></div><p class="sub" id="ld">Loading stats…</p>
 </section>
-<section id="vt" hidden><div class="bar"><div class="seg" id="tv"><button data-w="W" aria-pressed="true">Whole team</button><button data-w="O" aria-pressed="false">Offense</button><button data-w="D" aria-pressed="false">Defense</button><button data-w="S" aria-pressed="false">Special teams</button></div></div><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
+<section id="vt"><div class="bar"><div class="seg" id="tv"><button data-w="W" aria-pressed="true">Whole team</button><button data-w="O" aria-pressed="false">Offense</button><button data-w="D" aria-pressed="false">Defense</button><button data-w="S" aria-pressed="false">Special teams</button></div></div><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
 <section id="vc" hidden><div class="bar"><div class="seg" id="cpos"></div></div>
 <div class="picks"><div class="pick a"><input id="ca" list="cl" aria-label="Player A" onfocus="this.select()"><div class="ptag" id="ia"></div></div><div class="pick b"><input id="cb" list="cl" aria-label="Player B" onfocus="this.select()"><div class="ptag" id="ib"></div></div></div><datalist id="cl"></datalist>
 <div class="verdict" id="cv"></div><div class="tally" id="ct"></div><div id="cr"></div>
@@ -83,6 +90,16 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 <h3>Offensive line units</h3><div class="wrap" id="ou"></div>
 <h3>Defensive line units</h3><div class="wrap" id="du"></div>
 <div class="note">How the edge works: each unit’s league ranks are averaged (pass protection uses sack rate allowed and pass EPA; pass rush uses sacks and QB hits; the run game uses yards per carry and rush EPA; the front uses tackles for loss and line tackles for loss). The gap between the two averages sets the level: Even under 4 rank spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. It’s a guide, not a prediction. Starters and alignments come from the latest nflverse depth chart, and defenses shift fronts every play, so “likely across from him” is the usual alignment, not a guarantee. Threat levels rank every starting front player by sacks, QB hits and tackles for loss per team game: Elite is top 10%, High top 25%, Solid top half. Individual blocking grades (ESPN block win rates, PFF) aren’t in this data, so linemen show penalties only (see them under Players, Offense, OL). Run defense allowed needs game-by-game data, so tackles for loss stands in for it.</div></div></div></section>
+<section id="sd" hidden><h2>Dynasty</h2>
+<div class="bar"><div class="seg" id="dv"><button data-x="b" aria-pressed="true">Value board</button><button data-x="g" aria-pressed="false">Diamonds &amp; sleepers</button><button data-x="k" aria-pressed="false">Rookie picks</button></div><div class="seg" id="dfmt"><button data-f="1" aria-pressed="true">1QB</button><button data-f="2" aria-pressed="false">Superflex</button></div></div>
+<div class="bar" id="dctl"><input id="dq" type="search" placeholder="Search players" aria-label="Search dynasty players"><div class="seg" id="dpos"></div></div>
+<p class="sub" id="dsub"></p><div class="wrap" id="dt"></div>
+<div class="note" id="dnote"></div></section>
+<section id="sf" hidden><h2>Fantasy &amp; Betting</h2>
+<div class="bar"><div class="seg" id="fv"><button data-x="s" aria-pressed="true">Start / sit</button><button data-x="b" aria-pressed="false">Betting</button></div></div>
+<div id="fs"><div class="bar"><div class="seg" id="fpos"></div><div class="seg" id="fsc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div><p class="sub" id="fsub"></p><div class="wrap" id="ft"></div><div class="note" id="fnote"></div></div>
+<div id="fb" hidden><div class="card"><h3>Lines, props and picks are next</h3><p>This is where game lines (spread, total, moneyline), player props next to each player’s averages and matchup, flagged lines that look off, and a tracker that keeps score on your bets will live.</p><p>To switch it on, it needs a free key from the-odds-api.com. When you’re ready, Claude will walk you through storing it as a GitHub secret so it never appears on the page.</p></div></div>
+<div class="note">Start/sit grades come from a simple, open formula, not a projection model: base points = 60% season average + 40% last 3 games, then multiplied by the matchup factor (what the opponent allows to that position after adjusting for schedule, divided by the league average). Grade A means the matchup factor is 1.15 or higher, B 1.05 to 1.15, C 0.95 to 1.05, D 0.85 to 0.95, F under 0.85. Only depth-chart starters on teams with an upcoming game are listed, and anyone Out or on IR is flagged. A guide, not a guarantee.</div></section>
 <div class="note">Real stats from nflverse (CC-BY 4.0), updated __DATE__. <span id="fr"></span> Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently. Defense: players appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. A defender’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Offensive linemen: this data only grades them by penalties; starting spots come from the latest depth chart, and starters with no flag show no games played. Punters aren’t included.</div>
 </main>
 <script>
@@ -91,7 +108,7 @@ function setTheme(m){document.documentElement.setAttribute('data-theme',m);try{l
 document.addEventListener('DOMContentLoaded',function(){var b=document.getElementById('thm');setTheme(document.documentElement.getAttribute('data-theme'));b.onclick=function(){setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')}});
 var D,A=[];
 var $=function(i){return document.getElementById(i)};
-var st={v:'p',pos:'ALL',tm:'ALL',q:'',pc:4,pd:-1,tc:1,td:-1,mn:0,dq:'',tv:'W',side:'O',sc:'ppr',mv:'t'};
+var st={sec:'nfl',v:'t',pos:'ALL',tm:'ALL',q:'',pc:4,pd:-1,tc:1,td:-1,mn:0,dq:'',tv:'W',side:'O',sc:'ppr',mv:'t'};
 function f(v,d){return v==null?'–':v.toFixed(d)}
 function sortRows(rows,c,dir){return rows.slice().sort(function(a,b){var x=a[c],y=b[c];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(typeof x==='string'?x.localeCompare(y):x-y)*dir})}
 function colsFor(p,noTeam){
@@ -99,8 +116,8 @@ function colsFor(p,noTeam){
   if(p==='ALL')c.push(['Pos',2,-1]);
   if(!noTeam)c.push(['Team',1,-1]);
   c.push(['GP',3,0]);
-  (p==='ALL'?D.PC.WR.slice(0,5):D.PC[p]).forEach(function(s,k){c.push([s[0],4+k,s[1]])});
-  if(p!=='ALL')c=c.filter(function(x){return x[1]<4||A.some(function(r){return r[2]===p&&r[x[1]]!=null})});
+  (p==='ALL'?D.PC.WR.slice(0,5):D.PC[p]).forEach(function(s,k){c.push([s[0],4+k,s[1]]);if(k===0&&p!=='K'){c.push(['Last 3','l3',1],['Trend','tr',1],['Snap %','sn',0],['Snap % L3','sn3',0])}});
+  if(p!=='ALL')c=c.filter(function(x){return (typeof x[1]==='number'&&x[1]<4)||A.some(function(r){return r[2]===p&&r[x[1]]!=null})});
   return c;
 }
 var OUTS={Out:1,IR:1,Reserve:1};
@@ -108,6 +125,7 @@ function injTag(j){return j?' <span class="thr '+(OUTS[j[0]]?'t4':'t3')+'" title
 function tags(r){return (r.dl?' <span class="dl'+(r.dl[1]?' on':'')+'" title="'+(r.dl[1]?'Starter':'Backup')+' on the latest depth chart">'+r.dl[0]+'</span>':'')+injTag(r.inj)}
 function cell(c,r){var v=r[c[1]];
   if(c[2]<0){if(c[1]===2)return '<td style="text-align:right"><span class="tag '+v+'">'+v+'</span></td>';if(c[1]===0)return '<td class="nm">'+v+tags(r)+'</td>';return '<td>'+v+'</td>'}
+  if(c[1]==='tr')return '<td>'+(v==null?'–':'<span class="'+(v>=1?'up':v<=-1?'dn':'')+'">'+(v>0?'▲ +':v<0?'▼ ':'')+v.toFixed(1)+'</span>')+'</td>';
   return '<td>'+f(v,c[2])+'</td>'}
 function tbl(cols,rows,sc,sd){
   return '<table><tr>'+cols.map(function(c){var on=c[1]===sc;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(sd>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return cell(c,r)}).join('')+'</tr>'}).join('')+'</table>';
@@ -133,10 +151,11 @@ function team(a){tab('t');
   $('td').innerHTML=out;$('td').hidden=false;$('tt').hidden=true;window.scrollTo(0,0);
   $('bk').onclick=function(){$('td').hidden=true;$('tt').hidden=false};
 }
-function sortClick(e,k,fn){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=+th.dataset.c;
+function ck(th){var c=th.dataset.c;return isNaN(c)?c:+c}
+function sortClick(e,k,fn){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=ck(th);
   if(st[k+'c']===c)st[k+'d']*=-1;else{st[k+'c']=c;st[k+'d']=(k==='p'?c<=2:c===0)?1:-1}fn()}
 function wire(){
-  $('pt').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c;
+  $('pt').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=ck(th);
     if(st.side==='D'){if(DX.c===c)DX.d*=-1;else{DX.c=c;DX.d=c<=2?1:-1}renderX()}
     else if(st.pos==='OL'){if(OS.c===c)OS.d*=-1;else{OS.c=c;OS.d=c<=2||c===4?1:-1}renderOL()}
     else sortClick(e,'p',renderP)});
@@ -203,11 +222,11 @@ function side(o,d){
 function matchup(){var g=D.G[+$('gm').value||0];$('mu').innerHTML=side(g[0],g[1])+side(g[1],g[0]);skillRender()}
 var SKN={QB:1,RB:2,WR:3,TE:1};
 function sp(v){return st.sc==='std'?v[1]:st.sc==='half'?(v[0]+v[1])/2:v[0]}
-function srank(t,side,p){var W=D.ALW.T,me=W[t]&&W[t][side][p];if(!me)return null;var x=sp(me),n=0;for(var k in W){var o=W[k][side][p];if(o&&(side==='s'?sp(o)>x:sp(o)<x))n++}return n+1}
+function srank(t,side,p){var W=D.ALW.T,ks=side==='a'?'aa':side,me=W[t]&&W[t][ks]&&W[t][ks][p];side=ks;if(!me)return null;var x=sp(me),n=0;for(var k in W){var o=W[k][side][p];if(o&&(side==='s'?sp(o)>x:sp(o)<x))n++}return n+1}
 function edgeChip(z){var az=Math.abs(z);for(var i=0;i<LVL.length;i++)if(az>=LVL[i][0])return '<span class="lvl '+(z>0?'o':'d')+'" title="'+LVL[i][2]+'">'+LVL[i][1]+'</span>'+(z>0?'Offense':'Defense');return '<span class="lvl e">=</span>Even'}
 function skillSide(o,d){
   var W=D.ALW.T;if(!W[o]||!W[d])return '<p class="sub">No game data for this team yet.</p>';
-  var h='<h3>'+o+' skill players vs '+d+' defense</h3><div class="wrap"><table class="olt"><tr><th>Pos</th><th>'+o+' players ('+SCL[st.sc]+')</th><th>'+o+' pts/g at spot</th><th>'+d+' allows/g</th><th>Yds allowed/g</th><th>TD allowed/g</th><th>Edge</th></tr>',ox=[],dy=[],OUT=[];
+  var h='<h3>'+o+' skill players vs '+d+' defense</h3><div class="wrap"><table class="olt"><tr><th>Pos</th><th>'+o+' players ('+SCL[st.sc]+')</th><th>'+o+' pts/g at spot</th><th>'+d+' allows/g (adj. rank)</th><th>Yds allowed/g</th><th>TD allowed/g</th><th>Edge</th></tr>',ox=[],dy=[],OUT=[];
   ['QB','RB','WR','TE'].forEach(function(p){
     var DK=D.DEP&&D.DEP.T[o]&&D.DEP.T[o].sk&&D.DEP.T[o].sk[p],pl;
     if(DK&&DK.length){var cv=function(x){var v=st.sc==='std'?x[2]:st.sc==='half'&&x[1]!=null?Math.round((x[1]+x[2])*5)/10:x[1];var a=[x[0],o,p,0,v];a.inj=x[3];return a},isOut=function(x){return x[3]&&OUTS[x[3][0]]};
@@ -228,7 +247,7 @@ function skillSide(o,d){
 function skillRender(){
   if(!D.ALW){$('ms').innerHTML='<p class="sub">Game-by-game stats aren’t available right now, so skill matchups are hidden. They come back with the next refresh.</p>';return}
   var g=D.G[+$('gm').value||0];
-  $('ms').innerHTML=skillSide(g[0],g[1])+skillSide(g[1],g[0])+'<div class="note">How it works: “pts/g at spot” is the fantasy points per game this offense gets from that position, ranked 1st (most) to 32nd. “Allows/g” is the fantasy points per game this defense gives up to that position, ranked 1st (toughest, fewest allowed) to 32nd (softest). The edge compares those two ranks with the same levels as the trenches: Even under 4 spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. Through week '+D.ALW.wk+'. Points follow the PPR, Half PPR or Standard setting on the Players tab. Players shown are the current starters from the latest depth chart (top QB, two RBs, three WRs, top TE). Anyone Out on the latest injury report or on injured reserve moves to the out section and the next man up takes his spot; Questionable and Doubtful players stay in with a tag. A dash means no stats yet this season. Strength of schedule isn’t adjusted for yet, so a defense that faced weak offenses can look tougher than it is. A guide, not a prediction.</div>';
+  $('ms').innerHTML=skillSide(g[0],g[1])+skillSide(g[1],g[0])+'<div class="note">How it works: “pts/g at spot” is the fantasy points per game this offense gets from that position, ranked 1st (most) to 32nd. “Allows/g” is the fantasy points per game this defense gives up to that position, ranked 1st (toughest, fewest allowed) to 32nd (softest). The edge compares those two ranks with the same levels as the trenches: Even under 4 spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. Through week '+D.ALW.wk+'. Points follow the PPR, Half PPR or Standard setting on the Players tab. Players shown are the current starters from the latest depth chart (top QB, two RBs, three WRs, top TE). Anyone Out on the latest injury report or on injured reserve moves to the out section and the next man up takes his spot; Questionable and Doubtful players stay in with a tag. A dash means no stats yet this season. Defense ranks are adjusted for schedule: each game counts what the defense allowed compared with what that offense usually scores at the position, so a defense that faced weak offenses doesn’t look tougher than it is. The allows/g number itself is the plain average. A guide, not a prediction.</div>';
 }
 function initN(){
   $('gm').innerHTML=D.G.map(function(g,i){return '<option value="'+i+'">'+g[0]+' at '+g[1]+' · '+g[2]+'</option>'}).join('');
@@ -262,7 +281,7 @@ function cInit(){
   cSetup();
 }
 var DX={g:'ALL',c:15,d:-1,q:'',t:'ALL'};
-var XC=[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Tackles',4,0],['Solo',5,0],['Tkl/g',6,1],['TFL',7,0],['Sacks',8,1],['QB hits',9,0],['INT',10,0],['PD',11,0],['FF',12,0],['Fum rec',13,0],['Def TD',14,0]];XC.splice(4,0,['IDP/g',16,1],['IDP pts',15,1]);
+var XC=[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Tackles',4,0],['Solo',5,0],['Tkl/g',6,1],['TFL',7,0],['Sacks',8,1],['QB hits',9,0],['INT',10,0],['PD',11,0],['FF',12,0],['Fum rec',13,0],['Def TD',14,0]];XC.splice(4,0,['IDP/g',16,1],['IDP pts',15,1],['Snap %','sn',0],['Snap % L3','sn3',0]);
 var KC=[['Player',0,-1],['Team',1,-1],['GP',3,0],['FG made',4,0],['FG att',5,0],['FG %',6,1],['Long',7,0],['0-39',8,0],['40-49',9,0],['50+',10,0],['Missed',11,0],['Missed 40+',12,0],['XP made',13,0],['XP att',14,0],['Fantasy pts',15,0],['Pts/g',16,1]];
 var XG={DL:['DE','DT','NT','DL'],LB:['LB','ILB','MLB','OLB'],CB:['CB'],S:['S','SAF','FS','SS','DB']};
 function renderX(){
@@ -281,20 +300,83 @@ function renderOL(){var q=st.q.toLowerCase(),rows=(D.OLP||[]).filter(function(r)
   $('pt').innerHTML=rows.length?tbl(OLC,srt,OS.c,OS.d):'<p class="sub" style="padding:14px">No linemen match. Try clearing the search or team filter.</p>'}
 function render(){if(st.side==='D')renderX();else if(st.pos==='OL')renderOL();else renderP()}
 var SCL={ppr:'PPR/g',half:'Half PPR/g',std:'Std/g'};
-function setSc(m){st.sc=m;A.forEach(function(r){r[4]=m==='ppr'?r.pp:m==='std'?r.sd:Math.round((r.pp+r.sd)*5)/10});['QB','RB','WR','TE'].forEach(function(p){D.PC[p][0][0]=SCL[m]});[].forEach.call($('sc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});render();if(CP.a)cRender();if(D.G)skillRender()}
+function setForm(r){var fm=r.fm;if(!fm)return;r.l3=fm[0]==null?null:st.sc==='ppr'?fm[0]:st.sc==='std'?fm[1]:Math.round((fm[0]+fm[1])*5)/10;r.tr=r.l3==null||r[4]==null?null:Math.round((r.l3-r[4])*10)/10}
+function setSc(m){st.sc=m;A.forEach(function(r){r[4]=m==='ppr'?r.pp:m==='std'?r.sd:Math.round((r.pp+r.sd)*5)/10;setForm(r)});[].forEach.call($('fsc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});['QB','RB','WR','TE'].forEach(function(p){D.PC[p][0][0]=SCL[m]});[].forEach.call($('sc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});render();if(CP.a)cRender();if(D.G)skillRender();if(st.sec==='fan')renderF()}
 function fresh(){var s=D.META&&D.META.sources;if(!s)return;var x=[];
   if(s.weekly_stats)x.push('Game stats through week '+s.weekly_stats.week);if(s.depth)x.push('depth chart from '+s.depth.asof);if(s.injuries)x.push('injury report from week '+s.injuries.week);
   $('fr').textContent=x.length?x.join(', ')+'.':''}
+function showSec(s){st.sec=s;[].forEach.call($('sec').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===s)});
+  $('nflnav').hidden=s!=='nfl';['vp','vt','vn','vc'].forEach(function(id){$(id).hidden=s!=='nfl'||id!=='v'+st.v});$('sd').hidden=s!=='dyn';$('sf').hidden=s!=='fan';
+  if(s==='dyn')renderD();if(s==='fan')renderF()}
+// ---------------- Dynasty
+var DS={v:'b',f:1,p:'ALL',q:'',c:'val',d:-1};
+function dRows(){var V=DS.f===1?7:8,rows=D.DY.P.map(function(r){var o=r.slice();o.val=r[V];o.inj=r[14];o.dl=r[15];return o});
+  ['QB','RB','WR','TE'].forEach(function(p){var g=rows.filter(function(r){return r[1]===p});
+    g.slice().sort(function(a,b){return b.val-a.val}).forEach(function(r,i){r.vr=i+1});
+    g.filter(function(r){return r[10]!=null&&r[9]>=3}).sort(function(a,b){return b[10]-a[10]}).forEach(function(r,i){r.pr=i+1});
+    g.forEach(function(r){r.gap=r.pr?r.vr-r.pr:null;r.s3=r[13]!=null&&r[12]!=null?r[13]-r[12]:null;r.f3=r[11]!=null&&r[10]!=null?Math.round((r[11]-r[10])*10)/10:null})});
+  return rows}
+var DC=[['Player',0,-1],['Pos',1,-1],['Team',2,-1],['Age',3,1],['Drafted','dr',-1],['College',6,-1],['Value','val',0],['Pos rank','vr',0],['PPR/g',10,1],['Prod rank','pr',0],['Value gap','gap',0],['Last 3',11,1],['Snap %',12,0],['Snap % L3',13,0]];
+function dCell(c,r){var v=r[c[1]];
+  if(c[1]===0)return '<td class="nm">'+v+tags(r)+'</td>';
+  if(c[1]===1)return '<td><span class="tag '+v+'">'+v+'</span></td>';
+  if(c[1]==='dr')return '<td>'+(r[4]?r[4]+(r[5]?' R'+r[5]:''):'–')+'</td>';
+  if(c[1]==='vr'||c[1]==='pr')return '<td>'+(v?r[1]+v:'–')+'</td>';
+  if(c[1]==='gap')return '<td>'+(v==null?'–':'<span class="'+(v>=8?'up':v<=-8?'dn':'')+'">'+(v>0?'+':'')+v+'</span>')+'</td>';
+  if(c[2]<0)return '<td'+(c[1]===6?' class="wr"':'')+'>'+(v||'–')+'</td>';
+  return '<td>'+f(v,c[2])+'</td>'}
+function dTbl(cols,rows,extra){return '<table><tr>'+cols.map(function(c){var on=!extra&&c[1]===DS.c;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(DS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+(extra?'<th>Why</th>':'')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return dCell(c,r)}).join('')+(extra?'<td class="wr">'+extra(r)+'</td>':'')+'</tr>'}).join('')+'</table>'}
+function why(r){var w=[];if(r.gap>=8)w.push('Producing like '+r[1]+r.pr+', valued '+r[1]+r.vr);if(r.s3>=8)w.push('Snaps up '+r.s3+' pts lately');if(r.f3>=3)w.push('Last 3 games +'+r.f3+' PPR/g');if(r[3]!=null&&r[3]<=23)w.push('Age '+r[3]);return w.map(function(x){return '<span class="why">'+x+'</span>'}).join(' ')}
+function renderD(){if(!D.DY){$('dt').innerHTML='<p class="sub" style="padding:14px">Dynasty values aren’t available right now. They come back with the next refresh.</p>';return}
+  $('dctl').hidden=DS.v==='k';var q=DS.q.toLowerCase(),rows=dRows().filter(function(r){return(DS.p==='ALL'||r[1]===DS.p)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
+  if(DS.v==='k'){var K=D.DY.K.slice().sort(function(a,b){return b[DS.f]-a[DS.f]});$('dsub').textContent='Trade value of future rookie draft picks. Early, mid and late mean where in the round the pick is expected to land.';
+    $('dt').innerHTML='<table><tr><th>Pick</th><th>Value</th></tr>'+K.map(function(k){return '<tr><td class="nm">'+k[0]+'</td><td>'+k[DS.f].toLocaleString()+'</td></tr>'}).join('')+'</table>'}
+  else if(DS.v==='g'){var CUT={QB:24,RB:36,WR:36,TE:18};rows=rows.filter(function(r){return r[3]!=null&&r[3]<=25.5&&r.vr>(r[1]==='TE'||r[1]==='QB'?8:20)&&((r.pr&&r.pr<=CUT[r[1]])||(r[13]!=null&&r[13]>=60))&&(r.gap>=8||r.s3>=8||r.f3>=3)&&!(r.inj&&OUTS[r.inj[0]])});
+    rows.sort(function(a,b){var s=function(r){return Math.min(Math.max(r.gap||0,0),30)+Math.max(r.s3||0,0)/2+Math.max(r.f3||0,0)*2};return s(b)-s(a)});
+    $('dsub').textContent='Young players (25 or under, outside the top tier at their position) whose usage or production is running ahead of their trade value. Buy-low candidates before the market catches up. To make the list a player has to be producing (top 36 RB or WR, top 24 QB, top 18 TE by PPR per game) or playing at least 60% of snaps over his last 3 games. Sorted by how far ahead of his value he’s running.';
+    $('dt').innerHTML=rows.length?dTbl(DC.filter(function(c){return c[1]!==6}),rows.slice(0,60),why):'<p class="sub" style="padding:14px">No players match right now.</p>'}
+  else{rows=sortRows(rows,DS.c,DS.d);$('dsub').textContent='Every fantasy-relevant player with a dynasty trade value. Value gap compares where he ranks in production (PPR per game, 3+ games) with where he ranks in value at his position: a big plus means producing above his price.';
+    $('dt').innerHTML=dTbl(DC,rows)}
+  $('dnote').textContent='Trade values from DynastyProcess (based on FantasyPros expert rankings), updated '+((D.META.sources.dynasty_values||{}).asof||'')+'. 1QB and Superflex values differ mostly for quarterbacks. Production and snap share are 2026 so far. Rookies and backups with little playing time have no production rank yet.'}
+function initD(){
+  $('dpos').innerHTML=['ALL','QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
+  var grp=function(id,attr,fn){$(id).addEventListener('click',function(e){var v=e.target.dataset[attr];if(v==null)return;[].forEach.call($(id).children,function(b){b.setAttribute('aria-pressed',b.dataset[attr]===v)});fn(v);renderD()})};
+  grp('dv','x',function(v){DS.v=v});grp('dfmt','f',function(v){DS.f=+v});grp('dpos','p',function(v){DS.p=v});
+  $('dq').oninput=function(){DS.q=this.value;renderD()};
+  $('dt').addEventListener('click',function(e){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=ck(th);if(DS.c===c)DS.d*=-1;else{DS.c=c;DS.d=(c==='vr'||c==='pr'||c===3||c===0||c===2)?1:-1}renderD()});
+}
+// ---------------- Fantasy start/sit
+var FS={p:'ALL',c:'adj',d:-1};
+function grade(m){return m>=1.15?'A':m>=1.05?'B':m>=.95?'C':m>=.85?'D':'F'}
+function renderF(){var W=D.ALW;if(!W||!D.G||!D.G.length){$('ft').innerHTML='<p class="sub" style="padding:14px">No upcoming games or matchup data right now.</p>';return}
+  var opp={},when={};D.G.forEach(function(g){opp[g[0]]=g[1];opp[g[1]]=g[0];when[g[0]]='at '+g[1];when[g[1]]='vs '+g[0]});
+  var si=st.sc==='std'?1:0,rows=A.filter(function(r){return opp[r[1]]&&['QB','RB','WR','TE'].indexOf(r[2])>-1&&r.dl&&r.dl[1]&&(FS.p==='ALL'||r[2]===FS.p)}).map(function(r){
+    var o=opp[r[1]],T=W.T[o],al=T&&T.aa&&T.aa[r[2]],lg=W.lg[r[2]],m=al&&lg?(st.sc==='half'?((al[0]+al[1])/(lg[0]+lg[1])):al[si]/lg[si]):1,base=r.l3!=null?.6*r[4]+.4*r.l3:r[4];
+    var x=r.slice();x.inj=r.inj;x.dl=r.dl;x.opp=when[r[1]];x.m=Math.round(m*100)/100;x.base=base==null?null:Math.round(base*10)/10;x.adj=base==null?null:Math.round(base*m*10)/10;x.g=grade(m);x.l3=r.l3;return x});
+  rows=sortRows(rows,FS.c,FS.d);
+  var cols=[['Player',0],['Pos',2],['Team',1],['Opponent','opp'],['Season',4],['Last 3','l3'],['Base pts','base'],['Matchup','m'],['Grade','g'],['Adj. pts','adj']];
+  $('fsub').textContent='This week’s starters, ranked by matchup-adjusted points. Games: '+D.G.map(function(g){return g[0]+' at '+g[1]}).join(', ')+'.';
+  $('ft').innerHTML=rows.length?'<table><tr>'+cols.map(function(c){var on=c[1]===FS.c;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(FS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+rows.map(function(r){var out=r.inj&&OUTS[r.inj[0]];
+    return '<tr><td class="nm">'+r[0]+tags(r)+(out?' <span class="why">Don’t start</span>':'')+'</td><td><span class="tag '+r[2]+'">'+r[2]+'</span></td><td>'+r[1]+'</td><td>'+r.opp+'</td><td>'+f(r[4],1)+'</td><td>'+f(r.l3,1)+'</td><td>'+f(r.base,1)+'</td><td>'+r.m.toFixed(2)+'×</td><td><span class="gr g'+r.g+'">'+r.g+'</span></td><td><b>'+f(r.adj,1)+'</b></td></tr>'}).join('')+'</table>':'<p class="sub" style="padding:14px">No starters match.</p>';
+  $('fnote').textContent=''}
+function initF(){
+  $('fpos').innerHTML=['ALL','QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
+  $('fpos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;FS.p=p;[].forEach.call($('fpos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});renderF()});
+  $('fsc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
+  $('fv').addEventListener('click',function(e){var x=e.target.dataset.x;if(!x)return;[].forEach.call($('fv').children,function(b){b.setAttribute('aria-pressed',b.dataset.x===x)});$('fs').hidden=x!=='s';$('fb').hidden=x!=='b'});
+  $('ft').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=ck(th);if(FS.c===c)FS.d*=-1;else{FS.c=c;FS.d=(c===0||c===2||c===1||c==='opp'||c==='g')?1:-1}renderF()});
+  $('sec').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)showSec(s)});
+}
 async function load(){
   try{
     var res=await fetch('data.json?v=__VER__',{cache:'no-cache'});
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
   }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
-  ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];a.inj=r[5];a.dl=r[6];A.push(a)})});
-  D.X.forEach(function(r){r.inj=r[17];r.dl=r[18]});(D.OLP||[]).forEach(function(r){r.inj=r[7]});
+  ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];a.inj=r[5];a.dl=r[6];a.fm=r[7];if(r[7]){a.sn=r[7][2];a.sn3=r[7][3]}setForm(a);A.push(a)})});
+  D.X.forEach(function(r){r.inj=r[17];r.dl=r[18];if(r[19]){r.sn=r[19][2];r.sn3=r[19][3]}});(D.OLP||[]).forEach(function(r){r.inj=r[7]});
   fresh();
-  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();
+  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initF();
 }
 load();
 </script></body></html>

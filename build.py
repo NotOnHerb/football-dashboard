@@ -208,7 +208,9 @@ for gid,(t,sl,nm) in OLSTART.items():
     else: OLP[gid]=[nm,t,sl,None,sl,0,0,INJ.get(gid)]
 OLP=sorted(OLP.values(),key=lambda x:(x[4]=='–',x[1],['LT','LG','C','RG','RT','–'].index(x[4]) if x[4] in ['LT','LG','C','RG','RT','–'] else 9))
 print('OL players',len(OLP),'| starters',sum(1 for x in OLP if x[4]!='–'))
+WK=None
 def load_allowed():
+    global WK
     try:
         w=load('weekly_stats')
         w=w[(w.season==SEASON)&(w.season_type=='REG')&w.position.isin(['QB','RB','WR','TE'])].copy()
@@ -224,12 +226,67 @@ def load_allowed():
             for (t,p),v in agg.iterrows():
                 o=out.setdefault(t,{'g':int(gp[t]),'a':{},'s':{}})
                 o[side][p]=[round(float(x)/gp[t],2) for x in v.values]
+        WK=w.copy()
+        # strength of schedule: each game's points allowed minus what that offense normally scores at the position
+        gt=w[['game_id','team','opponent_team']].drop_duplicates()
+        gt=gt.assign(k=1).merge(pd.DataFrame({'position':['QB','RB','WR','TE'],'k':1}),on='k').drop(columns='k')
+        gs=w.groupby(['game_id','team','opponent_team','position'])[['fantasy_points_ppr','fantasy_points']].sum().reset_index()
+        gs=gt.merge(gs,on=['game_id','team','opponent_team','position'],how='left').fillna({'fantasy_points_ppr':0,'fantasy_points':0})
+        oavg=gs.groupby(['team','position'])[['fantasy_points_ppr','fantasy_points']].transform('mean')
+        gs['dpp']=gs.fantasy_points_ppr-oavg.fantasy_points_ppr; gs['dsd']=gs.fantasy_points-oavg.fantasy_points
+        lg=gs.groupby('position')[['fantasy_points_ppr','fantasy_points']].mean()
+        adj=gs.groupby(['opponent_team','position'])[['dpp','dsd']].mean()
+        for (t,p),v in adj.iterrows():
+            if t in out: out[t].setdefault('aa',{})[p]=[round(float(lg.loc[p,'fantasy_points_ppr']+v.dpp),2),round(float(lg.loc[p,'fantasy_points']+v.dsd),2)]
+        LGAVG={p:[round(float(lg.loc[p,'fantasy_points_ppr']),2),round(float(lg.loc[p,'fantasy_points']),2)] for p in lg.index}
+        print('SOS check (league avg of adjusted should equal plain avg): RB',round(float(np.mean([v['aa']['RB'][0] for v in out.values()])),2),'vs',LGAVG['RB'][0])
         tot_a=sum(v['a'][p][0]*v['g'] for v in out.values() for p in v['a']); tot_s=sum(v['s'][p][0]*v['g'] for v in out.values() for p in v['s'])
         print('allowed ok: weeks',int(w.week.min()),'-',int(w.week.max()),'| teams',len(out),'| PPR allowed',round(tot_a),'vs scored',round(tot_s))
-        return {'wk':int(w.week.max()),'T':out}
+        return {'wk':int(w.week.max()),'T':out,'lg':LGAVG}
     except Exception as ex:
         print('weekly stats fetch failed, skill matchups hidden:',ex); return None
 ALW=load_allowed()
+# ---- recent form (last 3 games played) and snap share
+FORM={}
+if WK is not None:
+    for pid,g in WK.sort_values('week').groupby('player_id'):
+        l3=g.tail(3); FORM[pid]=[round(float(l3.fantasy_points_ppr.mean()),1),round(float(l3.fantasy_points.mean()),1),None,None]
+SNAP={}
+try:
+    sn=load('snaps'); pl=load('players')
+    sn=sn.merge(pl[['pfr_id','gsis_id']].dropna().drop_duplicates('pfr_id'),left_on='pfr_player_id',right_on='pfr_id',how='inner')
+    sn['pct']=np.where(sn.offense_pct.fillna(0)>=sn.defense_pct.fillna(0),sn.offense_pct.fillna(0),sn.defense_pct.fillna(0))*100
+    for gid,g in sn.sort_values('week').groupby('gsis_id'): SNAP[gid]=[round(float(g.pct.mean())),round(float(g.tail(3).pct.mean()))]
+    print('snap shares ok:',len(SNAP),'players')
+except Exception as ex:
+    pl=None; print('snap counts failed:',ex)
+# ---- dynasty board
+DY=None
+try:
+    dv=load('dynasty_values')
+    pk=dv[dv.pos=='PICK'].copy(); pk['yr']=pk.player.str.extract(r'^(\d{4})')[0].astype(float)
+    pk=pk[pk.yr>SEASON]
+    picks=[[r.player,int(r.value_1qb),int(r.value_2qb)] for _,r in pk.sort_values('value_1qb',ascending=False).iterrows()]
+    pv=dv[dv.pos.isin(['QB','RB','WR','TE'])].copy()
+    bio=pl.drop_duplicates('gsis_id').set_index('gsis_id') if pl is not None else None
+    sst=df.drop_duplicates('player_id').set_index('player_id')
+    rows=[]
+    for _,r in pv.iterrows():
+        g=r.gsis_id if pd.notna(r.gsis_id) else None
+        b_=bio.loc[g] if (bio is not None and g in bio.index) else None
+        s_=sst.loc[g] if g in sst.index else None
+        gm=float(s_.games) if s_ is not None and s_.games>0 else 0
+        fp=round(float(s_.fantasy_points_ppr)/gm,1) if gm else None
+        rows.append([r.player,r.pos,r.team if pd.notna(r.team) else 'FA',round(float(r.age),1) if pd.notna(r.age) else None,
+            int(b_.draft_year) if b_ is not None and pd.notna(b_.draft_year) else (int(r.draft_year) if pd.notna(r.draft_year) else None),
+            int(b_.draft_round) if b_ is not None and pd.notna(b_.draft_round) else None,
+            str(b_.college_name) if b_ is not None and pd.notna(b_.college_name) else '',
+            int(r.value_1qb),int(r.value_2qb),int(gm) if gm else 0,fp,
+            (FORM.get(g) or [None])[0],(SNAP.get(g) or [None,None])[0],(SNAP.get(g) or [None,None])[1],INJ.get(g),DLAB.get(g)])
+    DY={'P':rows,'K':picks}
+    print('dynasty ok:',len(rows),'players |',len(picks),'future picks | matched to stats',sum(1 for x in rows if x[9] is not None))
+except Exception as ex:
+    print('dynasty values failed:',ex)
 names={t:N[t] for t in set(df.recent_team)}
 def clean(o):
     if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
@@ -239,11 +296,11 @@ def clean(o):
     if isinstance(o,(np.floating,)): return clean(float(o))
     return o
 for pos in P:
-    for row in P[pos]: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid))
-for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid))
+    for row in P[pos]: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); f_=FORM.get(pid,[None,None]); s_=SNAP.get(pid,[None,None]); row.append([f_[0],f_[1],s_[0],s_[1]])
+for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); s_=SNAP.get(pid,[None,None]); row.append([None,None,s_[0],s_[1]])
 print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
 META['built']=DATE
-data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'DY':DY,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
 ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
 html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)

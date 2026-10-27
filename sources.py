@@ -41,6 +41,12 @@ DEPTH = ['dt', 'team', 'player_name', 'gsis_id', 'pos_grp', 'pos_abb', 'pos_rank
 INJURIES = ['season', 'week', 'gsis_id', 'report_status', 'report_primary_injury']
 # Weekly roster status. status RES means a reserve list (injured reserve and similar).
 ROSTERS = ['week', 'gsis_id', 'team', 'status', 'status_description_abbr']
+# Snap counts per player per game (linked to players by pfr_player_id).
+SNAPS = ['game_id', 'week', 'pfr_player_id', 'team', 'offense_pct', 'defense_pct']
+# Player bios and IDs.
+PLAYERS = ['gsis_id', 'pfr_id', 'display_name', 'birth_date', 'college_name', 'draft_year', 'draft_round', 'draft_pick']
+# Dynasty trade values (players and future rookie picks) and an ID map to gsis_id.
+DYNASTY = ['player', 'pos', 'team', 'age', 'value_1qb', 'value_2qb', 'fp_id', 'scrape_date']
 # Schedule, one row per game. Scores are blank for games not played yet.
 SCHEDULE = ['season', 'game_type', 'week', 'gameday', 'gametime', 'away_team', 'home_team', 'away_score']
 
@@ -75,6 +81,30 @@ def nflverse_rosters():
     return df, {'provider': 'nflverse', 'week': int(df.week.max())}
 
 
+def nflverse_snaps():
+    df = _need(pd.read_csv(_get(NFLVERSE + 'snap_counts/snap_counts_%d.csv' % SEASON)), SNAPS, 'snap counts')
+    return df, {'provider': 'nflverse', 'week': int(df.week.max())}
+
+
+def nflverse_players():
+    return _need(pd.read_csv(_get(NFLVERSE + 'players/players.csv')), PLAYERS, 'players'), {'provider': 'nflverse'}
+
+
+DYNASTYPROCESS = 'https://raw.githubusercontent.com/dynastyprocess/data/master/files/'
+
+
+def dynastyprocess_values():
+    """Free dynasty trade values from DynastyProcess (based on FantasyPros expert rankings).
+    Returns values joined to gsis_id (blank for picks and unmatched players)."""
+    local = os.environ.get('DP_DIR')
+    src = (lambda f: os.path.join(local, f)) if local else (lambda f: _get(DYNASTYPROCESS + f))
+    v = _need(pd.read_csv(src('values.csv')), DYNASTY, 'dynasty values')
+    ids = pd.read_csv(src('db_playerids.csv'), usecols=['fantasypros_id', 'gsis_id'])
+    ids = ids.dropna().drop_duplicates('fantasypros_id')
+    v = v.merge(ids, left_on='fp_id', right_on='fantasypros_id', how='left')
+    return v, {'provider': 'DynastyProcess', 'asof': str(v.scrape_date.max())}
+
+
 def nflverse_schedule():
     df = _need(pd.read_csv(_get(NFLVERSE + 'schedules/games.csv')), SCHEDULE, 'schedule')
     return df, {'provider': 'nflverse'}
@@ -90,6 +120,9 @@ PROVIDERS = {
     'depth': nflverse_depth,
     'injuries': nflverse_injuries,
     'rosters': nflverse_rosters,
+    'snaps': nflverse_snaps,
+    'players': nflverse_players,
+    'dynasty_values': dynastyprocess_values,
     'schedule': nflverse_schedule,
 }
 
