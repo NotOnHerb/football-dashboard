@@ -353,7 +353,40 @@ try:
             rd(g_(r,'rece_REC'),0),rd(g_(r,'rece_YDS'),0),rd(g_(r,'rece_TD'),0),rd(g_(r,'rece_YPR'),1),
             rd(r.rec_share,0),rd(r.rush_share,0),
             int(R['height']) if R is not None and pd.notna(R.get('height')) else None,int(R['weight']) if R is not None and pd.notna(R.get('weight')) else None])
-    CF={'P':rows,'draft':SEASON+1}
+    # ---- team games played (for per-game college fantasy points)
+    TGP={}
+    gm_=cd.get('games')
+    if gm_ is not None and len(gm_):
+        hc=next((c for c in ['homeTeam','home_team'] if c in gm_),None); ac=next((c for c in ['awayTeam','away_team'] if c in gm_),None); cc=next((c for c in ['completed'] if c in gm_),None)
+        if hc and ac:
+            g2=gm_[gm_[cc]==True] if cc else gm_
+            for t_ in list(g2[hc])+list(g2[ac]): TGP[t_]=TGP.get(t_,0)+1
+    print('college team games:',len(TGP),'teams' if TGP else '(unavailable, per-game hidden)')
+    # ---- college fantasy points and dynasty score
+    P4C={'SEC','Big Ten','Big 12','ACC','FBS Independents'}; G5C={'American Athletic','Mountain West','Sun Belt','Mid-American','Conference USA','Pac-12'}
+    z0=lambda v:v or 0
+    for r in rows:
+        ppr=z0(r[14])*.04+z0(r[15])*4-z0(r[16])*2+z0(r[19])*.1+z0(r[20])*6+z0(r[23])*.1+z0(r[24])*6
+        r+= [None,None,round(ppr+z0(r[22]),1),round(ppr,1),TGP.get(r[2])]
+    YOUTH={1:1.0,2:.85,3:.6,4:.35,5:.2}; PED={5:1.0,4:.75,3:.45,2:.2}
+    W={'WR':[(26,.35),(10,.25),(9,.10),(23,.10)],'TE':[(26,.35),(10,.25),(9,.10),(23,.10)],'RB':[(27,.25),(10,.25),(9,.10),(23,.10)],'QB':[(9,.30),(10,.30),(13,.10),(19,.10)]}
+    for pos,ws in W.items():
+        grp=[r for r in rows if r[1]==pos]
+        pct={}
+        for idx,_ in ws:
+            vals=sorted(r[idx] for r in grp if r[idx] is not None)
+            pct[idx]=lambda v,vals=vals:(sum(1 for x in vals if x<=v)/len(vals)) if (v is not None and vals) else .3
+        wp,wy=(.15,.15) if pos=='RB' else (.10,.10)
+        for r in grp:
+            sc=sum(w*pct[i](r[i]) for i,w in ws)+wp*PED.get(r[5],.3)+wy*YOUTH.get(r[4],.4)
+            cf=1.0 if r[3] in P4C else .88 if r[3] in G5C else .75
+            r[30]=round(sc*cf*100,1)
+        ss=sorted(r[30] for r in grp)
+        for r in grp:
+            q=sum(1 for x in ss if x<=r[30])/len(ss)
+            r[31]='A+' if q>=.98 else 'A' if q>=.95 else 'A-' if q>=.90 else 'B+' if q>=.82 else 'B' if q>=.70 else 'B-' if q>=.55 else 'C+' if q>=.40 else 'C' if q>=.25 else 'D'
+    CF={'P':rows,'draft':SEASON+1,'tg':bool(TGP)}
+    top_=sorted(rows,key=lambda r:-r[30])[:5]; print('college top dynasty scores:',[(r[0],r[1],r[2],r[30],r[31]) for r in top_])
     print('college ok:',len(rows),'players | draft-eligible',sum(1 for x in rows if x[11]),'| with recruiting stars',sum(1 for x in rows if x[5]))
 except Exception as ex:
     print('college data skipped:',ex)

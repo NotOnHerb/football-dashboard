@@ -129,7 +129,7 @@ def _cfbd(path):
 
 
 def cfbd_college():
-    """Everything the college pages need, about 11 API calls. Returns a dict of DataFrames:
+    """Everything the college pages need, about 12 API calls. Returns a dict of DataFrames:
     stats (CFB_STATS), usage, ppa, roster and recruits."""
     yr = SEASON
     stats = pd.concat([pd.DataFrame(_cfbd('stats/player/season?year=%d&category=%s' % (yr, c))) for c in ('passing', 'rushing', 'receiving')])
@@ -138,7 +138,11 @@ def cfbd_college():
     ppa = pd.json_normalize(_cfbd('ppa/players/season?year=%d' % yr))
     roster = pd.DataFrame(_cfbd('roster?year=%d' % yr))
     recruits = pd.concat([pd.DataFrame(_cfbd('recruiting/players?year=%d&classification=HighSchool' % y)) for y in range(yr - 4, yr + 1)])
-    return {'stats': stats, 'usage': usage, 'ppa': ppa, 'roster': roster, 'recruits': recruits}, {'provider': 'CollegeFootballData.com', 'season': yr}
+    try:
+        games = pd.DataFrame(_cfbd('games?year=%d&seasonType=regular' % yr))
+    except Exception:
+        games = None
+    return {'stats': stats, 'usage': usage, 'ppa': ppa, 'roster': roster, 'recruits': recruits, 'games': games}, {'provider': 'CollegeFootballData.com', 'season': yr}
 
 
 def nflverse_schedule():
