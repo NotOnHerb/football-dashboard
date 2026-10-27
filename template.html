@@ -67,6 +67,7 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 .why{display:inline-block;font:600 12px Barlow,system-ui,sans-serif;border-radius:999px;padding:1px 8px;margin:1px 2px;background:var(--line);color:var(--ink)}
 .gr{display:inline-block;min-width:1.8em;text-align:center;font:700 15px/1.4 "Barlow Condensed",sans-serif;border-radius:4px;color:var(--bg)}
 .me td{background:color-mix(in srgb,var(--a) 14%,var(--panel))}.adv{margin:6px 0 4px 18px;padding:0}.adv li{margin:4px 0}
+.st5{color:#f2b134;letter-spacing:-1px;font-size:12px;margin-left:4px}
 .gA{background:#2e9e5b}.gB{background:#7cb342}.gC{background:var(--mute)}.gD{background:#e67e22}.gF{background:#d9534f}
 </style></head><body><main>
 <div class="top"><h1>Football dashboard</h1><button class="back" id="thm" aria-label="Switch light or dark mode"></button></div>
@@ -92,7 +93,8 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 <h3>Defensive line units</h3><div class="wrap" id="du"></div>
 <div class="note">How the edge works: each unit’s league ranks are averaged (pass protection uses sack rate allowed and pass EPA; pass rush uses sacks and QB hits; the run game uses yards per carry and rush EPA; the front uses tackles for loss and line tackles for loss). The gap between the two averages sets the level: Even under 4 rank spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. It’s a guide, not a prediction. Starters and alignments come from the latest nflverse depth chart, and defenses shift fronts every play, so “likely across from him” is the usual alignment, not a guarantee. Threat levels rank every starting front player by sacks, QB hits and tackles for loss per team game: Elite is top 10%, High top 25%, Solid top half. Individual blocking grades (ESPN block win rates, PFF) aren’t in this data, so linemen show penalties only (see them under Players, Offense, OL). Run defense allowed needs game-by-game data, so tackles for loss stands in for it.</div></div></div></section>
 <section id="sd" hidden><h2>Dynasty</h2>
-<div class="bar"><div class="seg" id="dv"><button data-x="b" aria-pressed="true">Value board</button><button data-x="g" aria-pressed="false">Diamonds &amp; sleepers</button><button data-x="k" aria-pressed="false">Rookie picks</button><button data-x="m" aria-pressed="false">My league</button></div><div class="seg" id="dfmt"><button data-f="1" aria-pressed="true">1QB</button><button data-f="2" aria-pressed="false">Superflex</button></div></div>
+<div class="bar"><div class="seg" id="dv"><button data-x="b" aria-pressed="true">Value board</button><button data-x="g" aria-pressed="false">Diamonds &amp; sleepers</button><button data-x="k" aria-pressed="false">Rookie picks</button><button data-x="c" aria-pressed="false">College</button><button data-x="m" aria-pressed="false">My league</button></div><div class="seg" id="dfmt"><button data-f="1" aria-pressed="true">1QB</button><button data-f="2" aria-pressed="false">Superflex</button></div></div>
+<div class="bar" id="ccl" hidden><div class="seg" id="cv2"><button data-c="d" aria-pressed="true">Draft prospects</button><button data-c="b" aria-pressed="false">Breakouts (underclassmen)</button></div><select id="ccf" aria-label="Conference"></select></div>
 <div class="bar" id="dctl"><input id="dq" type="search" placeholder="Search players" aria-label="Search dynasty players"><div class="seg" id="dpos"></div></div>
 <p class="sub" id="dsub"></p><div class="wrap" id="dt"></div>
 <div id="dml" hidden><div class="bar"><input id="su" type="text" placeholder="Your Sleeper username" aria-label="Sleeper username" autocomplete="username"><button class="back" id="sgo">Load my leagues</button><select id="sl" aria-label="League" hidden></select></div><p class="sub" id="sms"></p><div id="mlo"></div></div>
@@ -329,7 +331,8 @@ function dCell(c,r){var v=r[c[1]];
   return '<td>'+f(v,c[2])+'</td>'}
 function dTbl(cols,rows,extra){return '<table><tr>'+cols.map(function(c){var on=!extra&&c[1]===DS.c;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(DS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+(extra?'<th>Why</th>':'')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return dCell(c,r)}).join('')+(extra?'<td class="wr">'+extra(r)+'</td>':'')+'</tr>'}).join('')+'</table>'}
 function why(r){var w=[];if(r.gap>=8)w.push('Producing like '+r[1]+r.pr+', valued '+r[1]+r.vr);if(r.s3>=8)w.push('Snaps up '+r.s3+' pts lately');if(r.f3>=3)w.push('Last 3 games +'+r.f3+' PPR/g');if(r[3]!=null&&r[3]<=23)w.push('Age '+r[3]);return w.map(function(x){return '<span class="why">'+x+'</span>'}).join(' ')}
-function renderD(){var m=DS.v==='m';$('dml').hidden=!m;$('dt').hidden=m;$('dsub').hidden=m;$('dfmt').hidden=m;if(m){$('dctl').hidden=true;return}
+function renderD(){var m=DS.v==='m';$('dml').hidden=!m;$('dt').hidden=m;$('dsub').hidden=m;$('dfmt').hidden=m||DS.v==='c';$('ccl').hidden=DS.v!=='c';if(m){$('dctl').hidden=true;return}
+  if(DS.v==='c'){$('dctl').hidden=false;return renderC()}
   if(!D.DY){$('dt').innerHTML='<p class="sub" style="padding:14px">Dynasty values aren’t available right now. They come back with the next refresh.</p>';return}
   $('dctl').hidden=DS.v==='k';var q=DS.q.toLowerCase(),rows=dRows().filter(function(r){return(DS.p==='ALL'||r[1]===DS.p)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
   if(DS.v==='k'){var K=D.DY.K.slice().sort(function(a,b){return b[DS.f]-a[DS.f]});$('dsub').textContent='Trade value of future rookie draft picks. Early, mid and late mean where in the round the pick is expected to land.';
@@ -350,6 +353,32 @@ function initD(){
   $('sgo').onclick=sUser;$('su').addEventListener('keydown',function(e){if(e.key==='Enter')sUser()});
   $('dt').addEventListener('click',function(e){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=ck(th);if(DS.c===c)DS.d*=-1;else{DS.c=c;DS.d=(c==='vr'||c==='pr'||c===3||c===0||c===2)?1:-1}renderD()});
 }
+// ---------------- College
+var CS={v:'d',cf:'P4',c:10,d:-1},P4=['SEC','Big Ten','Big 12','ACC'],CLS=['','Fr','So','Jr','Sr','Sr'];
+var CCOL={ALL:[['Usage %',8,0],['PPA/play',9,2],['Total PPA',10,1],['Pass yds',14,0],['Rush yds',19,0],['Rec yds',23,0],['TD','td',0]],
+ QB:[['Usage %',8,0],['PPA/play',9,2],['Total PPA',10,1],['Att',12,0],['Cmp %',13,1],['Pass yds',14,0],['Pass TD',15,0],['INT',16,0],['Y/A',17,1],['Rush yds',19,0],['Rush TD',20,0]],
+ RB:[['Usage %',8,0],['PPA/play',9,2],['Total PPA',10,1],['Car',18,0],['Rush yds',19,0],['YPC',21,1],['Rush TD',20,0],['Rush yds share %',27,0],['Rec',22,0],['Rec yds',23,0]],
+ WR:[['Usage %',8,0],['PPA/play',9,2],['Total PPA',10,1],['Rec',22,0],['Rec yds',23,0],['Rec TD',24,0],['YPR',25,1],['Rec yds share %',26,0]]};
+CCOL.TE=CCOL.WR;
+function renderC(){if(!D.CF){$('dsub').hidden=false;$('dsub').textContent='';$('dt').innerHTML='<p class="sub" style="padding:14px">College data isn’t available right now. It needs the CFBD_KEY secret and comes back with the next refresh.</p>';return}
+  var q=DS.q.toLowerCase(),rows=D.CF.P.filter(function(r){return (CS.v==='d'?r[11]:!r[11])&&(DS.p==='ALL'||r[1]===DS.p)&&(CS.cf==='ALL'||(CS.cf==='P4'?P4.indexOf(r[3])>-1:r[3]===CS.cf))&&(!q||r[0].toLowerCase().indexOf(q)>-1||(r[2]||'').toLowerCase().indexOf(q)>-1)}).map(function(r){var o=r.slice();o.td=(r[15]||0)+(r[20]||0)+(r[24]||0);return o});
+  var cols=[['Player',0,-1]].concat(DS.p==='ALL'?[['Pos',1,-1]]:[]).concat([['School',2,-1],['Conf',3,-1],['Class',4,-2],['Recruit rank',6,0],['Ht / Wt','hw',-1]]).concat(CCOL[DS.p]);
+  if(!cols.some(function(c){return c[1]===CS.c})){CS.c=10;CS.d=-1}
+  rows=sortRows(rows,CS.c,CS.d);
+  $('dsub').hidden=false;$('dsub').textContent=CS.v==='d'?'Players eligible for the '+D.CF.draft+' NFL draft (3 or more years out of high school), sorted by total PPA by default.':'Freshmen and sophomores already producing. The dynasty assets of '+(D.CF.draft+1)+' and beyond.';
+  $('dt').innerHTML=rows.length?'<table><tr>'+cols.map(function(c){var on=c[1]===CS.c;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(CS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+rows.slice(0,300).map(function(r){return '<tr>'+cols.map(function(c){var v=r[c[1]];
+    if(c[1]===0)return '<td class="nm">'+v+(r[5]?'<span class="st5" title="'+r[5]+'-star recruit">'+'★★★★★'.slice(0,r[5])+'</span>':'')+'</td>';
+    if(c[1]===1)return '<td><span class="tag '+v+'">'+v+'</span></td>';
+    if(c[1]===4)return '<td>'+(v?CLS[v]:'–')+'</td>';
+    if(c[1]==='hw')return '<td>'+(r[28]?Math.floor(r[28]/12)+'′'+(r[28]%12)+'″':'–')+(r[29]?' / '+r[29]:'')+'</td>';
+    if(c[2]===-1)return '<td>'+(v||'–')+'</td>';
+    return '<td>'+f(v,c[2])+'</td>'}).join('')+'</tr>'}).join('')+'</table>':'<p class="sub" style="padding:14px">No players match. Try All conferences or clear the search.</p>';
+  $('dnote').textContent='College stats, usage, PPA and recruiting from CollegeFootballData.com, '+D.CF.draft-1+' season so far, updated daily. PPA (predicted points added) is college football’s version of EPA: the points a player adds per play compared with an average play, and total PPA adds it up over the season. Usage is the share of his team’s plays that went to him. Rec yds share is his share of his team’s receiving yards, a classic early sign of an NFL receiver. Draft eligibility uses his high school class when known, otherwise his class year, so redshirt players can be listed a year early. Recruit rank is his national rank coming out of high school.'}
+function initC(){var cs={};(D.CF?D.CF.P:[]).forEach(function(r){if(r[3])cs[r[3]]=1});
+  $('ccf').innerHTML='<option value="P4">Power 4 conferences</option><option value="ALL">All conferences</option>'+Object.keys(cs).sort().map(function(c){return '<option value="'+c+'">'+c+'</option>'}).join('');
+  $('ccf').onchange=function(){CS.cf=this.value;renderD()};
+  $('cv2').addEventListener('click',function(e){var c=e.target.dataset.c;if(!c)return;CS.v=c;[].forEach.call($('cv2').children,function(b){b.setAttribute('aria-pressed',b.dataset.c===c)});renderD()});
+  $('dt').addEventListener('click',function(e){if(DS.v!=='c')return;var th=e.target.closest('th');if(!th)return;var c=ck(th);if(CS.c===c)CS.d*=-1;else{CS.c=c;CS.d=(c===0||c===2||c===3||c===6||c===1)?1:-1}renderD();e.stopImmediatePropagation()},true)}
 // ---------------- My league (Sleeper)
 var ML={};
 function slp(p){return fetch('https://api.sleeper.app/v1/'+p).then(function(r){if(!r.ok)throw new Error('Sleeper said '+r.status);return r.json()})}
@@ -453,7 +482,7 @@ async function load(){
   ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];a.inj=r[5];a.dl=r[6];a.fm=r[7];if(r[7]){a.sn=r[7][2];a.sn3=r[7][3]}setForm(a);A.push(a)})});
   D.X.forEach(function(r){r.inj=r[17];r.dl=r[18];if(r[19]){r.sn=r[19][2];r.sn3=r[19][3]}});(D.OLP||[]).forEach(function(r){r.inj=r[7]});
   fresh();
-  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initF();
+  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initC();initF();
 }
 load();
 </script></body></html>

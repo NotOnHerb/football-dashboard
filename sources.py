@@ -15,8 +15,10 @@ SEASON = int(os.environ.get('SEASON', 2026))
 NFLVERSE = 'https://github.com/nflverse/nflverse-data/releases/download/'
 
 
-def _get(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'football-dashboard'})
+def _get(url, headers=None):
+    h = {'User-Agent': 'football-dashboard'}
+    h.update(headers or {})
+    req = urllib.request.Request(url, headers=h)
     return io.BytesIO(urllib.request.urlopen(req, timeout=120).read())
 
 
@@ -47,6 +49,8 @@ SNAPS = ['game_id', 'week', 'pfr_player_id', 'team', 'offense_pct', 'defense_pct
 PLAYERS = ['gsis_id', 'pfr_id', 'display_name', 'birth_date', 'college_name', 'draft_year', 'draft_round', 'draft_pick']
 # Dynasty trade values (players and future rookie picks) and an ID map to gsis_id.
 DYNASTY = ['player', 'pos', 'team', 'age', 'value_1qb', 'value_2qb', 'fp_id', 'scrape_date']
+# College (CollegeFootballData.com, needs the CFBD_KEY secret). Long-form season stats, one row per stat.
+CFB_STATS = ['playerId', 'player', 'position', 'team', 'conference', 'category', 'statType', 'stat']
 # Schedule, one row per game. Scores are blank for games not played yet.
 SCHEDULE = ['season', 'game_type', 'week', 'gameday', 'gametime', 'away_team', 'home_team', 'away_score']
 
@@ -113,6 +117,30 @@ def dynastyprocess_ids():
     return df, {'provider': 'DynastyProcess'}
 
 
+CFBD = 'https://apinext.collegefootballdata.com/'
+
+
+def _cfbd(path):
+    key = os.environ.get('CFBD_KEY')
+    if not key:
+        raise RuntimeError('no CFBD_KEY secret set')
+    import json
+    return json.load(_get(CFBD + path, {'Authorization': 'Bearer ' + key}))
+
+
+def cfbd_college():
+    """Everything the college pages need, about 11 API calls. Returns a dict of DataFrames:
+    stats (CFB_STATS), usage, ppa, roster and recruits."""
+    yr = SEASON
+    stats = pd.concat([pd.DataFrame(_cfbd('stats/player/season?year=%d&category=%s' % (yr, c))) for c in ('passing', 'rushing', 'receiving')])
+    _need(stats, CFB_STATS, 'college stats')
+    usage = pd.json_normalize(_cfbd('player/usage?year=%d' % yr))
+    ppa = pd.json_normalize(_cfbd('ppa/players/season?year=%d' % yr))
+    roster = pd.DataFrame(_cfbd('roster?year=%d' % yr))
+    recruits = pd.concat([pd.DataFrame(_cfbd('recruiting/players?year=%d&classification=HighSchool' % y)) for y in range(yr - 4, yr + 1)])
+    return {'stats': stats, 'usage': usage, 'ppa': ppa, 'roster': roster, 'recruits': recruits}, {'provider': 'CollegeFootballData.com', 'season': yr}
+
+
 def nflverse_schedule():
     df = _need(pd.read_csv(_get(NFLVERSE + 'schedules/games.csv')), SCHEDULE, 'schedule')
     return df, {'provider': 'nflverse'}
@@ -132,6 +160,7 @@ PROVIDERS = {
     'players': nflverse_players,
     'dynasty_values': dynastyprocess_values,
     'player_ids': dynastyprocess_ids,
+    'college': cfbd_college,
     'schedule': nflverse_schedule,
 }
 

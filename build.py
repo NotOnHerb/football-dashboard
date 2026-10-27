@@ -307,6 +307,54 @@ try:
     print('dynasty ok:',len(rows),'players |',len(picks),'future picks | matched to stats',sum(1 for x in rows if x[9] is not None))
 except Exception as ex:
     print('dynasty values failed:',ex)
+# ---- college prospects (CollegeFootballData.com)
+CF=None
+try:
+    cd=load('college')
+    st=cd['stats'].copy(); st['stat']=pd.to_numeric(st.stat,errors='coerce'); st['playerId']=st.playerId.astype(str)
+    st=st[st.position.isin(['QB','RB','WR','TE'])]
+    wide=st.pivot_table(index='playerId',columns=['category','statType'],values='stat',aggfunc='first')
+    wide.columns=[a[:4]+'_'+b_ for a,b_ in wide.columns]
+    info=st.drop_duplicates('playerId').set_index('playerId')[['player','position','team','conference']]
+    W_=info.join(wide)
+    for c_ in ['rece_YDS','rush_YDS']:
+        if c_ not in W_: W_[c_]=np.nan
+    tr=W_.groupby('team').rece_YDS.sum(); tu=W_.groupby('team').rush_YDS.sum()
+    W_['rec_share']=W_.rece_YDS/W_.team.map(tr).replace(0,np.nan)*100; W_['rush_share']=W_.rush_YDS/W_.team.map(tu).replace(0,np.nan)*100
+    us=cd['usage']; us['id']=us['id'].astype(str); us=us.drop_duplicates('id').set_index('id')
+    pp=cd['ppa']; pp['id']=pp['id'].astype(str); pp=pp.drop_duplicates('id').set_index('id')
+    ro=cd['roster']; ro['id']=ro['id'].astype(str); ro=ro.drop_duplicates('id').set_index('id')
+    rc=cd['recruits']; rc=rc.dropna(subset=['stars'])
+    by_ath={str(int(a)):r for a,r in rc.dropna(subset=['athleteId']).set_index('athleteId').iterrows()} if 'athleteId' in rc else {}
+    by_id={str(i):r for i,r in rc.set_index('id').iterrows()}
+    g_=lambda s_,k:(float(s_[k]) if k in s_ and pd.notna(s_[k]) else None)
+    rows=[]
+    for pid,r in W_.iterrows():
+        att,car,rec=g_(r,'pass_ATT') or 0,g_(r,'rush_CAR') or 0,g_(r,'rece_REC') or 0
+        p=r.position
+        if not ((p=='QB' and att>=60) or (p=='RB' and (car>=40 or rec>=15)) or (p in('WR','TE') and rec>=12)): continue
+        R=ro.loc[pid] if pid in ro.index else None
+        cls=int(R['year']) if R is not None and pd.notna(R['year']) and 1<=int(R['year'])<=5 else None
+        rr=by_ath.get(pid)
+        if rr is None and R is not None and isinstance(R.get('recruitIds'),list):
+            for x in R['recruitIds']:
+                if str(x) in by_id: rr=by_id[str(x)]; break
+        hs=int(rr['year']) if rr is not None and pd.notna(rr['year']) else None
+        elig=(hs is not None and hs<=SEASON-2) or (hs is None and cls is not None and cls>=3)
+        U=us.loc[pid] if pid in us.index else None; PA=pp.loc[pid] if pid in pp.index else None
+        rd=lambda v,k=1:None if v is None or v!=v else round(float(v),k)
+        rows.append([r.player,p,r.team,r.conference,cls,int(rr['stars']) if rr is not None else None,int(rr['ranking']) if rr is not None and pd.notna(rr['ranking']) else None,hs,
+            rd(U['usage.overall']*100 if U is not None and 'usage.overall' in U and pd.notna(U['usage.overall']) else None,0),
+            rd(PA['averagePPA.all'] if PA is not None and 'averagePPA.all' in PA else None,2),rd(PA['totalPPA.all'] if PA is not None and 'totalPPA.all' in PA else None,1),bool(elig),
+            rd(g_(r,'pass_ATT'),0),rd(g_(r,'pass_PCT')*100 if g_(r,'pass_PCT') is not None and g_(r,'pass_PCT')<=1 else g_(r,'pass_PCT'),1),rd(g_(r,'pass_YDS'),0),rd(g_(r,'pass_TD'),0),rd(g_(r,'pass_INT'),0),rd(g_(r,'pass_YPA'),1),
+            rd(g_(r,'rush_CAR'),0),rd(g_(r,'rush_YDS'),0),rd(g_(r,'rush_TD'),0),rd(g_(r,'rush_YPC'),1),
+            rd(g_(r,'rece_REC'),0),rd(g_(r,'rece_YDS'),0),rd(g_(r,'rece_TD'),0),rd(g_(r,'rece_YPR'),1),
+            rd(r.rec_share,0),rd(r.rush_share,0),
+            int(R['height']) if R is not None and pd.notna(R.get('height')) else None,int(R['weight']) if R is not None and pd.notna(R.get('weight')) else None])
+    CF={'P':rows,'draft':SEASON+1}
+    print('college ok:',len(rows),'players | draft-eligible',sum(1 for x in rows if x[11]),'| with recruiting stars',sum(1 for x in rows if x[5]))
+except Exception as ex:
+    print('college data skipped:',ex)
 names={t:N[t] for t in set(df.recent_team)}
 def clean(o):
     if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
@@ -320,7 +368,7 @@ for pos in P:
 for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); s_=SNAP.get(pid,[None,None]); row.append([None,None,s_[0],s_[1]])
 print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
 META['built']=DATE
-data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'DY':DY,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
 ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
 html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)
