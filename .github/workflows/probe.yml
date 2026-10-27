@@ -1,0 +1,21 @@
+name: Probe ESPN league (temporary)
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          exec > probe.txt 2>&1
+          B="https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/2026/segments/0/leagues/464142"
+          c=$(curl -s -o /tmp/r -w '%{http_code}' -H "Origin: https://notonherb.github.io" "$B?view=mSettings"); echo "mSettings -> $c"; head -c 300 /tmp/r; echo
+          if [ "$c" = "200" ]; then
+            echo "settings keys: $(jq -c '.settings|keys' /tmp/r)"; echo "roster slots: $(jq -c '.settings.rosterSettings.lineupSlotCounts' /tmp/r)"; echo "scoring rec: $(jq -c '[.settings.scoringSettings.scoringItems[]|select(.statId==53)]' /tmp/r)"
+            curl -s -o /tmp/t "$B?view=mTeam&view=mRoster"; echo "teams: $(jq '.teams|length' /tmp/t) keys $(jq -c '.teams[0]|keys' /tmp/t)"; echo "entry keys: $(jq -c '.teams[0].roster.entries[0]|keys' /tmp/t) player keys: $(jq -c '.teams[0].roster.entries[0].playerPoolEntry.player|keys' /tmp/t | cut -c1-400)"
+            echo "members keys: $(jq -c '.members[0]|keys' /tmp/t)"; echo "status: $(jq -c '{w:.status.currentMatchupPeriod,s:.scoringPeriodId}' /tmp/t)"
+          fi
+      - run: |
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git add probe.txt; git commit -m "probe output"; git push
