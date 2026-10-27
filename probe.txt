@@ -1,0 +1,14 @@
+USER keys: ["avatar","cookies","created","currencies","data_updated","deleted","display_name","email","is_bot","metadata","notifications","pending","phone","real_name","solicitable","summoner_name","summoner_region","token","user_id","username","verification"]
+CORS header:
+access-control-allow-credentials: true
+access-control-allow-origin: *
+access-control-expose-headers: etag,date
+LEAGUES 2026 count: 1
+LEAGUES 2025 count: 1
+LEAGUE keys: ["avatar","bracket_id","bracket_overrides_id","company_id","display_order","draft_id","group_id","last_author_avatar","last_author_display_name","last_author_id","last_author_is_bot","last_message_attachment","last_message_id","last_message_text_map","last_message_time","last_pinned_message_id","last_read_id","last_transaction_id","league_id","loser_bracket_id","loser_bracket_overrides_id","metadata","name","previous_league_id","roster_positions","scoring_settings","season","season_type","settings","shard","sport","status","total_rosters"]
+LEAGUE settings.type per league: [{"type":2,"teams":10,"rp":"QB,RB,RB,WR,WR,TE,FLEX,FLEX,IDP_FLEX,IDP_FLEX,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN,BN","rec":0.5,"te":null}]
+ROSTER keys: ["co_owners","keepers","league_id","metadata","owner_id","player_map","players","reserve","roster_id","settings","starters","taxi"] | rosters 10 | players on first: 36 | sample ids: ["5846","5849","10891"]
+ROSTER settings keys: ["fpts","fpts_against","fpts_against_decimal","fpts_decimal","losses","ppts","ppts_decimal","ties","total_moves","waiver_adjusted","waiver_budget_used","waiver_position","wins"]
+USERS keys: ["avatar","display_name","is_bot","is_owner","league_id","metadata","settings","user_id"] | metadata keys: ["allow_pn","archived","avatar","mention_pn","team_name"]
+TRADED PICKS count: 7 keys: ["owner_id","previous_owner_id","roster_id","round","season"]
+STATE: {"season":"2026","week":7,"season_type":"regular","league_season":"2026"}
