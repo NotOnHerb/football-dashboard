@@ -1,0 +1,26 @@
+name: Probe news (temporary)
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          exec > probe.txt 2>&1
+          O="Origin: https://notonherb.github.io"
+          for U in "https://site.api.espn.com/apis/fantasy/v2/games/ffl/news/players?limit=5&playerId=3918298" \
+                   "https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/news?limit=5" \
+                   "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?athlete=3918298&limit=5" \
+                   "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=5"; do
+            echo "== $U"
+            c=$(curl -s -o /tmp/r -w '%{http_code}' -H "$O" "$U"); echo "status $c"
+            curl -s -D - -o /dev/null -H "$O" "$U" | grep -i '^access-control-allow-origin' || echo "(no CORS header)"
+            echo "top keys: $(jq -c 'keys' /tmp/r 2>/dev/null | cut -c1-200)"
+            echo "first item: $(jq -c '(.feed // .articles // .news // .items // [])[0] | {headline,published,lastModified,description,type,links:(.links.web.href // .links.mobile.href // null),story:(.story|tostring|.[0:80])}' /tmp/r 2>/dev/null | cut -c1-500)"
+            echo "count: $(jq -c '((.feed // .articles // .news // .items // [])|length)' /tmp/r 2>/dev/null)"
+          done
+      - run: |
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git add probe.txt; git commit -m "probe output"; git push
