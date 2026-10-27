@@ -361,7 +361,7 @@ var CCOL={ALL:[['Usage %',8,0],['PPA/play',9,2],['Total PPA',10,1],['Pass yds',1
  WR:[['Usage %',8,0],['PPA/play',9,2],['Total PPA',10,1],['Rec',22,0],['Rec yds',23,0],['Rec TD',24,0],['YPR',25,1],['Rec yds share %',26,0]]};
 CCOL.TE=CCOL.WR;
 function renderC(){if(!D.CF){$('dsub').hidden=false;$('dsub').textContent='';$('dt').innerHTML='<p class="sub" style="padding:14px">College data isn’t available right now. It needs the CFBD_KEY secret and comes back with the next refresh.</p>';return}
-  var q=DS.q.toLowerCase(),rows=D.CF.P.filter(function(r){return (CS.v==='d'?r[11]:!r[11])&&(DS.p==='ALL'||r[1]===DS.p)&&(CS.cf==='ALL'||(CS.cf==='P4'?P4.indexOf(r[3])>-1:r[3]===CS.cf))&&(!q||r[0].toLowerCase().indexOf(q)>-1||(r[2]||'').toLowerCase().indexOf(q)>-1)}).map(function(r){var o=r.slice();o.td=(r[15]||0)+(r[20]||0)+(r[24]||0);return o});
+  var q=DS.q.toLowerCase(),rows=D.CF.P.filter(function(r){return (CS.v==='d'?r[11]!==false:r[11]===false)&&(DS.p==='ALL'||r[1]===DS.p)&&(CS.cf==='ALL'||(CS.cf==='P4'?P4.indexOf(r[3])>-1:r[3]===CS.cf))&&(!q||r[0].toLowerCase().indexOf(q)>-1||(r[2]||'').toLowerCase().indexOf(q)>-1)}).map(function(r){var o=r.slice();o.td=(r[15]||0)+(r[20]||0)+(r[24]||0);return o});
   var cols=[['Player',0,-1]].concat(DS.p==='ALL'?[['Pos',1,-1]]:[]).concat([['School',2,-1],['Conf',3,-1],['Class',4,-2],['Recruit rank',6,0],['Ht / Wt','hw',-1]]).concat(CCOL[DS.p]);
   if(!cols.some(function(c){return c[1]===CS.c})){CS.c=10;CS.d=-1}
   rows=sortRows(rows,CS.c,CS.d);

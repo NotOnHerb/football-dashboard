@@ -342,12 +342,12 @@ try:
         hs=int(rr['year']) if rr is not None and pd.notna(rr['year']) else None
         if hs is not None and 1<=SEASON-hs+1<=5: cls=SEASON-hs+1
         elif cls==1: cls=None
-        elig=(hs is not None and hs<=SEASON-2) or (hs is None and cls is not None and cls>=3)
+        elig=(hs<=SEASON-2) if hs is not None else ((cls>=3) if cls is not None else None)
         U=us.loc[pid] if pid in us.index else None; PA=pp.loc[pid] if pid in pp.index else None
         rd=lambda v,k=1:None if v is None or v!=v else round(float(v),k)
         rows.append([r.player,p,r.team,r.conference,cls,int(rr['stars']) if rr is not None else None,int(rr['ranking']) if rr is not None and pd.notna(rr['ranking']) else None,hs,
             rd(U['usage.overall']*100 if U is not None and 'usage.overall' in U and pd.notna(U['usage.overall']) else None,0),
-            rd(PA['averagePPA.all'] if PA is not None and 'averagePPA.all' in PA else None,2),rd(PA['totalPPA.all'] if PA is not None and 'totalPPA.all' in PA else None,1),bool(elig),
+            rd(PA['averagePPA.all'] if PA is not None and 'averagePPA.all' in PA else None,2),rd(PA['totalPPA.all'] if PA is not None and 'totalPPA.all' in PA else None,1),elig,
             rd(g_(r,'pass_ATT'),0),rd(g_(r,'pass_PCT')*100 if g_(r,'pass_PCT') is not None and g_(r,'pass_PCT')<=1 else g_(r,'pass_PCT'),1),rd(g_(r,'pass_YDS'),0),rd(g_(r,'pass_TD'),0),rd(g_(r,'pass_INT'),0),rd(g_(r,'pass_YPA'),1),
             rd(g_(r,'rush_CAR'),0),rd(g_(r,'rush_YDS'),0),rd(g_(r,'rush_TD'),0),rd(g_(r,'rush_YPC'),1),
             rd(g_(r,'rece_REC'),0),rd(g_(r,'rece_YDS'),0),rd(g_(r,'rece_TD'),0),rd(g_(r,'rece_YPR'),1),
