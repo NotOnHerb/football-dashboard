@@ -118,10 +118,11 @@ K=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.fg_made),i
 print('defenders',len(X),'| kickers',len(K),'| top kicker',K[0][:2],K[0][-2:])
 P['K']=[[r.player_display_name,r.recent_team,int(r.games),[round(float(r.pts/r.games),1),None,None,round(float(r.fg_att/r.games),1),None,int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts)],round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
 PCout['K']=[['Pts/g',1],['Yds/g',0],['TD',0],['Opps/g',1],['Tgt %',0],['FG made',0],['FG att',0],['FG %',1],['Long',0],['0-39',0],['40-49',0],['50+',0],['Missed',0],['Missed 40+',0],['XP made',0],['XP att',0],['Fantasy pts',0]]
+OLSTART={}
 def load_depth(teams):
     try:
         c=pd.read_csv(fetch(BASE+'depth_charts/depth_charts_%d.csv'%SEASON),usecols=['dt','team','player_name','gsis_id','pos_grp','pos_abb','pos_rank'])
-        dt=str(c.dt.max())[:10]; c=c[c.dt==c.dt.max()].dropna(subset=['player_name']).sort_values('pos_rank').drop_duplicates(['team','pos_grp','pos_abb'])
+        dt=str(c.dt.max())[:10]; c=c[c.dt==c.dt.max()].dropna(subset=['player_name']).sort_values('pos_rank'); CALL=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t))); c=c.drop_duplicates(['team','pos_grp','pos_abb'])
         c=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t)))
         ST=df.drop_duplicates('player_id').set_index('player_id')
         base=c[c.pos_grp.str.startswith('Base',na=False)]
@@ -145,7 +146,18 @@ def load_depth(teams):
                 g=lambda col:float(s[col]) if s is not None and pd.notna(s[col]) else 0.0
                 dpg=(g('def_sacks')+g('def_qb_hits')+g('def_tackles_for_loss'))/max(TG.get(t,1),1)
                 frs.append([sl,r.player_name,round(g('def_sacks'),1),int(g('def_qb_hits')),int(g('def_tackles_for_loss')),0,round(dpg,2)])
-            out[t]={'s':sch,'ol':ols,'fr':frs}
+            dbs=[]
+            used=set(); ball=CALL[(CALL.team==t)&CALL.pos_grp.str.startswith('Base',na=False)]
+            for sl in ['LCB','RCB','NB','SS','FS']:
+                r=ball[(ball.pos_abb==sl)&~ball.gsis_id.isin(used)]
+                if r.empty: continue
+                r=r.iloc[0]; used.add(r.gsis_id); s=ST.loc[r.gsis_id] if r.gsis_id in ST.index else None
+                g=lambda col:float(s[col]) if s is not None and pd.notna(s[col]) else 0.0
+                dbs.append([sl,r.player_name,int(g('def_interceptions')),int(g('def_pass_defended')),int(g('def_tackles_solo')+g('def_tackle_assists'))])
+            for sl in ['LT','LG','C','RG','RT']:
+                r=ct[(ct.pos_abb==sl)&~ct.pos_grp.str.startswith('Base',na=False)&(ct.pos_grp!='Special Teams')]
+                if not r.empty: OLSTART[r.iloc[0].gsis_id]=(t,sl,r.iloc[0].player_name)
+            out[t]={'s':sch,'ol':ols,'fr':frs,'db':dbs}
         allv=np.array([x[6] for v in out.values() for x in v['fr']])
         p90,p75,p50=np.percentile(allv,[90,75,50])
         for v in out.values():
@@ -155,6 +167,36 @@ def load_depth(teams):
     except Exception as ex:
         print('depth chart fetch failed, matchups will use stats only:',ex); return None
 DEP=load_depth({t[0] for t in T})
+OLP={}
+for _,r in df[df.position_group=='OL'].iterrows():
+    OLP[r.player_id]=[r.player_display_name,r.recent_team,r.position,int(r.games),'–',int(r.penalties or 0),int(r.penalty_yards or 0)]
+for gid,(t,sl,nm) in OLSTART.items():
+    if gid in OLP: OLP[gid][4]=sl; OLP[gid][1]=t
+    else: OLP[gid]=[nm,t,sl,None,sl,0,0]
+OLP=sorted(OLP.values(),key=lambda x:(x[4]=='–',x[1],['LT','LG','C','RG','RT','–'].index(x[4]) if x[4] in ['LT','LG','C','RG','RT','–'] else 9))
+print('OL players',len(OLP),'| starters',sum(1 for x in OLP if x[4]!='–'))
+def load_allowed():
+    try:
+        w=pd.read_csv(fetch(BASE+'stats_player/stats_player_week_%d.csv'%SEASON))
+        w=w[(w.season==SEASON)&(w.season_type=='REG')&w.position.isin(['QB','RB','WR','TE'])].copy()
+        for c in ['fantasy_points','fantasy_points_ppr','passing_yards','rushing_yards','receiving_yards','passing_tds','rushing_tds','receiving_tds','receptions']: w[c]=w[c].fillna(0)
+        fx=lambda t:t if t in N else ALIAS.get(t,t)
+        w['team']=w.team.map(fx); w['opponent_team']=w.opponent_team.map(fx)
+        w['yds']=np.where(w.position=='QB',w.passing_yards+w.rushing_yards,np.where(w.position=='RB',w.rushing_yards+w.receiving_yards,w.receiving_yards))
+        w['td']=w.passing_tds+w.rushing_tds+w.receiving_tds
+        out={}
+        for side,key in [('a','opponent_team'),('s','team')]:
+            gp=w.groupby(key).game_id.nunique()
+            agg=w.groupby([key,'position'])[['fantasy_points_ppr','fantasy_points','yds','td','receptions']].sum()
+            for (t,p),v in agg.iterrows():
+                o=out.setdefault(t,{'g':int(gp[t]),'a':{},'s':{}})
+                o[side][p]=[round(float(x)/gp[t],2) for x in v.values]
+        tot_a=sum(v['a'][p][0]*v['g'] for v in out.values() for p in v['a']); tot_s=sum(v['s'][p][0]*v['g'] for v in out.values() for p in v['s'])
+        print('allowed ok: weeks',int(w.week.min()),'-',int(w.week.max()),'| teams',len(out),'| PPR allowed',round(tot_a),'vs scored',round(tot_s))
+        return {'wk':int(w.week.max()),'T':out}
+    except Exception as ex:
+        print('weekly stats fetch failed, skill matchups hidden:',ex); return None
+ALW=load_allowed()
 names={t:N[t] for t in set(df.recent_team)}
 def clean(o):
     if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
@@ -163,7 +205,7 @@ def clean(o):
     if isinstance(o,(np.integer,)): return int(o)
     if isinstance(o,(np.floating,)): return clean(float(o))
     return o
-data=json.dumps(clean({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OL':OL,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+data=json.dumps(clean({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 b64=base64.b64encode(gzip.compress(data.encode(),9)).decode()
 html=open('template.html').read().replace('__B64__',b64).replace('__DATE__',DATE)
 open('index.html','w').write(html)

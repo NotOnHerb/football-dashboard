@@ -56,13 +56,15 @@ h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
 .mix span{padding:0 8px;white-space:nowrap}.mix .p{background:var(--b)}.mix .r{background:var(--a);text-align:right}
 .mix i{position:absolute;top:0;bottom:0;width:2px;background:var(--ink)}
 td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
+[hidden]{display:none!important}
 </style></head><body><main>
 <h1>Football dashboard</h1>
 <p class="sub">2026 regular season so far. Browse players, then open a team for its summary and roster.</p>
-<div class="bar"><div class="seg" id="tabs"><button data-v="p" aria-pressed="true">Players</button><button data-v="t" aria-pressed="false">Teams</button><button data-v="n" aria-pressed="false">Trenches</button><button data-v="c" aria-pressed="false">Compare</button><button data-v="d" aria-pressed="false">Defense</button></div></div>
+<div class="bar"><div class="seg" id="tabs"><button data-v="p" aria-pressed="true">Players</button><button data-v="t" aria-pressed="false">Teams</button><button data-v="n" aria-pressed="false">Matchups</button><button data-v="c" aria-pressed="false">Compare</button></div></div>
 <section id="vp">
+ <div class="bar"><div class="seg" id="side"><button data-d="O" aria-pressed="true">Offense</button><button data-d="D" aria-pressed="false">Defense</button></div></div>
  <div class="bar"><input id="q" type="search" placeholder="Search players" aria-label="Search players"><select id="tm" aria-label="Team"></select><select id="mn" aria-label="Minimum usage"><option value="0">Any usage</option><option value="10">10+ touches or targets</option><option value="25">25+</option><option value="50">50+</option></select></div>
- <div class="bar"><div class="seg" id="pos"></div><div class="seg" id="sc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div>
+ <div class="bar"><div class="seg" id="pos"></div><div class="seg" id="xg" hidden></div><div class="seg" id="sc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div>
  <div class="wrap" id="pt"></div><p class="sub" id="ld">Loading stats…</p>
 </section>
 <section id="vt" hidden><div class="bar"><div class="seg" id="tv"><button data-w="W" aria-pressed="true">Whole team</button><button data-w="O" aria-pressed="false">Offense</button><button data-w="D" aria-pressed="false">Defense</button><button data-w="S" aria-pressed="false">Special teams</button></div></div><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
@@ -70,22 +72,19 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 <div class="picks"><div class="pick a"><input id="ca" list="cl" aria-label="Player A" onfocus="this.select()"></div><div class="pick b"><input id="cb" list="cl" aria-label="Player B" onfocus="this.select()"></div></div><datalist id="cl"></datalist>
 <div class="verdict" id="cv"></div><div class="tally" id="ct"></div><div id="cr"></div>
 <p class="sub">Tap a name box and start typing to search every player at that position.</p></section>
-<section id="vd" hidden><div class="bar"><div class="seg" id="xg"></div></div>
-<div class="bar"><input id="xq" type="search" placeholder="Search players" aria-label="Search players"><select id="xt" aria-label="Team"></select></div>
-<div class="wrap" id="xp"></div>
-<div class="note">Defenders appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. Your league may score differently. A player’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Kickers are in the Players tab. Punters aren’t included.</div></section>
-<section id="vn" hidden><h2>Matchup</h2><p class="sub">Pick a game to see who has the edge up front, then who each offensive lineman is likely to see across from him.</p>
-<div class="bar"><select id="gm" aria-label="Game"></select></div><div id="mu"></div>
+
+<section id="vn" hidden><h2>Matchups</h2><p class="sub">Pick a game, then switch between the battle up front and the skill-position matchups.</p>
+<div class="bar"><select id="gm" aria-label="Game"></select><div class="seg" id="mv"><button data-m="t" aria-pressed="true">Trenches</button><button data-m="s" aria-pressed="false">Skill positions</button></div></div>
+<div id="ms" hidden></div><div id="mt"><div id="mu"></div>
 <h3>Offensive line units</h3><div class="wrap" id="ou"></div>
 <h3>Defensive line units</h3><div class="wrap" id="du"></div>
-<h3>Offensive linemen (penalties only)</h3><div class="wrap" id="op"></div>
-<div class="note">How the edge works: each unit’s league ranks are averaged (pass protection uses sack rate allowed and pass EPA; pass rush uses sacks and QB hits; the run game uses yards per carry and rush EPA; the front uses tackles for loss and line tackles for loss). The gap between the two averages sets the level: Even under 4 rank spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. It’s a guide, not a prediction. Starters and alignments come from the latest nflverse depth chart, and defenses shift fronts every play, so “likely across from him” is the usual alignment, not a guarantee. Threat levels rank every starting front player by sacks, QB hits and tackles for loss per team game: Elite is top 10%, High top 25%, Solid top half. Individual blocking grades (ESPN block win rates, PFF) aren’t in this data, so linemen show penalties only. Run defense allowed needs game-by-game data, so tackles for loss stands in for it.</div></div></section>
-<div class="note">Real stats from nflverse (CC-BY 4.0), updated __DATE__. Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently.</div>
+<div class="note">How the edge works: each unit’s league ranks are averaged (pass protection uses sack rate allowed and pass EPA; pass rush uses sacks and QB hits; the run game uses yards per carry and rush EPA; the front uses tackles for loss and line tackles for loss). The gap between the two averages sets the level: Even under 4 rank spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. It’s a guide, not a prediction. Starters and alignments come from the latest nflverse depth chart, and defenses shift fronts every play, so “likely across from him” is the usual alignment, not a guarantee. Threat levels rank every starting front player by sacks, QB hits and tackles for loss per team game: Elite is top 10%, High top 25%, Solid top half. Individual blocking grades (ESPN block win rates, PFF) aren’t in this data, so linemen show penalties only (see them under Players, Offense, OL). Run defense allowed needs game-by-game data, so tackles for loss stands in for it.</div></div></div></section>
+<div class="note">Real stats from nflverse (CC-BY 4.0), updated __DATE__. Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently. Defense: players appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. A defender’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Offensive linemen: this data only grades them by penalties; starting spots come from the latest depth chart, and starters with no flag show no games played. Punters aren’t included.</div>
 </main>
 <script>
 var D,A=[],B='__B64__';
 var $=function(i){return document.getElementById(i)};
-var st={v:'p',pos:'ALL',tm:'ALL',q:'',pc:4,pd:-1,tc:1,td:-1,mn:0,dq:'',tv:'W'};
+var st={v:'p',pos:'ALL',tm:'ALL',q:'',pc:4,pd:-1,tc:1,td:-1,mn:0,dq:'',tv:'W',side:'O',sc:'ppr',mv:'t'};
 function f(v,d){return v==null?'–':v.toFixed(d)}
 function sortRows(rows,c,dir){return rows.slice().sort(function(a,b){var x=a[c],y=b[c];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(typeof x==='string'?x.localeCompare(y):x-y)*dir})}
 function colsFor(p,noTeam){
@@ -127,19 +126,23 @@ function team(a){tab('t');
 function sortClick(e,k,fn){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=+th.dataset.c;
   if(st[k+'c']===c)st[k+'d']*=-1;else{st[k+'c']=c;st[k+'d']=(k==='p'?c<=2:c===0)?1:-1}fn()}
 function wire(){
-  $('pt').addEventListener('click',function(e){sortClick(e,'p',renderP)});
+  $('pt').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c;
+    if(st.side==='D'){if(DX.c===c)DX.d*=-1;else{DX.c=c;DX.d=c<=2?1:-1}renderX()}
+    else if(st.pos==='OL'){if(OS.c===c)OS.d*=-1;else{OS.c=c;OS.d=c<=2||c===4?1:-1}renderOL()}
+    else sortClick(e,'p',renderP)});
+  $('side').addEventListener('click',function(e){var d=e.target.dataset.d;if(!d)return;st.side=d;[].forEach.call($('side').children,function(x){x.setAttribute('aria-pressed',x.dataset.d===d)});$('pos').hidden=d==='D';$('xg').hidden=d!=='D';$('sc').hidden=d==='D';$('mn').hidden=d==='D'||st.pos==='OL'||st.pos==='K';render()});
   ['tt','ou','du'].forEach(function(id){$(id).addEventListener('click',function(e){var tr=e.target.closest('tr[data-t]');if(tr)return team(tr.dataset.t);var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c,s=TS[id];if(s[0]===c)s[1]*=-1;else{s[0]=c;s[1]=c===0?1:-1}teamTbl(id)});$(id).addEventListener('keydown',function(e){if(e.key==='Enter'){var tr=e.target.closest('tr[data-t]');if(tr)team(tr.dataset.t)}})});
   $('tabs').addEventListener('click',function(e){var v=e.target.dataset.v;if(v)tab(v)});
   $('tv').addEventListener('click',function(e){var w=e.target.dataset.w;if(!w)return;st.tv=w;[].forEach.call($('tv').children,function(x){x.setAttribute('aria-pressed',x.dataset.w===w)});renderT();if(!$('td').hidden){var h=$('td').querySelector('h2');if(h)team(h.textContent.split(' ')[0])}});
-  $('mn').onchange=function(){st.mn=+this.value;renderP()};
+  $('mn').onchange=function(){st.mn=+this.value;render()};
   $('sc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
-  $('pos').innerHTML=['ALL','QB','RB','WR','TE','K'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
-  $('pos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;st.pos=p;[].forEach.call($('pos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});renderP()});
+  $('pos').innerHTML=['ALL','QB','RB','WR','TE','OL','K'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
+  $('pos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;st.pos=p;[].forEach.call($('pos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});$('mn').hidden=p==='OL'||p==='K';$('sc').hidden=p==='OL'||p==='K';render()});
   $('tm').innerHTML='<option value="ALL">All teams</option>'+Object.keys(D.N).sort().map(function(t){return '<option value="'+t+'">'+t+' '+D.N[t]+'</option>'}).join('');
-  $('tm').onchange=function(){st.tm=this.value;renderP()};
-  $('q').oninput=function(){st.q=this.value;renderP()};
+  $('tm').onchange=function(){st.tm=this.value;render()};
+  $('q').oninput=function(){st.q=this.value;render()};
 }
-function tab(v){st.v=v;[].forEach.call($('tabs').children,function(b){b.setAttribute('aria-pressed',b.dataset.v===v)});$('vp').hidden=v!=='p';$('vt').hidden=v!=='t';$('vn').hidden=v!=='n';$('vc').hidden=v!=='c';$('vd').hidden=v!=='d'}
+function tab(v){st.v=v;[].forEach.call($('tabs').children,function(b){b.setAttribute('aria-pressed',b.dataset.v===v)});$('vp').hidden=v!=='p';$('vt').hidden=v!=='t';$('vn').hidden=v!=='n';$('vc').hidden=v!=='c'}
 function ix(l){for(var k=0;k<D.TC.length;k++)if(D.TC[k][0]===l)return k}
 var TS={tt:[1,-1,0],ou:[null,1,['Sack % allowed','Pass EPA/dropback','Yds/carry','Rush EPA/carry','OL penalties','OL penalty yds']],du:[null,-1,['Sacks','QB hits','Tackles for loss','DL sacks','DL QB hits','DL tackles for loss']]};
 function mixBar(t){if(st.tv!=='W'&&st.tv!=='O')return '';var k=ix('Pass rate % (approx)'),p=t[k+1];if(p==null)return '';
@@ -153,7 +156,7 @@ function teamTbl(id){
   $(id).innerHTML='<table><tr>'+cols.map(function(c){var on=c[1]===s[0];return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(s[1]>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+sortRows(D.T,s[0],s[1]).map(function(r){return '<tr class="go" tabindex="0" data-t="'+r[0]+'"><td class="nm">'+r[0]+' '+D.N[r[0]]+'</td>'+cols.slice(1).map(function(c){return '<td>'+f(r[c[1]],c[2])+'</td>'}).join('')+'</tr>'}).join('')+'</table>';
 }
 function renderT(){teamTbl('tt')}
-var TB={op:{c:3,d:-1,k:'OL',cols:[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['Penalties',3,0],['Penalty yds',4,0],['Fumbles lost',5,0]]}};
+var TB={xx:{c:3,d:-1,k:'OL',cols:[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['Penalties',3,0],['Penalty yds',4,0],['Fumbles lost',5,0]]}};
 function renderTB(id){var s=TB[id],rows=D[s.k];$(id).innerHTML=rows.length?tbl(s.cols,sortRows(rows,s.c,s.d),s.c,s.d):'<p class="sub" style="padding:14px">No linemen match that search.</p>'}
 function ord(n){var v=n%100,x=['th','st','nd','rd'];return n+(x[(v-20)%10]||x[v]||'th')}
 function mr(l,a){var k=ix(l),t=D.T.filter(function(r){return r[0]===a})[0];return {v:f(t[k+1],D.TC[k][1]),r:rank(k,t)}}
@@ -187,12 +190,36 @@ function side(o,d){
   h+='<h3>'+d+'’s 3 biggest pass-rush threats</h3><p class="sub">'+(thr.length?thr.map(function(r,i){return (i+1)+'. <b>'+r[0]+'</b> ('+r[2]+') · '+r[8]+(r[8]===1?' sack, ':' sacks, ')+r[9]+' QB hits, '+r[7]+' TFL'}).join('<br>'):'No data')+'</p>';
   return h+'<h3>'+o+' line, man by man</h3>'+olTable(o,d);
 }
-function matchup(){var g=D.G[+$('gm').value||0];$('mu').innerHTML=side(g[0],g[1])+side(g[1],g[0])}
+function matchup(){var g=D.G[+$('gm').value||0];$('mu').innerHTML=side(g[0],g[1])+side(g[1],g[0]);skillRender()}
+var SKN={QB:1,RB:2,WR:3,TE:1};
+function sp(v){return st.sc==='std'?v[1]:st.sc==='half'?(v[0]+v[1])/2:v[0]}
+function srank(t,side,p){var W=D.ALW.T,me=W[t]&&W[t][side][p];if(!me)return null;var x=sp(me),n=0;for(var k in W){var o=W[k][side][p];if(o&&(side==='s'?sp(o)>x:sp(o)<x))n++}return n+1}
+function edgeChip(z){var az=Math.abs(z);for(var i=0;i<LVL.length;i++)if(az>=LVL[i][0])return '<span class="lvl '+(z>0?'o':'d')+'" title="'+LVL[i][2]+'">'+LVL[i][1]+'</span>'+(z>0?'Offense':'Defense');return '<span class="lvl e">=</span>Even'}
+function skillSide(o,d){
+  var W=D.ALW.T;if(!W[o]||!W[d])return '<p class="sub">No game data for this team yet.</p>';
+  var h='<h3>'+o+' skill players vs '+d+' defense</h3><div class="wrap"><table class="olt"><tr><th>Pos</th><th>'+o+' players ('+SCL[st.sc]+')</th><th>'+o+' pts/g at spot</th><th>'+d+' allows/g</th><th>Yds allowed/g</th><th>TD allowed/g</th><th>Edge</th></tr>',ox=[],dy=[];
+  ['QB','RB','WR','TE'].forEach(function(p){
+    var pl=A.filter(function(r){return r[1]===o&&r[2]===p}).sort(function(x,y){return y[7]*y[3]-x[7]*x[3]}).slice(0,SKN[p]);
+    var so=W[o].s[p],al=W[d].a[p],ro=srank(o,'s',p),rd=srank(d,'a',p);
+    if(!so||!al)return;ox.push(ro);dy.push(rd);
+    h+='<tr><td><span class="tag '+p+'">'+p+'</span></td><td class="wr">'+(pl.length?pl.map(function(r){return '<b>'+r[0]+'</b> '+f(r[4],1)}).join('<br>'):'–')+'</td><td>'+f(sp(so),1)+' ('+ord(ro)+')</td><td>'+f(sp(al),1)+' ('+ord(rd)+')</td><td>'+f(al[2],0)+'</td><td>'+f(al[3],1)+'</td><td>'+edgeChip(rd-ro)+'</td></tr>';
+  });
+  h+='</table></div>';
+  if(ox.length)h+=meter('Overall skill-position matchup',o,d,[ox.reduce(function(a,b){return a+b},0)/ox.length,ox.reduce(function(a,b){return a+b},0)/ox.length],[dy.reduce(function(a,b){return a+b},0)/dy.length,dy.reduce(function(a,b){return a+b},0)/dy.length]);
+  var F=D.DEP&&D.DEP.T[d];
+  if(F&&F.db&&F.db.length){h+='<h3>'+d+' secondary (starters)</h3><div class="wrap"><table class="olt"><tr><th>Spot</th><th>Player</th><th>INT</th><th>Passes defended</th><th>Tackles</th></tr>'+F.db.map(function(x){return '<tr><td>'+x[0]+'</td><td class="nm">'+x[1]+'</td><td>'+x[2]+'</td><td>'+x[3]+'</td><td>'+x[4]+'</td></tr>'}).join('')+'</table></div>'}
+  return h;
+}
+function skillRender(){
+  if(!D.ALW){$('ms').innerHTML='<p class="sub">Game-by-game stats aren’t available right now, so skill matchups are hidden. They come back with the next refresh.</p>';return}
+  var g=D.G[+$('gm').value||0];
+  $('ms').innerHTML=skillSide(g[0],g[1])+skillSide(g[1],g[0])+'<div class="note">How it works: “pts/g at spot” is the fantasy points per game this offense gets from that position, ranked 1st (most) to 32nd. “Allows/g” is the fantasy points per game this defense gives up to that position, ranked 1st (toughest, fewest allowed) to 32nd (softest). The edge compares those two ranks with the same levels as the trenches: Even under 4 spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. Through week '+D.ALW.wk+'. Points follow the PPR, Half PPR or Standard setting on the Players tab. Players shown are the team’s top options by usage. Strength of schedule isn’t adjusted for yet, so a defense that faced weak offenses can look tougher than it is. A guide, not a prediction.</div>';
+}
 function initN(){
   $('gm').innerHTML=D.G.map(function(g,i){return '<option value="'+i+'">'+g[0]+' at '+g[1]+' · '+g[2]+'</option>'}).join('');
   $('gm').onchange=matchup;
-  ['op'].forEach(function(id){$(id).addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c,s=TB[id];if(s.c===c)s.d*=-1;else{s.c=c;s.d=c<=2?1:-1}renderTB(id)})});
-  teamTbl('ou');teamTbl('du');renderTB('op');matchup();
+  $('mv').addEventListener('click',function(e){var m=e.target.dataset.m;if(!m)return;st.mv=m;[].forEach.call($('mv').children,function(x){x.setAttribute('aria-pressed',x.dataset.m===m)});$('mt').hidden=m!=='t';$('ms').hidden=m!=='s'});
+  teamTbl('ou');teamTbl('du');matchup();
 }
 var CP={pos:'QB',a:null,b:null},LOWER=['INT','Sack %','Fum lost'];
 function cList(){return A.filter(function(r){return r[2]===CP.pos}).sort(function(x,y){return y[4]*y[3]-x[4]*x[3]})}
@@ -223,21 +250,22 @@ var XC=[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Tackles',4,0],['
 var KC=[['Player',0,-1],['Team',1,-1],['GP',3,0],['FG made',4,0],['FG att',5,0],['FG %',6,1],['Long',7,0],['0-39',8,0],['40-49',9,0],['50+',10,0],['Missed',11,0],['Missed 40+',12,0],['XP made',13,0],['XP att',14,0],['Fantasy pts',15,0],['Pts/g',16,1]];
 var XG={DL:['DE','DT','NT','DL'],LB:['LB','ILB','MLB','OLB'],CB:['CB'],S:['S','SAF','FS','SS','DB']};
 function renderX(){
-  var k=DX.g==='K',cols=k?KC:XC,q=DX.q.toLowerCase();
+  var k=false,cols=XC,q=st.q.toLowerCase();
   if(!cols.some(function(c){return c[1]===DX.c}))DX.c=15;
-  var rows=(k?D.K:D.X).filter(function(r){return(k||DX.g==='ALL'||XG[DX.g].indexOf(r[2])>-1)&&(DX.t==='ALL'||r[1]===DX.t)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
-  $('xp').innerHTML=rows.length?tbl(cols,sortRows(rows,DX.c,DX.d),DX.c,DX.d):'<p class="sub" style="padding:14px">No players match. Try clearing the search or filters.</p>';
+  var rows=(k?D.K:D.X).filter(function(r){return(k||DX.g==='ALL'||XG[DX.g].indexOf(r[2])>-1)&&(st.tm==='ALL'||r[1]===st.tm)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
+  $('pt').innerHTML=rows.length?tbl(cols,sortRows(rows,DX.c,DX.d),DX.c,DX.d):'<p class="sub" style="padding:14px">No players match. Try clearing the search or filters.</p>';
 }
 function initX(){
-  $('xg').innerHTML=['ALL','DL','LB','CB','S'].map(function(g){return '<button data-g="'+g+'" aria-pressed="'+(g==='ALL')+'">'+(g==='ALL'?'All defense':g==='K'?'Kickers':g)+'</button>'}).join('');
+  $('xg').innerHTML=['ALL','DL','LB','CB','S'].map(function(g){return '<button data-g="'+g+'" aria-pressed="'+(g==='ALL')+'">'+(g==='ALL'?'All':g)+'</button>'}).join('');
   $('xg').addEventListener('click',function(e){var g=e.target.dataset.g;if(!g)return;DX.g=g;[].forEach.call($('xg').children,function(b){b.setAttribute('aria-pressed',b.dataset.g===g)});renderX()});
-  $('xt').innerHTML=$('tm').innerHTML;$('xt').onchange=function(){DX.t=this.value;renderX()};
-  $('xq').oninput=function(){DX.q=this.value;renderX()};
-  $('xp').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c;if(DX.c===c)DX.d*=-1;else{DX.c=c;DX.d=c<=2?1:-1}renderX()});
-  renderX();
 }
+var OS={c:4,d:1},OLC=[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Starting spot',4,-1],['Penalties',5,0],['Penalty yds',6,0]];
+function renderOL(){var q=st.q.toLowerCase(),rows=(D.OLP||[]).filter(function(r){return(st.tm==='ALL'||r[1]===st.tm)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
+  var srt=OS.c===4?rows.slice().sort(function(a,b){var o=['LT','LG','C','RG','RT'],x=o.indexOf(a[4]),y=o.indexOf(b[4]);x=x<0?9:x;y=y<0?9:y;return((x===9)-(y===9))*OS.d||a[1].localeCompare(b[1])||(x-y)}):sortRows(rows,OS.c,OS.d);
+  $('pt').innerHTML=rows.length?tbl(OLC,srt,OS.c,OS.d):'<p class="sub" style="padding:14px">No linemen match. Try clearing the search or team filter.</p>'}
+function render(){if(st.side==='D')renderX();else if(st.pos==='OL')renderOL();else renderP()}
 var SCL={ppr:'PPR/g',half:'Half PPR/g',std:'Std/g'};
-function setSc(m){st.sc=m;A.forEach(function(r){r[4]=m==='ppr'?r.pp:m==='std'?r.sd:Math.round((r.pp+r.sd)*5)/10});['QB','RB','WR','TE'].forEach(function(p){D.PC[p][0][0]=SCL[m]});[].forEach.call($('sc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});renderP();if(CP.a)cRender()}
+function setSc(m){st.sc=m;A.forEach(function(r){r[4]=m==='ppr'?r.pp:m==='std'?r.sd:Math.round((r.pp+r.sd)*5)/10});['QB','RB','WR','TE'].forEach(function(p){D.PC[p][0][0]=SCL[m]});[].forEach.call($('sc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});render();if(CP.a)cRender();if(D.G)skillRender()}
 async function load(){
   if(typeof DecompressionStream==='undefined'){$('ld').textContent='This browser can’t open the stats. Try a recent Chrome, Safari or Firefox.';return}
   try{
