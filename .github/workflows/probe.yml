@@ -10,16 +10,19 @@ jobs:
       - run: |
           exec > probe.txt 2>&1
           O="Origin: https://notonherb.github.io"
-          for U in "https://site.api.espn.com/apis/fantasy/v2/games/ffl/news/players?limit=5&playerId=3918298" \
-                   "https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/news?limit=5" \
-                   "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?athlete=3918298&limit=5" \
-                   "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=5"; do
+          for U in "https://site.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/news?limit=5" \
+                   "https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/overview" \
+                   "https://site.api.espn.com/apis/fantasy/v2/games/ffl/news/players?days=30&playerId=3918298" \
+                   "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50"; do
             echo "== $U"
             c=$(curl -s -o /tmp/r -w '%{http_code}' -H "$O" "$U"); echo "status $c"
             curl -s -D - -o /dev/null -H "$O" "$U" | grep -i '^access-control-allow-origin' || echo "(no CORS header)"
-            echo "top keys: $(jq -c 'keys' /tmp/r 2>/dev/null | cut -c1-200)"
-            echo "first item: $(jq -c '(.feed // .articles // .news // .items // [])[0] | {headline,published,lastModified,description,type,links:(.links.web.href // .links.mobile.href // null),story:(.story|tostring|.[0:80])}' /tmp/r 2>/dev/null | cut -c1-500)"
-            echo "count: $(jq -c '((.feed // .articles // .news // .items // [])|length)' /tmp/r 2>/dev/null)"
+            echo "top keys: $(jq -c 'keys' /tmp/r 2>/dev/null | cut -c1-300)"
+            echo "news items: $(jq -c '((.feed // .articles // .news // .items // (.news.items?) // [])|length)' /tmp/r 2>/dev/null)"
+            echo "first headline: $(jq -c '((.feed // .articles // .news // .items // [])[0]|{headline,published})' /tmp/r 2>/dev/null | cut -c1-200)"
+            echo "categories sample: $(jq -c '((.feed // .articles // [])[0].categories // [])|map({type,id:(.athleteId // .teamId // .id),d:.description})' /tmp/r 2>/dev/null | cut -c1-400)"
+            echo "items tagged athlete 3918298: $(jq -c '[(.feed // .articles // [])[]|select([.categories[]?|(.athleteId // .athlete.id // 0)|tostring]|index("3918298"))|.headline]|.[0:3]' /tmp/r 2>/dev/null | cut -c1-300)"
+            echo "overview news: $(jq -c '(.news // empty)|(if type=="array" then .[0:2]|map({headline,published}) else keys end)' /tmp/r 2>/dev/null | cut -c1-300)"
           done
       - run: |
           git config user.name "github-actions"; git config user.email "actions@github.com"
