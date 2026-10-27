@@ -385,7 +385,40 @@ try:
         for r in grp:
             q=sum(1 for x in ss if x<=r[30])/len(ss)
             r[31]='A+' if q>=.98 else 'A' if q>=.95 else 'A-' if q>=.90 else 'B+' if q>=.82 else 'B' if q>=.70 else 'B-' if q>=.55 else 'C+' if q>=.40 else 'C' if q>=.25 else 'D'
-    CF={'P':rows,'draft':SEASON+1,'tg':bool(TGP)}
+    # ---- consensus big board (boards/boards_YYYY.csv, saved from published boards)
+    import re as _re, os as _os
+    def _nm(s):
+        s=str(s).lower().replace('’',"'"); s=_re.sub(r"[.,']",'',s); s=_re.sub(r'\b(jr|sr|ii|iii|iv|v)\b','',s); return _re.sub(r'\s+',' ',s).strip()
+    ALIAS_N={'ryan williams':'ryan colemanwilliams','ryan coleman-williams':'ryan colemanwilliams','kelly jones':'kelley jones','william echoles':'will echoles','gregory johnson':'greg johnson','matayo uigalelei':'matayo uiagalelei','tae johnson':'brauntae johnson'}
+    def key(n):
+        k=_nm(n); k=ALIAS_N.get(k,k); return k.replace('-','')
+    CB=None; bf='boards/boards_%d.csv'%(SEASON+1)
+    if _os.path.exists(bf):
+        bd=pd.read_csv(bf); bd['k']=bd.name.map(key)
+        srcs=bd.groupby('source').agg(url=('url','first'),updated=('updated','first'),blen=('rank','max')).reset_index()
+        allk=bd.drop_duplicates('k').set_index('k')
+        cons=[]
+        for k_,g in bd.groupby('k'):
+            rk={r.source:int(r['rank']) for _,r in g.iterrows()}
+            if len(rk)<2: continue
+            avg=sum(rk.get(s.source,int(s.blen)+1) for _,s in srcs.iterrows())/len(srcs)
+            pm=g.pos.replace({'DE':'EDGE','OLB':'EDGE','DL':'DT','G':'IOL','C':'IOL'}).mode().iloc[0]
+            cons.append([g.name.mode().iloc[0],pm,g.school.mode().iloc[0],round(avg,1),len(rk),min(rk.values()),max(rk.values()),k_]+[rk.get(s.source) for _,s in srcs.iterrows()])
+        cons.sort(key=lambda x:x[3])
+        for i,c in enumerate(cons): c.insert(0,i+1)
+        # attach consensus to college stat rows (name match, skill positions)
+        byk={c[8]:c for c in cons}
+        for r in rows:
+            c=byk.get(key(r[0])); r+= [c[0],c[4],c[5],c[6],c[7]] if c else [None]*5
+            if c: r[31]='A+' if c[0]<=10 else 'A' if c[0]<=25 else 'A-' if c[0]<=50 else 'B+' if c[0]<=75 else 'B'
+            elif r[11] is not False and r[31] in('A+','A','A-','B+'): r[31]='B'
+        CB={'P':[c[:8]+c[9:] for c in cons],'S':[[s.source,s.url,s.updated,int(s.blen)] for _,s in srcs.iterrows()]}
+        print('consensus ok:',len(cons),'players on 2+ boards from',len(srcs),'boards | top 8:',[(c[1],c[2],c[4]) for c in cons[:8]])
+        print('consensus skill players matched to college stats:',sum(1 for r in rows if r[35]),'of',sum(1 for c in cons if c[2] in('QB','RB','WR','TE')))
+        print('unmatched skill:',[c[1] for c in cons if c[2] in('QB','RB','WR','TE') and not any(len(r)>35 and r[35]==c[0] for r in rows)])
+    else:
+        for r in rows: r+=[None]*5
+    CF={'P':rows,'draft':SEASON+1,'tg':bool(TGP),'CB':CB}
     top_=sorted(rows,key=lambda r:-r[30])[:5]; print('college top dynasty scores:',[(r[0],r[1],r[2],r[30],r[31]) for r in top_])
     print('college ok:',len(rows),'players | draft-eligible',sum(1 for x in rows if x[11]),'| with recruiting stars',sum(1 for x in rows if x[5]))
 except Exception as ex:
