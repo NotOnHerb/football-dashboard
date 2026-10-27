@@ -58,19 +58,42 @@ for pos,(m,k) in M.items():
         P[pos].append([r.player_display_name,r.recent_team,int(r.games),vals,round(float(r.fantasy_points/r.games),1)]); n+=1
 PCout={p:[[l,d] for l,d,_ in v] for p,v in PC.items()}
 # ---- teams
-TC=[('GP',0,1,''),('Pass yds/g',0,1,'Offense'),('Rush yds/g',0,1,'Offense'),('Pass TD',0,1,'Offense'),('Rush TD',0,1,'Offense'),('Yds/attempt',1,1,'Offense'),('Yds/carry',1,1,'Offense'),('Pass EPA/dropback',2,1,'Offense'),('Rush EPA/carry',2,1,'Offense'),('Total pass EPA',0,1,'Offense'),('CPOE',1,1,'Offense'),('Sack % allowed',1,0,'Offense'),('Pass rate % (approx)',0,1,'Offense'),
-('Sacks',0,1,'Defense'),('QB hits',0,1,'Defense'),('Tackles for loss',0,1,'Defense'),('Interceptions',0,1,'Defense'),('Passes defended',0,1,'Defense'),('Forced fumbles',0,1,'Defense'),('Defensive TDs',0,1,'Defense'),
-('Giveaways',0,0,'Turnovers and discipline'),('Takeaways',0,1,'Turnovers and discipline'),('Turnover margin',0,1,'Turnovers and discipline'),('Penalties/g',1,0,'Turnovers and discipline'),('Penalty yds/g',0,0,'Turnovers and discipline'),('OL penalties',0,0,'Offensive line'),('OL penalty yds',0,0,'Offensive line'),('DL sacks',0,1,'Defensive line'),('DL QB hits',0,1,'Defensive line'),('DL tackles for loss',0,1,'Defensive line')]
-T=[];LG=dict(give=0,take=0,sk=0,sks=0,py=0,ry=0)
+# (label, decimals, higher is better, group, views: O=offense D=defense S=special teams; Whole team shows all)
+TC=[('GP',0,1,'','ODS'),
+('Total yds/g',0,1,'Offense','O'),('Pass yds/g',0,1,'Offense','O'),('Rush yds/g',0,1,'Offense','O'),('Pass TD',0,1,'Offense','O'),('Rush TD',0,1,'Offense','O'),('Yds/attempt',1,1,'Offense','O'),('Yds/carry',1,1,'Offense','O'),('Yds/play (approx)',1,1,'Offense','O'),('First downs/g',1,1,'Offense','O'),
+('Pass att/g',1,1,'Play mix (run vs pass)','O'),('Rush att/g',1,1,'Play mix (run vs pass)','O'),('Dropbacks/g',1,1,'Play mix (run vs pass)','O'),('Pass rate % (approx)',0,1,'Play mix (run vs pass)','O'),('Run rate % (approx)',0,1,'Play mix (run vs pass)','O'),('Pass yds share %',0,1,'Play mix (run vs pass)','O'),('Pass TD share %',0,1,'Play mix (run vs pass)','O'),
+('Pass EPA/dropback',2,1,'Efficiency','O'),('Rush EPA/carry',2,1,'Efficiency','O'),('Total pass EPA',0,1,'Efficiency','O'),('CPOE',1,1,'Efficiency','O'),('Sack % allowed',1,0,'Efficiency','O'),
+('OL penalties',0,0,'Offensive line','O'),('OL penalty yds',0,0,'Offensive line','O'),
+('Sacks',0,1,'Defense','D'),('Sacks/g',1,1,'Defense','D'),('QB hits',0,1,'Defense','D'),('Tackles for loss',0,1,'Defense','D'),('Interceptions',0,1,'Defense','D'),('Passes defended',0,1,'Defense','D'),('Forced fumbles',0,1,'Defense','D'),('Defensive TDs',0,1,'Defense','D'),
+('DL sacks',0,1,'Defensive line','D'),('DL QB hits',0,1,'Defensive line','D'),('DL tackles for loss',0,1,'Defensive line','D'),
+('Giveaways',0,0,'Turnovers and discipline','OD'),('Takeaways',0,1,'Turnovers and discipline','OD'),('Turnover margin',0,1,'Turnovers and discipline','OD'),('Penalties/g',1,0,'Turnovers and discipline','OD'),('Penalty yds/g',0,0,'Turnovers and discipline','OD'),
+('FG made',0,1,'Kicking','S'),('FG att',0,1,'Kicking','S'),('FG %',1,1,'Kicking','S'),('Long FG',0,1,'Kicking','S'),('FG made 40+',0,1,'Kicking','S'),('FG missed',0,0,'Kicking','S'),('XP %',1,1,'Kicking','S'),
+('Gross punt avg',1,1,'Punting','S'),('Net punt avg',1,1,'Punting','S'),('Punts inside 20',0,1,'Punting','S'),('Inside-20 %',0,1,'Punting','S'),('Punts blocked against',0,0,'Punting','S'),
+('Punt return avg',1,1,'Returns','S'),('Kick return avg',1,1,'Returns','S'),('Return yds/g',1,1,'Returns','S'),('ST TDs',0,1,'Returns','S'),
+('Kicks blocked (by D)',0,1,'Blocks','S'),('Kicks blocked against',0,0,'Blocks','S')]
+T=[];TG={};LG=dict(give=0,take=0,sk=0,sks=0,py=0,ry=0,blk=0,blka=0)
+dv=lambda a,b:(a/b if b else np.nan)
 for t,d in df.groupby('recent_team'):
-    gp=int(d.games.max()); S=lambda col:float(d[col].sum()); dbs=S('attempts')+S('sacks_suffered'); cr=S('carries')
+    gp=int(d.games.max()); TG[t]=gp; S=lambda col:float(d[col].fillna(0).sum())
+    att=S('attempts'); dbs=att+S('sacks_suffered'); cr=S('carries'); pyd=S('passing_yards'); ryd=S('rushing_yards')
     cp=d.dropna(subset=['passing_cpoe']); cpoe=(cp.passing_cpoe*cp.attempts).sum()/cp.attempts.sum() if cp.attempts.sum()>0 else np.nan
     give=S('passing_interceptions')+S('fumbles_lost_total'); take=S('def_interceptions')+S('fumble_recovery_opp')
-    v=[gp,S('passing_yards')/gp,S('rushing_yards')/gp,S('passing_tds'),S('rushing_tds'),S('passing_yards')/S('attempts'),S('rushing_yards')/cr,S('passing_epa')/dbs,S('rushing_epa')/cr,S('passing_epa'),cpoe,S('sacks_suffered')/dbs*100,dbs/(dbs+cr)*100,
-       S('def_sacks'),S('def_qb_hits'),S('def_tackles_for_loss'),S('def_interceptions'),S('def_pass_defended'),S('def_fumbles_forced'),S('def_tds'),give,take,take-give,S('penalties')/gp,S('penalty_yards')/gp,d[d.position_group=='OL'].penalties.sum(),d[d.position_group=='OL'].penalty_yards.sum(),d[d.position_group=='DL'].def_sacks.sum(),d[d.position_group=='DL'].def_qb_hits.sum(),d[d.position_group=='DL'].def_tackles_for_loss.sum()]
-    T.append([t]+[None if pd.isna(x) else (int(round(x)) if tc[1]==0 else round(float(x),tc[1])) for x,tc in zip(v,TC)])
-    LG['give']+=give;LG['take']+=take;LG['sk']+=S('def_sacks');LG['sks']+=S('sacks_suffered');LG['py']+=S('passing_yards');LG['ry']+=S('receiving_yards')
-print('CHECKS (should be close): giveaways',LG['give'],'vs takeaways',LG['take'],'| def sacks',LG['sk'],'vs sacks taken',LG['sks'],'| pass yds',LG['py'],'vs rec yds',LG['ry'])
+    ol=d[d.position_group=='OL']; dl=d[d.position_group=='DL']
+    fg=S('fg_att'); pt=S('pt_att'); blk=S('def_punt_blocks')+S('def_fg_blocks')+S('def_pat_blocks'); blka=S('fg_blocked')+S('pat_blocked')+S('pt_blocked')
+    V={'GP':gp,'Total yds/g':(pyd+ryd)/gp,'Pass yds/g':pyd/gp,'Rush yds/g':ryd/gp,'Pass TD':S('passing_tds'),'Rush TD':S('rushing_tds'),'Yds/attempt':dv(pyd,att),'Yds/carry':dv(ryd,cr),'Yds/play (approx)':dv(pyd+ryd,dbs+cr),'First downs/g':(S('passing_first_downs')+S('rushing_first_downs'))/gp,
+     'Pass att/g':att/gp,'Rush att/g':cr/gp,'Dropbacks/g':dbs/gp,'Pass rate % (approx)':dv(dbs,dbs+cr)*100,'Run rate % (approx)':dv(cr,dbs+cr)*100,'Pass yds share %':dv(pyd,pyd+ryd)*100,'Pass TD share %':dv(S('passing_tds'),S('passing_tds')+S('rushing_tds'))*100,
+     'Pass EPA/dropback':dv(S('passing_epa'),dbs),'Rush EPA/carry':dv(S('rushing_epa'),cr),'Total pass EPA':S('passing_epa'),'CPOE':cpoe,'Sack % allowed':dv(S('sacks_suffered'),dbs)*100,
+     'OL penalties':ol.penalties.sum(),'OL penalty yds':ol.penalty_yards.sum(),
+     'Sacks':S('def_sacks'),'Sacks/g':S('def_sacks')/gp,'QB hits':S('def_qb_hits'),'Tackles for loss':S('def_tackles_for_loss'),'Interceptions':S('def_interceptions'),'Passes defended':S('def_pass_defended'),'Forced fumbles':S('def_fumbles_forced'),'Defensive TDs':S('def_tds'),
+     'DL sacks':dl.def_sacks.sum(),'DL QB hits':dl.def_qb_hits.sum(),'DL tackles for loss':dl.def_tackles_for_loss.sum(),
+     'Giveaways':give,'Takeaways':take,'Turnover margin':take-give,'Penalties/g':S('penalties')/gp,'Penalty yds/g':S('penalty_yards')/gp,
+     'FG made':S('fg_made'),'FG att':fg,'FG %':dv(S('fg_made'),fg)*100,'Long FG':d.fg_long.max(),'FG made 40+':S('fg_made_40_49')+S('fg_made_50_59')+S('fg_made_60_'),'FG missed':S('fg_missed'),'XP %':dv(S('pat_made'),S('pat_att'))*100,
+     'Gross punt avg':dv(S('pt_yards'),pt),'Net punt avg':dv(S('pt_net_yards'),pt),'Punts inside 20':S('pt_inside_20'),'Inside-20 %':dv(S('pt_inside_20'),pt)*100,'Punts blocked against':S('pt_blocked'),
+     'Punt return avg':dv(S('punt_return_yards'),S('punt_returns')),'Kick return avg':dv(S('kickoff_return_yards'),S('kickoff_returns')),'Return yds/g':(S('punt_return_yards')+S('kickoff_return_yards'))/gp,'ST TDs':S('special_teams_tds'),
+     'Kicks blocked (by D)':blk,'Kicks blocked against':blka}
+    T.append([t]+[None if pd.isna(V[tc[0]]) else (int(round(V[tc[0]])) if tc[1]==0 else round(float(V[tc[0]]),tc[1])) for tc in TC])
+    LG['give']+=give;LG['take']+=take;LG['sk']+=S('def_sacks');LG['sks']+=S('sacks_suffered');LG['py']+=pyd;LG['ry']+=S('receiving_yards');LG['blk']+=blk;LG['blka']+=blka
+print('CHECKS (should be close): giveaways',LG['give'],'vs takeaways',LG['take'],'| def sacks',LG['sk'],'vs sacks taken',LG['sks'],'| pass yds',LG['py'],'vs rec yds',LG['ry'],'| kicks blocked by D',LG['blk'],'vs against',LG['blka'])
 dd=df[(df.position_group=='DL')|((df.position=='OLB')&(df.def_sacks>=2))].copy(); gg=z(dd.games)
 dd['k']=dd.def_sacks+dd.def_qb_hits; dd=dd.sort_values('k',ascending=False)
 DL=[[r.player_display_name,r.recent_team,r.position,int(r.games),round(float(r.def_sacks),1),round(float(r.def_sacks/r.games),2),int(r.def_qb_hits),round(float(r.def_qb_hits/r.games),2),int(r.def_tackles_for_loss),int(r.def_tackles_solo),int(r.def_tackles_solo+r.def_tackle_assists),int(r.def_pass_defended),int(r.def_fumbles_forced),round(float(r.k/r.games),2)] for _,r in dd.iterrows()]
@@ -80,10 +103,11 @@ G_FALLBACK=[['NE','CHI','Thu Oct 22, 7:15 PM CT (live now)'],['PIT','NO','Sun Oc
 G=get_games(G_FALLBACK,{t[0] for t in T})
 print('game teams missing from data:',sorted({x for g in G for x in g[:2]}-{t[0] for t in T}),'| DL',len(DL),'OL',len(OL))
 dx=df[df.position_group.isin(['DL','LB','DB'])].copy()
-for cc in ['def_sacks','def_qb_hits','def_interceptions','def_pass_defended','def_fumbles_forced','fumble_recovery_opp','def_tds','def_tackles_for_loss','def_tackles_solo','def_tackle_assists']: dx[cc]=dx[cc].fillna(0)
+for cc in ['def_sacks','def_qb_hits','def_interceptions','def_pass_defended','def_fumbles_forced','fumble_recovery_opp','def_tds','def_tackles_for_loss','def_tackles_solo','def_tackle_assists','def_safeties']: dx[cc]=dx[cc].fillna(0)
+dx['idp']=dx.def_tackles_solo*1+dx.def_tackle_assists*.5+dx.def_tackles_for_loss*1+dx.def_sacks*3+dx.def_qb_hits*.5+dx.def_interceptions*3+dx.def_pass_defended*1+dx.def_fumbles_forced*3+dx.fumble_recovery_opp*2+dx.def_tds*6+dx.def_safeties*2
 dx['tk']=dx.def_tackles_solo+dx.def_tackle_assists
 dx=dx[(dx.tk>=1)|(dx.def_sacks>0)|(dx.def_interceptions>0)].sort_values('tk',ascending=False)
-X=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.tk),int(r.def_tackles_solo),round(float(r.tk/r.games),1),int(r.def_tackles_for_loss),round(float(r.def_sacks),1),int(r.def_qb_hits),int(r.def_interceptions),int(r.def_pass_defended),int(r.def_fumbles_forced),int(r.fumble_recovery_opp),int(r.def_tds)] for _,r in dx.iterrows()]
+X=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.tk),int(r.def_tackles_solo),round(float(r.tk/r.games),1),int(r.def_tackles_for_loss),round(float(r.def_sacks),1),int(r.def_qb_hits),int(r.def_interceptions),int(r.def_pass_defended),int(r.def_fumbles_forced),int(r.fumble_recovery_opp),int(r.def_tds),round(float(r.idp),1),round(float(r.idp/r.games),1)] for _,r in dx.iterrows()]
 kx=df[df.position=='K'].copy()
 for cc in [c for c in kx.columns if c.startswith(('fg_made_','fg_missed_'))]+['fg_made','fg_att','fg_missed','pat_made','pat_att']: kx[cc]=kx[cc].fillna(0)
 a39=kx.fg_made_0_19+kx.fg_made_20_29+kx.fg_made_30_39; a50=kx.fg_made_50_59+kx.fg_made_60_; m40=kx.fg_missed_40_49+kx.fg_missed_50_59+kx.fg_missed_60_
@@ -94,8 +118,52 @@ K=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.fg_made),i
 print('defenders',len(X),'| kickers',len(K),'| top kicker',K[0][:2],K[0][-2:])
 P['K']=[[r.player_display_name,r.recent_team,int(r.games),[round(float(r.pts/r.games),1),None,None,round(float(r.fg_att/r.games),1),None,int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts)],round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
 PCout['K']=[['Pts/g',1],['Yds/g',0],['TD',0],['Opps/g',1],['Tgt %',0],['FG made',0],['FG att',0],['FG %',1],['Long',0],['0-39',0],['40-49',0],['50+',0],['Missed',0],['Missed 40+',0],['XP made',0],['XP att',0],['Fantasy pts',0]]
+def load_depth(teams):
+    try:
+        c=pd.read_csv(fetch(BASE+'depth_charts/depth_charts_%d.csv'%SEASON),usecols=['dt','team','player_name','gsis_id','pos_grp','pos_abb','pos_rank'])
+        dt=str(c.dt.max())[:10]; c=c[c.dt==c.dt.max()].dropna(subset=['player_name']).sort_values('pos_rank').drop_duplicates(['team','pos_grp','pos_abb'])
+        c=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t)))
+        ST=df.drop_duplicates('player_id').set_index('player_id')
+        base=c[c.pos_grp.str.startswith('Base',na=False)]
+        raw_fr={};out={}
+        for t in teams:
+            ct=c[c.team==t]; bt=base[base.team==t]
+            if bt.empty: continue
+            sch='3-4' if bt.pos_grp.str.contains('3-4').any() else '4-3'
+            slots=['LDE','NT','RDE','SLB','WLB'] if sch=='3-4' else ['LDE','LDT','RDT','RDE']
+            ols=[]
+            for sl in ['LT','LG','C','RG','RT']:
+                r=ct[(ct.pos_abb==sl)&~ct.pos_grp.str.startswith('Base',na=False)&(ct.pos_grp!='Special Teams')]
+                if r.empty: continue
+                r=r.iloc[0]; s=ST.loc[r.gsis_id] if r.gsis_id in ST.index else None
+                ols.append([sl,r.player_name,int(s.penalties) if s is not None and pd.notna(s.penalties) else 0,int(s.penalty_yards) if s is not None and pd.notna(s.penalty_yards) else 0])
+            frs=[]
+            for sl in slots:
+                r=bt[bt.pos_abb==sl]
+                if r.empty: continue
+                r=r.iloc[0]; s=ST.loc[r.gsis_id] if r.gsis_id in ST.index else None
+                g=lambda col:float(s[col]) if s is not None and pd.notna(s[col]) else 0.0
+                dpg=(g('def_sacks')+g('def_qb_hits')+g('def_tackles_for_loss'))/max(TG.get(t,1),1)
+                frs.append([sl,r.player_name,round(g('def_sacks'),1),int(g('def_qb_hits')),int(g('def_tackles_for_loss')),0,round(dpg,2)])
+            out[t]={'s':sch,'ol':ols,'fr':frs}
+        allv=np.array([x[6] for v in out.values() for x in v['fr']])
+        p90,p75,p50=np.percentile(allv,[90,75,50])
+        for v in out.values():
+            for x in v['fr']: x[5]=4 if x[6]>=p90 else 3 if x[6]>=p75 else 2 if x[6]>=p50 else 1
+        print('depth charts ok:',len(out),'teams | as of',dt,'| 3-4 teams',sum(1 for v in out.values() if v['s']=='3-4'),'| thresholds',round(p90,2),round(p75,2),round(p50,2))
+        return {'dt':dt,'T':out}
+    except Exception as ex:
+        print('depth chart fetch failed, matchups will use stats only:',ex); return None
+DEP=load_depth({t[0] for t in T})
 names={t:N[t] for t in set(df.recent_team)}
-data=json.dumps({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DL':DL,'OL':OL,'G':G},separators=(',',':'),ensure_ascii=False)
+def clean(o):
+    if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
+    if isinstance(o,dict): return {k:clean(v) for k,v in o.items()}
+    if isinstance(o,(list,tuple)): return [clean(v) for v in o]
+    if isinstance(o,(np.integer,)): return int(o)
+    if isinstance(o,(np.floating,)): return clean(float(o))
+    return o
+data=json.dumps(clean({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OL':OL,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 b64=base64.b64encode(gzip.compress(data.encode(),9)).decode()
 html=open('template.html').read().replace('__B64__',b64).replace('__DATE__',DATE)
 open('index.html','w').write(html)

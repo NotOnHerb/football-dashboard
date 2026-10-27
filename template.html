@@ -43,6 +43,19 @@ h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
 .field{position:relative;display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--line)}
 .field::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),rgba(128,128,128,.35) calc(10% - 1px) 10%)}
 .fa{background:var(--a);opacity:.4}.fb{background:var(--b);opacity:.4}.row.wa .fa,.row.wb .fb{opacity:1}
+.meter{position:relative;height:16px;border-radius:8px;background:var(--line);margin:4px 0 2px;overflow:hidden}
+.meter::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.5}
+.meter i{position:absolute;top:0;bottom:0}.meter .mo{background:var(--a)}.meter .md{background:var(--b)}
+.mlab{display:flex;justify-content:space-between;font-size:13px;color:var(--mute)}
+.edge{margin:14px 0 4px}.edge b{font-weight:600}
+.lvl{display:inline-block;min-width:2.2em;text-align:center;font:700 15px/1.3 "Barlow Condensed",sans-serif;border-radius:4px;padding:0 6px;margin-right:6px;color:#fff;background:var(--mute)}
+.lvl.o{background:var(--a)}.lvl.d{background:var(--b)}.lvl.e{background:var(--line);color:var(--ink)}
+.thr{display:inline-block;font:600 12px Barlow,system-ui,sans-serif;border-radius:999px;padding:1px 8px;border:1px solid var(--line)}
+.thr.t4{background:#c0392b;color:#fff;border-color:#c0392b}.thr.t3{background:#e67e22;color:#fff;border-color:#e67e22}.thr.t2{color:var(--ink)}.thr.t1{color:var(--mute)}
+.mix{display:flex;height:26px;border-radius:6px;overflow:hidden;font:600 14px/26px Barlow,system-ui,sans-serif;color:#fff;margin:6px 0 2px;position:relative}
+.mix span{padding:0 8px;white-space:nowrap}.mix .p{background:var(--b)}.mix .r{background:var(--a);text-align:right}
+.mix i{position:absolute;top:0;bottom:0;width:2px;background:var(--ink)}
+td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 </style></head><body><main>
 <h1>Football dashboard</h1>
 <p class="sub">2026 regular season so far. Browse players, then open a team for its summary and roster.</p>
@@ -52,7 +65,7 @@ h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
  <div class="bar"><div class="seg" id="pos"></div><div class="seg" id="sc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div>
  <div class="wrap" id="pt"></div><p class="sub" id="ld">Loading stats…</p>
 </section>
-<section id="vt" hidden><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
+<section id="vt" hidden><div class="bar"><div class="seg" id="tv"><button data-w="W" aria-pressed="true">Whole team</button><button data-w="O" aria-pressed="false">Offense</button><button data-w="D" aria-pressed="false">Defense</button><button data-w="S" aria-pressed="false">Special teams</button></div></div><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
 <section id="vc" hidden><div class="bar"><div class="seg" id="cpos"></div></div>
 <div class="picks"><div class="pick a"><input id="ca" list="cl" aria-label="Player A" onfocus="this.select()"></div><div class="pick b"><input id="cb" list="cl" aria-label="Player B" onfocus="this.select()"></div></div><datalist id="cl"></datalist>
 <div class="verdict" id="cv"></div><div class="tally" id="ct"></div><div id="cr"></div>
@@ -60,20 +73,19 @@ h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
 <section id="vd" hidden><div class="bar"><div class="seg" id="xg"></div></div>
 <div class="bar"><input id="xq" type="search" placeholder="Search players" aria-label="Search players"><select id="xt" aria-label="Team"></select></div>
 <div class="wrap" id="xp"></div>
-<div class="note">Defenders appear if they recorded a tackle, sack or interception. A player’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Kickers are in the Players tab. Punters aren’t included.</div></section>
-<section id="vn" hidden><h2>Matchup</h2><p class="sub">Pick a game to see each line against the unit it faces. Rank 1 is best in the league.</p>
+<div class="note">Defenders appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. Your league may score differently. A player’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Kickers are in the Players tab. Punters aren’t included.</div></section>
+<section id="vn" hidden><h2>Matchup</h2><p class="sub">Pick a game to see who has the edge up front, then who each offensive lineman is likely to see across from him.</p>
 <div class="bar"><select id="gm" aria-label="Game"></select></div><div id="mu"></div>
 <h3>Offensive line units</h3><div class="wrap" id="ou"></div>
 <h3>Defensive line units</h3><div class="wrap" id="du"></div>
-<h3>Defensive linemen</h3><div class="bar"><input id="dq" type="search" placeholder="Search defensive linemen" aria-label="Search defensive linemen"></div><div class="wrap" id="dp"></div>
 <h3>Offensive linemen (penalties only)</h3><div class="wrap" id="op"></div>
-<div class="note">Individual offensive line ratings aren’t in this data: the file only lists linemen who drew a flag, so that table shows penalties and nothing about blocking quality. The numbers that grade blockers are ESPN’s pass and run block win rates (free on ESPN) and PFF grades (paid). Line unit stats here are shared with the QB and RBs behind them. An “edge” means the two units’ league ranks are 5 or more apart, which is a rough guide, not a prediction. Run defense allowed needs game-by-game data, so tackles for loss stands in for it. A lineman’s games count only weeks with a recorded stat. Edge rushers listed as OLB appear only with 2+ sacks. The schedule refreshes with the data.</div></section>
+<div class="note">How the edge works: each unit’s league ranks are averaged (pass protection uses sack rate allowed and pass EPA; pass rush uses sacks and QB hits; the run game uses yards per carry and rush EPA; the front uses tackles for loss and line tackles for loss). The gap between the two averages sets the level: Even under 4 rank spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. It’s a guide, not a prediction. Starters and alignments come from the latest nflverse depth chart, and defenses shift fronts every play, so “likely across from him” is the usual alignment, not a guarantee. Threat levels rank every starting front player by sacks, QB hits and tackles for loss per team game: Elite is top 10%, High top 25%, Solid top half. Individual blocking grades (ESPN block win rates, PFF) aren’t in this data, so linemen show penalties only. Run defense allowed needs game-by-game data, so tackles for loss stands in for it.</div></div></section>
 <div class="note">Real stats from nflverse (CC-BY 4.0), updated __DATE__. Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently.</div>
 </main>
 <script>
 var D,A=[],B='__B64__';
 var $=function(i){return document.getElementById(i)};
-var st={v:'p',pos:'ALL',tm:'ALL',q:'',pc:4,pd:-1,tc:1,td:-1,mn:0,dq:''};
+var st={v:'p',pos:'ALL',tm:'ALL',q:'',pc:4,pd:-1,tc:1,td:-1,mn:0,dq:'',tv:'W'};
 function f(v,d){return v==null?'–':v.toFixed(d)}
 function sortRows(rows,c,dir){return rows.slice().sort(function(a,b){var x=a[c],y=b[c];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(typeof x==='string'?x.localeCompare(y):x-y)*dir})}
 function colsFor(p,noTeam){
@@ -98,13 +110,14 @@ function renderP(){
   rows=sortRows(rows,st.pc,st.pd);
   $('pt').innerHTML=rows.length?tbl(cols,rows,st.pc,st.pd):'<p class="sub" style="padding:14px">No players match. Try clearing the search or filters.</p>';
 }
-function rank(k,t){var x=t[k+1],hi=D.TC[k][2];return 1+D.T.filter(function(r){return hi?r[k+1]>x:r[k+1]<x}).length}
+function inV(k){return st.tv==='W'||D.TC[k][4].indexOf(st.tv)>-1}
+function rank(k,t){var x=t[k+1],hi=D.TC[k][2];if(x==null)return null;return 1+D.T.filter(function(r){return hi?r[k+1]>x:r[k+1]<x}).length}
 function team(a){tab('t');
   var t=D.T.filter(function(r){return r[0]===a})[0],n=D.T.length,g='';
-  var out='<button class="back" id="bk">Back to teams</button><h2>'+a+' '+D.N[a]+'</h2><p class="sub">'+t[1]+' games played. Rank 1 is best in the league (fewest for giveaways, penalties and sacks allowed). Pass rate is ranked highest to lowest.</p><div class="wrap"><table><tr><th>Stat</th><th>Value</th><th>Rank</th></tr>';
-  D.TC.forEach(function(s,k){if(k===0)return;if(s[3]!==g){g=s[3];out+='<tr class="grp"><td colspan="3">'+g+'</td></tr>'}out+='<tr><td>'+s[0]+'</td><td>'+f(t[k+1],s[1])+'</td><td>'+rank(k,t)+' of '+n+'</td></tr>'});
+  var out='<button class="back" id="bk">Back to teams</button><h2>'+a+' '+D.N[a]+'</h2><p class="sub">'+t[1]+' games played. Rank 1 is best in the league (fewest for giveaways, penalties and sacks allowed). Play mix stats are ranked most to least.</p>'+mixBar(t)+'<div class="wrap"><table><tr><th>Stat</th><th>Value</th><th>Rank</th></tr>';
+  D.TC.forEach(function(s,k){if(k===0||!inV(k))return;if(s[3]!==g){g=s[3];out+='<tr class="grp"><td colspan="3">'+g+'</td></tr>'}out+='<tr><td>'+s[0]+'</td><td>'+f(t[k+1],s[1])+'</td><td>'+(rank(k,t)==null?'–':rank(k,t)+' of '+n)+'</td></tr>'});
   out+='</table></div>';
-  ['QB','RB','WR','TE'].forEach(function(p){
+  if(st.tv==='W'||st.tv==='O')['QB','RB','WR','TE'].forEach(function(p){
     var rs=A.filter(function(r){return r[1]===a&&r[2]===p}).sort(function(x,y){return y[7]*y[3]-x[7]*x[3]});
     if(rs.length)out+='<h3>'+p+'s, in order of usage</h3><div class="wrap">'+tbl(colsFor(p,1),rs,-1,1)+'</div>';
   });
@@ -117,9 +130,10 @@ function wire(){
   $('pt').addEventListener('click',function(e){sortClick(e,'p',renderP)});
   ['tt','ou','du'].forEach(function(id){$(id).addEventListener('click',function(e){var tr=e.target.closest('tr[data-t]');if(tr)return team(tr.dataset.t);var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c,s=TS[id];if(s[0]===c)s[1]*=-1;else{s[0]=c;s[1]=c===0?1:-1}teamTbl(id)});$(id).addEventListener('keydown',function(e){if(e.key==='Enter'){var tr=e.target.closest('tr[data-t]');if(tr)team(tr.dataset.t)}})});
   $('tabs').addEventListener('click',function(e){var v=e.target.dataset.v;if(v)tab(v)});
+  $('tv').addEventListener('click',function(e){var w=e.target.dataset.w;if(!w)return;st.tv=w;[].forEach.call($('tv').children,function(x){x.setAttribute('aria-pressed',x.dataset.w===w)});renderT();if(!$('td').hidden){var h=$('td').querySelector('h2');if(h)team(h.textContent.split(' ')[0])}});
   $('mn').onchange=function(){st.mn=+this.value;renderP()};
   $('sc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
-  $('pos').innerHTML=['ALL','QB','RB','WR','TE','K'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p==='K'?'Kickers':p)+'</button>'}).join('');
+  $('pos').innerHTML=['ALL','QB','RB','WR','TE','K'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
   $('pos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;st.pos=p;[].forEach.call($('pos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});renderP()});
   $('tm').innerHTML='<option value="ALL">All teams</option>'+Object.keys(D.N).sort().map(function(t){return '<option value="'+t+'">'+t+' '+D.N[t]+'</option>'}).join('');
   $('tm').onchange=function(){st.tm=this.value;renderP()};
@@ -128,31 +142,57 @@ function wire(){
 function tab(v){st.v=v;[].forEach.call($('tabs').children,function(b){b.setAttribute('aria-pressed',b.dataset.v===v)});$('vp').hidden=v!=='p';$('vt').hidden=v!=='t';$('vn').hidden=v!=='n';$('vc').hidden=v!=='c';$('vd').hidden=v!=='d'}
 function ix(l){for(var k=0;k<D.TC.length;k++)if(D.TC[k][0]===l)return k}
 var TS={tt:[1,-1,0],ou:[null,1,['Sack % allowed','Pass EPA/dropback','Yds/carry','Rush EPA/carry','OL penalties','OL penalty yds']],du:[null,-1,['Sacks','QB hits','Tackles for loss','DL sacks','DL QB hits','DL tackles for loss']]};
+function mixBar(t){if(st.tv!=='W'&&st.tv!=='O')return '';var k=ix('Pass rate % (approx)'),p=t[k+1];if(p==null)return '';
+  var lg=D.T.reduce(function(a,r){return a+(r[k+1]||0)},0)/D.T.length,pa=t[ix('Pass att/g')+1],ra=t[ix('Rush att/g')+1];
+  return '<h3>Play mix</h3><div class="mix" role="img" aria-label="Pass '+p+' percent, run '+(100-p)+' percent. League average pass rate '+lg.toFixed(0)+' percent"><span class="p" style="flex:'+p+'">Pass '+p+'%</span><span class="r" style="flex:'+(100-p)+'">Run '+(100-p)+'%</span><i style="left:'+lg.toFixed(1)+'%"></i></div><p class="sub">'+f(pa,1)+' pass attempts and '+f(ra,1)+' rush attempts per game. The black line is the league average pass rate ('+lg.toFixed(0)+'%). Sacks count as pass plays and QB scrambles count as runs, so this is approximate.</p>'}
 function teamTbl(id){
-  var s=TS[id],idx=s[2]?s[2].map(ix):D.TC.map(function(t,k){return k});
+  var s=TS[id],idx=s[2]?s[2].map(ix):D.TC.map(function(t,k){return k}).filter(function(k){return id!=='tt'||inV(k)});
   if(s[0]==null)s[0]=idx[0]+1;
+  if(id==='tt'&&idx.map(function(k){return k+1}).concat([0]).indexOf(s[0])<0){s[0]=idx[1]+1;s[1]=D.TC[idx[1]][2]?-1:1}
   var cols=[['Team',0]].concat(idx.map(function(k){return [D.TC[k][0],k+1,D.TC[k][1]]}));
   $(id).innerHTML='<table><tr>'+cols.map(function(c){var on=c[1]===s[0];return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(s[1]>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+sortRows(D.T,s[0],s[1]).map(function(r){return '<tr class="go" tabindex="0" data-t="'+r[0]+'"><td class="nm">'+r[0]+' '+D.N[r[0]]+'</td>'+cols.slice(1).map(function(c){return '<td>'+f(r[c[1]],c[2])+'</td>'}).join('')+'</tr>'}).join('')+'</table>';
 }
 function renderT(){teamTbl('tt')}
-var TB={dp:{c:4,d:-1,k:'DL',cols:[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Sacks',4,1],['Sacks/g',5,2],['QB hits',6,0],['Hits/g',7,2],['TFL',8,0],['Solo tkl',9,0],['Total tkl',10,0],['PD',11,0],['FF',12,0],['Sacks+hits/g',13,2]]},op:{c:3,d:-1,k:'OL',cols:[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['Penalties',3,0],['Penalty yds',4,0],['Fumbles lost',5,0]]}};
-function renderTB(id){var s=TB[id],rows=D[s.k].filter(function(r){return id!=='dp'||!st.dq||r[0].toLowerCase().indexOf(st.dq)>-1});$(id).innerHTML=rows.length?tbl(s.cols,sortRows(rows,s.c,s.d),s.c,s.d):'<p class="sub" style="padding:14px">No linemen match that search.</p>'}
+var TB={op:{c:3,d:-1,k:'OL',cols:[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['Penalties',3,0],['Penalty yds',4,0],['Fumbles lost',5,0]]}};
+function renderTB(id){var s=TB[id],rows=D[s.k];$(id).innerHTML=rows.length?tbl(s.cols,sortRows(rows,s.c,s.d),s.c,s.d):'<p class="sub" style="padding:14px">No linemen match that search.</p>'}
 function ord(n){var v=n%100,x=['th','st','nd','rd'];return n+(x[(v-20)%10]||x[v]||'th')}
 function mr(l,a){var k=ix(l),t=D.T.filter(function(r){return r[0]===a})[0];return {v:f(t[k+1],D.TC[k][1]),r:rank(k,t)}}
-function verdict(lab,o,d,a,b,c,e){var x=(a+b)/2,y=(c+e)/2,z=x-y;return '<p class="sub"><b>'+lab+':</b> '+(z>=5?'edge to '+d+' defense':z<=-5?'edge to '+o+' offense':'pretty even')+' (offense avg rank '+x.toFixed(0)+', defense avg rank '+y.toFixed(0)+')</p>'}
+var LVL=[[18,'III','Big edge'],[10,'II','Clear edge'],[4,'I','Slight edge']];
+function meter(lab,o,d,offR,defR){
+  var x=(offR[0]+offR[1])/2,y=(defR[0]+defR[1])/2,z=y-x,az=Math.abs(z),lv=null;
+  for(var i=0;i<LVL.length;i++)if(az>=LVL[i][0]){lv=LVL[i];break}
+  var side=z>0?'o':'d',who=z>0?o+' offense':d+' defense',w=Math.min(az/31,1)*50;
+  var txt=lv?'<span class="lvl '+side+'">'+lv[1]+'</span><b>'+lv[2]+': '+who+'</b>':'<span class="lvl e">=</span><b>Even</b>';
+  return '<div class="edge">'+lab+': '+txt+'</div><div class="meter" role="img" aria-label="'+lab+': '+(lv?lv[2]+' to '+who:'even')+'"><i class="'+(z>0?'mo':'md')+'" style="'+(z>0?'right':'left')+':50%;width:'+w.toFixed(1)+'%"></i></div><div class="mlab"><span>'+o+' offense avg rank '+x.toFixed(0)+'</span><span>'+d+' defense avg rank '+y.toFixed(0)+'</span></div>';
+}
+var ACR={'4-3':{LT:['RDE'],LG:['RDT'],C:['RDT','LDT'],RG:['LDT'],RT:['LDE']},'3-4':{LT:['WLB','RDE'],LG:['RDE'],C:['NT'],RG:['LDE'],RT:['SLB','LDE']}};
+var THR=['','Low','Solid','High','Elite'];
+function olTable(o,d){
+  if(!D.DEP||!D.DEP.T[o]||!D.DEP.T[d])return '<p class="sub">Depth charts aren’t available right now, so individual matchups are hidden.</p>';
+  var O=D.DEP.T[o],F=D.DEP.T[d],fr={};F.fr.forEach(function(x){fr[x[0]]=x});
+  var h='<div class="wrap"><table class="olt"><tr><th>Spot</th><th>'+o+' starter</th><th>Flags</th><th>Likely across from him ('+d+' '+F.s+')</th><th>Threat</th></tr>';
+  O.ol.forEach(function(l){
+    var opp=(ACR[F.s][l[0]]||[]).map(function(s){return fr[s]}).filter(Boolean);
+    var top=opp.reduce(function(m,x){return !m||x[5]>m[5]?x:m},null);
+    h+='<tr><td>'+l[0]+'</td><td class="nm">'+l[1]+'</td><td>'+l[2]+(l[3]?' ('+l[3]+' yds)':'')+'</td><td class="wr">'+(opp.length?opp.map(function(x){return '<b>'+x[1]+'</b> ('+x[0]+') · '+x[2]+' sk, '+x[3]+' hits, '+x[4]+' TFL'}).join('<br>'):'–')+'</td><td>'+(top?'<span class="thr t'+top[5]+'">'+THR[top[5]]+'</span>':'–')+'</td></tr>';
+  });
+  return h+'</table></div>';
+}
 function side(o,d){
   var P=[['Sack % allowed','Sacks'],['Pass EPA/dropback','QB hits'],['Yds/carry','Tackles for loss'],['Rush EPA/carry','DL tackles for loss']],R=[];
   var h='<h3>'+o+' offense vs '+d+' defense</h3><div class="wrap"><table><tr><th>'+o+' offense</th><th>Value</th><th>Rank</th><th>'+d+' defense</th><th>Value</th><th>Rank</th></tr>';
   P.forEach(function(p){var x=mr(p[0],o),y=mr(p[1],d);R.push([x.r,y.r]);h+='<tr><td>'+p[0]+'</td><td>'+x.v+'</td><td>'+ord(x.r)+'</td><td>'+p[1]+'</td><td>'+y.v+'</td><td>'+ord(y.r)+'</td></tr>'});
-  var kr=D.DL.filter(function(r){return r[1]===d}).sort(function(x,y){return y[4]+y[6]-x[4]-x[6]}).slice(0,3).map(function(r){return r[0]+' ('+r[4]+' sk, '+r[6]+' hits)'}).join('; ');
-  return h+'</table></div>'+verdict('Pass protection vs pass rush',o,d,R[0][0],R[1][0],R[0][1],R[1][1])+verdict('Run game vs front',o,d,R[2][0],R[3][0],R[2][1],R[3][1])+'<p class="sub">'+d+' top pass rushers: '+kr+'</p>';
+  h+='</table></div>'+meter('Pass protection vs pass rush',o,d,[R[0][0],R[1][0]],[R[0][1],R[1][1]])+meter('Run game vs front',o,d,[R[2][0],R[3][0]],[R[2][1],R[3][1]])+meter('Overall in the trenches',o,d,[(R[0][0]+R[2][0])/2,(R[1][0]+R[3][0])/2],[(R[0][1]+R[2][1])/2,(R[1][1]+R[3][1])/2]);
+  var thr=D.X.filter(function(r){return r[1]===d}).sort(function(x,y){return (y[8]+y[9])-(x[8]+x[9])||y[7]-x[7]}).slice(0,3);
+  h+='<h3>'+d+'’s 3 biggest pass-rush threats</h3><p class="sub">'+(thr.length?thr.map(function(r,i){return (i+1)+'. <b>'+r[0]+'</b> ('+r[2]+') · '+r[8]+(r[8]===1?' sack, ':' sacks, ')+r[9]+' QB hits, '+r[7]+' TFL'}).join('<br>'):'No data')+'</p>';
+  return h+'<h3>'+o+' line, man by man</h3>'+olTable(o,d);
 }
 function matchup(){var g=D.G[+$('gm').value||0];$('mu').innerHTML=side(g[0],g[1])+side(g[1],g[0])}
 function initN(){
   $('gm').innerHTML=D.G.map(function(g,i){return '<option value="'+i+'">'+g[0]+' at '+g[1]+' · '+g[2]+'</option>'}).join('');
-  $('gm').onchange=matchup;$('dq').oninput=function(){st.dq=this.value.toLowerCase();renderTB('dp')};
-  ['dp','op'].forEach(function(id){$(id).addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c,s=TB[id];if(s.c===c)s.d*=-1;else{s.c=c;s.d=c<=2?1:-1}renderTB(id)})});
-  teamTbl('ou');teamTbl('du');renderTB('dp');renderTB('op');matchup();
+  $('gm').onchange=matchup;
+  ['op'].forEach(function(id){$(id).addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c,s=TB[id];if(s.c===c)s.d*=-1;else{s.c=c;s.d=c<=2?1:-1}renderTB(id)})});
+  teamTbl('ou');teamTbl('du');renderTB('op');matchup();
 }
 var CP={pos:'QB',a:null,b:null},LOWER=['INT','Sack %','Fum lost'];
 function cList(){return A.filter(function(r){return r[2]===CP.pos}).sort(function(x,y){return y[4]*y[3]-x[4]*x[3]})}
@@ -178,13 +218,13 @@ function cInit(){
   $('ca').oninput=function(){cPick('a',this)};$('cb').oninput=function(){cPick('b',this)};
   cSetup();
 }
-var DX={g:'ALL',c:4,d:-1,q:'',t:'ALL'};
-var XC=[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Tackles',4,0],['Solo',5,0],['Tkl/g',6,1],['TFL',7,0],['Sacks',8,1],['QB hits',9,0],['INT',10,0],['PD',11,0],['FF',12,0],['Fum rec',13,0],['Def TD',14,0]];
+var DX={g:'ALL',c:15,d:-1,q:'',t:'ALL'};
+var XC=[['Player',0,-1],['Team',1,-1],['Pos',2,-1],['GP',3,0],['Tackles',4,0],['Solo',5,0],['Tkl/g',6,1],['TFL',7,0],['Sacks',8,1],['QB hits',9,0],['INT',10,0],['PD',11,0],['FF',12,0],['Fum rec',13,0],['Def TD',14,0]];XC.splice(4,0,['IDP/g',16,1],['IDP pts',15,1]);
 var KC=[['Player',0,-1],['Team',1,-1],['GP',3,0],['FG made',4,0],['FG att',5,0],['FG %',6,1],['Long',7,0],['0-39',8,0],['40-49',9,0],['50+',10,0],['Missed',11,0],['Missed 40+',12,0],['XP made',13,0],['XP att',14,0],['Fantasy pts',15,0],['Pts/g',16,1]];
 var XG={DL:['DE','DT','NT','DL'],LB:['LB','ILB','MLB','OLB'],CB:['CB'],S:['S','SAF','FS','SS','DB']};
 function renderX(){
   var k=DX.g==='K',cols=k?KC:XC,q=DX.q.toLowerCase();
-  if(!cols.some(function(c){return c[1]===DX.c}))DX.c=k?15:4;
+  if(!cols.some(function(c){return c[1]===DX.c}))DX.c=15;
   var rows=(k?D.K:D.X).filter(function(r){return(k||DX.g==='ALL'||XG[DX.g].indexOf(r[2])>-1)&&(DX.t==='ALL'||r[1]===DX.t)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
   $('xp').innerHTML=rows.length?tbl(cols,sortRows(rows,DX.c,DX.d),DX.c,DX.d):'<p class="sub" style="padding:14px">No players match. Try clearing the search or filters.</p>';
 }
