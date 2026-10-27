@@ -340,6 +340,8 @@ try:
             for x in R['recruitIds']:
                 if str(x) in by_id: rr=by_id[str(x)]; break
         hs=int(rr['year']) if rr is not None and pd.notna(rr['year']) else None
+        if hs is not None and 1<=SEASON-hs+1<=5: cls=SEASON-hs+1
+        elif cls==1: cls=None
         elig=(hs is not None and hs<=SEASON-2) or (hs is None and cls is not None and cls>=3)
         U=us.loc[pid] if pid in us.index else None; PA=pp.loc[pid] if pid in pp.index else None
         rd=lambda v,k=1:None if v is None or v!=v else round(float(v),k)
