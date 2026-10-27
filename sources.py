@@ -113,7 +113,7 @@ def dynastyprocess_ids():
     """Cross-site player ID map (Sleeper, FantasyPros, nflverse gsis and more)."""
     local = os.environ.get('DP_DIR')
     f = os.path.join(local, 'db_playerids.csv') if local else _get(DYNASTYPROCESS + 'db_playerids.csv')
-    df = pd.read_csv(f, usecols=['sleeper_id', 'gsis_id', 'name', 'position', 'team', 'age'])
+    df = pd.read_csv(f, usecols=['sleeper_id', 'espn_id', 'gsis_id', 'name', 'position', 'team', 'age'])
     return df, {'provider': 'DynastyProcess'}
 
 

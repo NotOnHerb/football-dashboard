@@ -290,7 +290,7 @@ try:
     IDPG={}
     for _,r in dx.iterrows(): IDPG[r.player_id]=round(float(r.idp/r.games),1) if r.games else None
     KPG={r.player_id:round(float(r.pts/r.games),1) for _,r in kx.iterrows() if r.games}
-    LK={}
+    LK={};EM={}
     for _,r in ids.iterrows():
         g=r.gsis_id; s_=sst.loc[g] if g in sst.index else None
         if s_ is None and g not in VAL: continue
@@ -301,9 +301,10 @@ try:
             (s_.player_display_name if s_ is not None else r['name']),pos,(s_.recent_team if s_ is not None else (r.team if pd.notna(r.team) else 'FA')),
             round(float(age),1) if age is not None else None,v[0],v[1],
             round(float(s_.fantasy_points_ppr)/gm,1) if gm else None,round(float(s_.fantasy_points)/gm,1) if gm else None,gm,
-            (FORM.get(g) or [None])[0],IDPG.get(g) if g in IDPG else KPG.get(g),INJ.get(g),DLAB.get(g)]
-    DY['L']=LK
-    print('sleeper lookup ok:',len(LK),'players | with value',sum(1 for x in LK.values() if x[4] is not None))
+            (FORM.get(g) or [None])[0],IDPG.get(g) if g in IDPG else KPG.get(g),INJ.get(g),DLAB.get(g),(FORM.get(g) or [None,None])[1]]
+        if pd.notna(r.espn_id): EM[str(int(float(r.espn_id)))]=list(LK)[-1]
+    DY['L']=LK;DY['E']=EM
+    print('sleeper lookup ok:',len(LK),'players | with value',sum(1 for x in LK.values() if x[4] is not None),'| espn ids',len(EM))
     print('dynasty ok:',len(rows),'players |',len(picks),'future picks | matched to stats',sum(1 for x in rows if x[9] is not None))
 except Exception as ex:
     print('dynasty values failed:',ex)
