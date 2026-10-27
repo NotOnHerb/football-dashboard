@@ -10,20 +10,14 @@ jobs:
       - run: |
           exec > probe.txt 2>&1
           O="Origin: https://notonherb.github.io"
-          for U in "https://site.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/news?limit=5" \
-                   "https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/overview" \
-                   "https://site.api.espn.com/apis/fantasy/v2/games/ffl/news/players?days=30&playerId=3918298" \
-                   "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50"; do
-            echo "== $U"
-            c=$(curl -s -o /tmp/r -w '%{http_code}' -H "$O" "$U"); echo "status $c"
-            curl -s -D - -o /dev/null -H "$O" "$U" | grep -i '^access-control-allow-origin' || echo "(no CORS header)"
-            echo "top keys: $(jq -c 'keys' /tmp/r 2>/dev/null | cut -c1-300)"
-            echo "news items: $(jq -c '((.feed // .articles // .news // .items // (.news.items?) // [])|length)' /tmp/r 2>/dev/null)"
-            echo "first headline: $(jq -c '((.feed // .articles // .news // .items // [])[0]|{headline,published})' /tmp/r 2>/dev/null | cut -c1-200)"
-            echo "categories sample: $(jq -c '((.feed // .articles // [])[0].categories // [])|map({type,id:(.athleteId // .teamId // .id),d:.description})' /tmp/r 2>/dev/null | cut -c1-400)"
-            echo "items tagged athlete 3918298: $(jq -c '[(.feed // .articles // [])[]|select([.categories[]?|(.athleteId // .athlete.id // 0)|tostring]|index("3918298"))|.headline]|.[0:3]' /tmp/r 2>/dev/null | cut -c1-300)"
-            echo "overview news: $(jq -c '(.news // empty)|(if type=="array" then .[0:2]|map({headline,published}) else keys end)' /tmp/r 2>/dev/null | cut -c1-300)"
-          done
+          U="https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3918298/overview"
+          curl -s -o /tmp/r -H "$O" "$U"
+          echo "rotowire: $(jq -c '.rotowire' /tmp/r | cut -c1-700)"
+          echo "news[0..3]: $(jq -c '.news[0:4]|map({headline,published,type,link:(.links.web.href // null),desc:(.description|tostring|.[0:90])})' /tmp/r | cut -c1-1200)"
+          echo "nextGame keys: $(jq -c '.nextGame|keys? // .nextGame' /tmp/r | cut -c1-200)"
+          echo "fantasy keys: $(jq -c '.fantasy|keys? // .fantasy' /tmp/r | cut -c1-200)"
+          U2="https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/4426515/overview"
+          curl -s -o /tmp/r2 -H "$O" "$U2"; echo "puka rotowire: $(jq -c '.rotowire' /tmp/r2 | cut -c1-500)"; echo "puka news count: $(jq '.news|length' /tmp/r2) first: $(jq -c '.news[0].headline' /tmp/r2)"
       - run: |
           git config user.name "github-actions"; git config user.email "actions@github.com"
           git add probe.txt; git commit -m "probe output"; git push
