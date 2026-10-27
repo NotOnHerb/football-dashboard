@@ -284,6 +284,26 @@ try:
             int(r.value_1qb),int(r.value_2qb),int(gm) if gm else 0,fp,
             (FORM.get(g) or [None])[0],(SNAP.get(g) or [None,None])[0],(SNAP.get(g) or [None,None])[1],INJ.get(g),DLAB.get(g)])
     DY={'P':rows,'K':picks}
+    # ---- Sleeper lookup: sleeper_id -> [name,pos,team,age,v1qb,v2qb,ppr/g,std/g,gp,last3 ppr,idp/g,inj,depth]
+    ids=load('player_ids').dropna(subset=['sleeper_id','gsis_id']).drop_duplicates('sleeper_id')
+    VAL={r.gsis_id:(int(r.value_1qb),int(r.value_2qb),r.age) for _,r in pv.dropna(subset=['gsis_id']).iterrows()}
+    IDPG={}
+    for _,r in dx.iterrows(): IDPG[r.player_id]=round(float(r.idp/r.games),1) if r.games else None
+    KPG={r.player_id:round(float(r.pts/r.games),1) for _,r in kx.iterrows() if r.games}
+    LK={}
+    for _,r in ids.iterrows():
+        g=r.gsis_id; s_=sst.loc[g] if g in sst.index else None
+        if s_ is None and g not in VAL: continue
+        gm=int(s_.games) if s_ is not None and s_.games>0 else 0
+        v=VAL.get(g,(None,None,None)); age=v[2] if v[2]==v[2] and v[2] is not None else (r.age if pd.notna(r.age) else None)
+        pos=str(s_.position) if s_ is not None and pd.notna(s_.position) else str(r.position)
+        LK[str(int(float(r.sleeper_id))) if str(r.sleeper_id).replace('.','',1).isdigit() else str(r.sleeper_id)]=[
+            (s_.player_display_name if s_ is not None else r['name']),pos,(s_.recent_team if s_ is not None else (r.team if pd.notna(r.team) else 'FA')),
+            round(float(age),1) if age is not None else None,v[0],v[1],
+            round(float(s_.fantasy_points_ppr)/gm,1) if gm else None,round(float(s_.fantasy_points)/gm,1) if gm else None,gm,
+            (FORM.get(g) or [None])[0],IDPG.get(g) if g in IDPG else KPG.get(g),INJ.get(g),DLAB.get(g)]
+    DY['L']=LK
+    print('sleeper lookup ok:',len(LK),'players | with value',sum(1 for x in LK.values() if x[4] is not None))
     print('dynasty ok:',len(rows),'players |',len(picks),'future picks | matched to stats',sum(1 for x in rows if x[9] is not None))
 except Exception as ex:
     print('dynasty values failed:',ex)

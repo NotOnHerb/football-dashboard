@@ -66,6 +66,7 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 .up{color:#2e9e5b;font-weight:600}.dn{color:#d9534f;font-weight:600}
 .why{display:inline-block;font:600 12px Barlow,system-ui,sans-serif;border-radius:999px;padding:1px 8px;margin:1px 2px;background:var(--line);color:var(--ink)}
 .gr{display:inline-block;min-width:1.8em;text-align:center;font:700 15px/1.4 "Barlow Condensed",sans-serif;border-radius:4px;color:var(--bg)}
+.me td{background:color-mix(in srgb,var(--a) 14%,var(--panel))}.adv{margin:6px 0 4px 18px;padding:0}.adv li{margin:4px 0}
 .gA{background:#2e9e5b}.gB{background:#7cb342}.gC{background:var(--mute)}.gD{background:#e67e22}.gF{background:#d9534f}
 </style></head><body><main>
 <div class="top"><h1>Football dashboard</h1><button class="back" id="thm" aria-label="Switch light or dark mode"></button></div>
@@ -91,9 +92,10 @@ td.wr{white-space:normal;min-width:170px}.olt th,.olt td{text-align:left}
 <h3>Defensive line units</h3><div class="wrap" id="du"></div>
 <div class="note">How the edge works: each unit’s league ranks are averaged (pass protection uses sack rate allowed and pass EPA; pass rush uses sacks and QB hits; the run game uses yards per carry and rush EPA; the front uses tackles for loss and line tackles for loss). The gap between the two averages sets the level: Even under 4 rank spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. It’s a guide, not a prediction. Starters and alignments come from the latest nflverse depth chart, and defenses shift fronts every play, so “likely across from him” is the usual alignment, not a guarantee. Threat levels rank every starting front player by sacks, QB hits and tackles for loss per team game: Elite is top 10%, High top 25%, Solid top half. Individual blocking grades (ESPN block win rates, PFF) aren’t in this data, so linemen show penalties only (see them under Players, Offense, OL). Run defense allowed needs game-by-game data, so tackles for loss stands in for it.</div></div></div></section>
 <section id="sd" hidden><h2>Dynasty</h2>
-<div class="bar"><div class="seg" id="dv"><button data-x="b" aria-pressed="true">Value board</button><button data-x="g" aria-pressed="false">Diamonds &amp; sleepers</button><button data-x="k" aria-pressed="false">Rookie picks</button></div><div class="seg" id="dfmt"><button data-f="1" aria-pressed="true">1QB</button><button data-f="2" aria-pressed="false">Superflex</button></div></div>
+<div class="bar"><div class="seg" id="dv"><button data-x="b" aria-pressed="true">Value board</button><button data-x="g" aria-pressed="false">Diamonds &amp; sleepers</button><button data-x="k" aria-pressed="false">Rookie picks</button><button data-x="m" aria-pressed="false">My league</button></div><div class="seg" id="dfmt"><button data-f="1" aria-pressed="true">1QB</button><button data-f="2" aria-pressed="false">Superflex</button></div></div>
 <div class="bar" id="dctl"><input id="dq" type="search" placeholder="Search players" aria-label="Search dynasty players"><div class="seg" id="dpos"></div></div>
 <p class="sub" id="dsub"></p><div class="wrap" id="dt"></div>
+<div id="dml" hidden><div class="bar"><input id="su" type="text" placeholder="Your Sleeper username" aria-label="Sleeper username" autocomplete="username"><button class="back" id="sgo">Load my leagues</button><select id="sl" aria-label="League" hidden></select></div><p class="sub" id="sms"></p><div id="mlo"></div></div>
 <div class="note" id="dnote"></div></section>
 <section id="sf" hidden><h2>Fantasy &amp; Betting</h2>
 <div class="bar"><div class="seg" id="fv"><button data-x="s" aria-pressed="true">Start / sit</button><button data-x="b" aria-pressed="false">Betting</button></div></div>
@@ -327,7 +329,8 @@ function dCell(c,r){var v=r[c[1]];
   return '<td>'+f(v,c[2])+'</td>'}
 function dTbl(cols,rows,extra){return '<table><tr>'+cols.map(function(c){var on=!extra&&c[1]===DS.c;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(DS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+(extra?'<th>Why</th>':'')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return dCell(c,r)}).join('')+(extra?'<td class="wr">'+extra(r)+'</td>':'')+'</tr>'}).join('')+'</table>'}
 function why(r){var w=[];if(r.gap>=8)w.push('Producing like '+r[1]+r.pr+', valued '+r[1]+r.vr);if(r.s3>=8)w.push('Snaps up '+r.s3+' pts lately');if(r.f3>=3)w.push('Last 3 games +'+r.f3+' PPR/g');if(r[3]!=null&&r[3]<=23)w.push('Age '+r[3]);return w.map(function(x){return '<span class="why">'+x+'</span>'}).join(' ')}
-function renderD(){if(!D.DY){$('dt').innerHTML='<p class="sub" style="padding:14px">Dynasty values aren’t available right now. They come back with the next refresh.</p>';return}
+function renderD(){var m=DS.v==='m';$('dml').hidden=!m;$('dt').hidden=m;$('dsub').hidden=m;$('dfmt').hidden=m;if(m){$('dctl').hidden=true;return}
+  if(!D.DY){$('dt').innerHTML='<p class="sub" style="padding:14px">Dynasty values aren’t available right now. They come back with the next refresh.</p>';return}
   $('dctl').hidden=DS.v==='k';var q=DS.q.toLowerCase(),rows=dRows().filter(function(r){return(DS.p==='ALL'||r[1]===DS.p)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
   if(DS.v==='k'){var K=D.DY.K.slice().sort(function(a,b){return b[DS.f]-a[DS.f]});$('dsub').textContent='Trade value of future rookie draft picks. Early, mid and late mean where in the round the pick is expected to land.';
     $('dt').innerHTML='<table><tr><th>Pick</th><th>Value</th></tr>'+K.map(function(k){return '<tr><td class="nm">'+k[0]+'</td><td>'+k[DS.f].toLocaleString()+'</td></tr>'}).join('')+'</table>'}
@@ -343,8 +346,82 @@ function initD(){
   var grp=function(id,attr,fn){$(id).addEventListener('click',function(e){var v=e.target.dataset[attr];if(v==null)return;[].forEach.call($(id).children,function(b){b.setAttribute('aria-pressed',b.dataset[attr]===v)});fn(v);renderD()})};
   grp('dv','x',function(v){DS.v=v});grp('dfmt','f',function(v){DS.f=+v});grp('dpos','p',function(v){DS.p=v});
   $('dq').oninput=function(){DS.q=this.value;renderD()};
+  try{var su=localStorage.getItem('sleeper_user');if(su)$('su').value=su}catch(e){}
+  $('sgo').onclick=sUser;$('su').addEventListener('keydown',function(e){if(e.key==='Enter')sUser()});
   $('dt').addEventListener('click',function(e){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=ck(th);if(DS.c===c)DS.d*=-1;else{DS.c=c;DS.d=(c==='vr'||c==='pr'||c===3||c===0||c===2)?1:-1}renderD()});
 }
+// ---------------- My league (Sleeper)
+var ML={};
+function slp(p){return fetch('https://api.sleeper.app/v1/'+p).then(function(r){if(!r.ok)throw new Error('Sleeper said '+r.status);return r.json()})}
+function nth(n){return n+(['th','st','nd','rd'][(n%100-20)%10]||['th','st','nd','rd'][n%100]||'th')}
+function sMsg(x){$('sms').textContent=x}
+async function sUser(){var u=$('su').value.trim();if(!u){sMsg('Type your Sleeper username first.');return}
+  try{localStorage.setItem('sleeper_user',u)}catch(e){}
+  sMsg('Looking up '+u+'…');$('mlo').innerHTML='';$('sl').hidden=true;
+  try{var user=await slp('user/'+encodeURIComponent(u));if(!user||!user.user_id){sMsg('No Sleeper account found for “'+u+'”. Check the spelling.');return}
+    var stt=await slp('state/nfl'),S=+(stt.league_season||stt.season),lg=await slp('user/'+user.user_id+'/leagues/nfl/'+S);
+    if(!lg.length){lg=await slp('user/'+user.user_id+'/leagues/nfl/'+(S-1));S=S-1}
+    if(!lg.length){sMsg('No NFL leagues found for '+u+'.');return}
+    ML.user=user;var TY={0:'Redraft',1:'Keeper',2:'Dynasty'};
+    $('sl').innerHTML=lg.map(function(l){return '<option value="'+l.league_id+'">'+l.name.replace(/</g,'&lt;')+' · '+(TY[l.settings&&l.settings.type]||'League')+' · '+l.total_rosters+' teams</option>'}).join('');
+    $('sl').hidden=lg.length<2;$('sl').onchange=function(){sLeague(this.value)};sLeague(lg[0].league_id);
+  }catch(e){sMsg('Couldn’t reach Sleeper ('+e.message+'). Try again in a minute.')}}
+async function sLeague(id){sMsg('Loading league…');
+  try{var r=await Promise.all([slp('league/'+id),slp('league/'+id+'/rosters'),slp('league/'+id+'/users'),slp('league/'+id+'/traded_picks')]);ML.lg=r[0];ML.ro=r[1];ML.us=r[2];ML.tp=r[3];sMsg('');sRender()}
+  catch(e){sMsg('Couldn’t load that league ('+e.message+').')}}
+function sRender(){
+  var L=D.DY.L,lg=ML.lg,rp=lg.roster_positions||[],cnt=function(p){return rp.filter(function(x){return x===p}).length};
+  var sf=cnt('SUPER_FLEX')>0||cnt('QB')>1,vi=sf?5:4,rec=(lg.scoring_settings||{}).rec||0,idp=rp.some(function(x){return /IDP|^DL$|^LB$|^DB$/.test(x)});
+  var pp=function(x){return x[6]==null?null:rec>=1?x[6]:rec<=0?x[7]:Math.round((x[6]+x[7])*5)/10};
+  // league-wide position ranks by value and production among players with a value
+  var VR={},PR={};['QB','RB','WR','TE'].forEach(function(p){var ks=Object.keys(L).filter(function(k){return L[k][1]===p&&L[k][vi]!=null});
+    ks.slice().sort(function(a,b){return L[b][vi]-L[a][vi]}).forEach(function(k,i){VR[k]=i+1});
+    ks.filter(function(k){return L[k][8]>=3&&L[k][6]!=null}).sort(function(a,b){return L[b][6]-L[a][6]}).forEach(function(k,i){PR[k]=i+1})});
+  var nm={};ML.us.forEach(function(u){nm[u.user_id]=(u.metadata&&u.metadata.team_name)||u.display_name});
+  var S=+lg.season,seasons=[S+1,S+2],rounds=Math.min((lg.settings&&lg.settings.draft_rounds)||4,4),own={};
+  ML.ro.forEach(function(r){seasons.forEach(function(s){for(var d=1;d<=rounds;d++)own[s+'-'+d+'-'+r.roster_id]=r.roster_id})});
+  ML.tp.forEach(function(t){var k=t.season+'-'+t.round+'-'+t.roster_id;if(k in own)own[k]=t.owner_id});
+  var pv=function(s,d){var lab=s+' '+['','1st','2nd','3rd','4th'][d],k=D.DY.K.filter(function(x){return x[0]===lab})[0];return k?k[sf?2:1]:0};
+  var me=null,teams=ML.ro.map(function(r){var ps=(r.players||[]).map(function(id){var x=L[id];return {id:id,x:x,v:x&&x[vi]!=null?x[vi]:0,taxi:(r.taxi||[]).indexOf(id)>-1,ir:(r.reserve||[]).indexOf(id)>-1}});
+    var pk=[];Object.keys(own).forEach(function(k){if(own[k]===r.roster_id){var a=k.split('-');pk.push({s:+a[0],d:+a[1],from:+a[2],v:pv(+a[0],+a[1])})}});
+    var T={r:r,name:nm[r.owner_id]||('Team '+r.roster_id),ps:ps,pk:pk,pv:ps.reduce(function(a,b){return a+b.v},0),kv:pk.reduce(function(a,b){return a+b.v},0),w:(r.settings||{}).wins||0,l:(r.settings||{}).losses||0};
+    T.tv=T.pv+T.kv;var N={QB:cnt('QB')+(sf?1:0),RB:cnt('RB')+1,WR:cnt('WR')+1,TE:Math.max(cnt('TE'),1)};T.pos={};
+    ['QB','RB','WR','TE'].forEach(function(p){T.pos[p]=ps.filter(function(o){return o.x&&o.x[1]===p}).map(function(o){return o.v}).sort(function(a,b){return b-a}).slice(0,N[p]).reduce(function(a,b){return a+b},0)});
+    if(r.owner_id===ML.user.user_id||(r.co_owners||[]).indexOf(ML.user.user_id)>-1)me=T;return T});
+  teams.sort(function(a,b){return b.tv-a.tv});teams.forEach(function(T,i){T.rk=i+1});
+  ['QB','RB','WR','TE'].forEach(function(p){teams.slice().sort(function(a,b){return b.pos[p]-a.pos[p]}).forEach(function(T,i){T['r'+p]=i+1})});
+  ML.teams=teams;ML.me=me;ML.vi=vi;ML.VR=VR;ML.PR=PR;ML.pp=pp;
+  var n=teams.length,h='<h3>'+lg.name.replace(/</g,'&lt;')+'</h3><p class="sub">'+n+' teams · '+({0:'Redraft',1:'Keeper',2:'Dynasty'}[lg.settings&&lg.settings.type]||'')+' · '+(sf?'Superflex':'1QB')+' · '+(rec>=1?'PPR':rec<=0?'Standard':'Half PPR')+(idp?' · IDP':'')+'. Using '+(sf?'Superflex':'1QB')+' trade values.</p>';
+  h+='<h3>Power rankings by roster value</h3><div class="wrap"><table><tr><th>#</th><th>Team</th><th>Record</th><th>Total value</th><th>Players</th><th>Picks</th><th>QB</th><th>RB</th><th>WR</th><th>TE</th></tr>'+teams.map(function(T){
+    return '<tr'+(T===me?' class="me"':'')+'><td>'+T.rk+'</td><td class="nm">'+T.name.replace(/</g,'&lt;')+'</td><td>'+T.w+'-'+T.l+'</td><td><b>'+T.tv.toLocaleString()+'</b></td><td>'+T.pv.toLocaleString()+'</td><td>'+T.kv.toLocaleString()+'</td>'+['QB','RB','WR','TE'].map(function(p){var k=T['r'+p];return '<td><span class="'+(k<=3?'up':k>n-3?'dn':'')+'">'+nth(k)+'</span></td>'}).join('')+'</tr>'}).join('')+'</table></div>';
+  if(!me){$('mlo').innerHTML=h+'<p class="sub">Couldn’t find your team in this league.</p>';return}
+  // advice
+  var gap=function(o){return VR[o.id]&&PR[o.id]?VR[o.id]-PR[o.id]:null};
+  var weak=['QB','RB','WR','TE'].filter(function(p){return me['r'+p]>n/2}).sort(function(a,b){return me['r'+b]-me['r'+a]}),strong=['QB','RB','WR','TE'].filter(function(p){return me['r'+p]<=3});
+  var mine=me.ps.filter(function(o){return o.x&&o.v>0});
+  var sell=mine.filter(function(o){var x=o.x,g=gap(o);return (x[1]==='RB'&&x[3]>=27&&o.v>=1000)||((x[1]==='WR'||x[1]==='TE')&&x[3]>=30&&o.v>=1000)||(g!=null&&g<=-15&&o.v>=1500)}).sort(function(a,b){return b.v-a.v}).slice(0,5);
+  var others=[];teams.forEach(function(T){if(T!==me)T.ps.forEach(function(o){if(o.x&&o.v>0)others.push({o:o,T:T})})});
+  var CUTS={QB:24,RB:36,WR:36,TE:18},buy=others.filter(function(e){var g=gap(e.o),pr=PR[e.o.id];return weak.indexOf(e.o.x[1])>-1&&g!=null&&g>=8&&pr&&pr<=CUTS[e.o.x[1]]&&e.o.x[3]!=null&&e.o.x[3]<=28}).sort(function(a,b){return gap(b.o)-gap(a.o)}).slice(0,8);
+  var why2=function(o){var x=o.x,g=gap(o),w=[];if(x[1]==='RB'&&x[3]>=27)w.push('RB at '+x[3]+', value drops fast from here');if((x[1]==='WR'||x[1]==='TE')&&x[3]>=30)w.push('Age '+x[3]);if(g!=null&&g<=-15)w.push('Valued '+x[1]+VR[o.id]+', producing like '+x[1]+PR[o.id]);return w.join('; ')};
+  h+='<h3>Your team: '+me.name.replace(/</g,'&lt;')+' ('+nth(me.rk)+' of '+n+' in value)</h3><ul class="adv">';
+  ['QB','RB','WR','TE'].forEach(function(p){h+='<li><span class="tag '+p+'">'+p+'</span> room ranks <b>'+nth(me['r'+p])+'</b> of '+n+'</li>'});
+  h+='</ul><h3>Advice</h3><ul class="adv">'+(weak.length?'<li>Biggest need: <b>'+weak.join(', ')+'</b>. Look at the buy targets below.</li>':'<li>No position ranks in the bottom half of the league. You’re balanced.</li>')+(strong.length?'<li>Strength to deal from: <b>'+strong.join(', ')+'</b>.</li>':'')+(sell.length?'<li>Sell-high candidates: '+sell.map(function(o){return '<b>'+o.x[0]+'</b> ('+why2(o)+')'}).join('; ')+'.</li>':'<li>No obvious sell-high players right now.</li>')+'</ul>';
+  if(buy.length)h+='<h3>Buy targets at your weakest spots</h3><p class="sub">Players 28 or younger on other rosters who are producing like starters (top 36 RB or WR, top 24 QB, top 18 TE) and running ahead of their trade value.</p><div class="wrap"><table class="olt"><tr><th>Player</th><th>Pos</th><th>Age</th><th>Value</th><th>Valued</th><th>Producing like</th><th>Owner</th></tr>'+buy.map(function(e){var o=e.o,x=o.x;return '<tr><td class="nm">'+x[0]+'</td><td><span class="tag '+x[1]+'">'+x[1]+'</span></td><td>'+f(x[3],1)+'</td><td>'+o.v.toLocaleString()+'</td><td>'+x[1]+VR[o.id]+'</td><td>'+x[1]+PR[o.id]+'</td><td>'+e.T.name.replace(/</g,'&lt;')+'</td></tr>'}).join('')+'</table></div>';
+  // roster
+  var ros=me.ps.slice().sort(function(a,b){return b.v-a.v||((b.x&&b.x[10])||0)-((a.x&&a.x[10])||0)});
+  h+='<h3>Your roster</h3><div class="wrap"><table><tr><th>Player</th><th>Pos</th><th>Team</th><th>Age</th><th>Value</th><th>Pos rank</th><th>Prod rank</th><th>'+(rec>=1?'PPR':rec<=0?'Std':'Half')+'/g</th><th>Last 3</th><th>IDP/g</th><th>Spot</th></tr>'+ros.map(function(o){var x=o.x;if(!x)return '<tr><td class="nm" colspan="11">Player '+o.id+' (not in our data)</td></tr>';var r={inj:x[11],dl:x[12]};
+    return '<tr><td class="nm">'+x[0]+tags(r)+'</td><td><span class="tag '+x[1]+'">'+x[1]+'</span></td><td>'+x[2]+'</td><td>'+f(x[3],1)+'</td><td>'+(o.v?o.v.toLocaleString():'–')+'</td><td>'+(VR[o.id]?x[1]+VR[o.id]:'–')+'</td><td>'+(PR[o.id]?x[1]+PR[o.id]:'–')+'</td><td>'+f(pp(x),1)+'</td><td>'+f(x[9],1)+'</td><td>'+f(['QB','RB','WR','TE','K'].indexOf(x[1])<0?x[10]:null,1)+'</td><td>'+(o.ir?'IR':o.taxi?'Taxi':'')+'</td></tr>'}).join('')+'</table></div>';
+  h+='<h3>Your picks</h3><p class="sub">'+(me.pk.length?me.pk.sort(function(a,b){return a.s-b.s||a.d-b.d}).map(function(k){return k.s+' '+['','1st','2nd','3rd','4th'][k.d]+(k.from!==me.r.roster_id?' (from '+(teams.filter(function(T){return T.r.roster_id===k.from})[0]||{name:'?'}).name.replace(/</g,'&lt;')+')':'')}).join(', '):'None')+'</p>';
+  // trade finder
+  h+='<h3>Trade finder</h3><p class="sub">Pick one of your players to see players and picks on other teams worth about the same (within 15%).</p><div class="bar"><select id="tfp" aria-label="Your player">'+mine.sort(function(a,b){return b.v-a.v}).map(function(o){return '<option value="'+o.id+'">'+o.x[0]+' ('+o.x[1]+', '+o.v.toLocaleString()+')</option>'}).join('')+'</select><div class="seg" id="tfpos">'+['ALL','QB','RB','WR','TE','PICK'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p===(weak[0]||'ALL'))+'">'+(p==='ALL'?'All':p==='PICK'?'Picks':p)+'</button>'}).join('')+'</div></div><div id="tfo"></div>';
+  h+='<div class="note">Roster values are DynastyProcess trade values (based on FantasyPros expert rankings), '+(sf?'Superflex':'1QB')+' version to match your league. Position room strength adds up the values of the players you would start there plus one depth player at RB and WR. Picks are valued as average picks for that round, since final draft order isn’t known yet. IDP players and kickers don’t have trade values, so they’re left out of the totals. League data comes straight from Sleeper each time you load it.</div>';
+  $('mlo').innerHTML=h;ML.tf=weak[0]||'ALL';$('tfp').onchange=tFind;
+  $('tfpos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;ML.tf=p;[].forEach.call($('tfpos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});tFind()});tFind()}
+function tFind(){var id=$('tfp').value,me=ML.me,o=me.ps.filter(function(x){return x.id===id})[0];if(!o){$('tfo').innerHTML='';return}var v=o.v,lo=v*.85,hi=v*1.15,out=[];
+  ML.teams.forEach(function(T){if(T===me)return;T.ps.forEach(function(p){if(p.x&&p.v>=lo&&p.v<=hi&&(ML.tf==='ALL'||p.x[1]===ML.tf))out.push([p.x[0],p.x[1],p.x[3],p.v,T.name,p])});
+    if(ML.tf==='ALL'||ML.tf==='PICK')T.pk.forEach(function(k){if(k.v>=lo&&k.v<=hi)out.push([k.s+' '+['','1st','2nd','3rd','4th'][k.d],'PICK',null,k.v,T.name,null])})});
+  out.sort(function(a,b){return Math.abs(a[3]-v)-Math.abs(b[3]-v)});
+  $('tfo').innerHTML=out.length?'<div class="wrap"><table class="olt"><tr><th>Player or pick</th><th>Pos</th><th>Age</th><th>Value</th><th>Vs yours</th><th>Producing like</th><th>Owner</th></tr>'+out.slice(0,25).map(function(r){var d=r[3]-v,p=r[5];return '<tr><td class="nm">'+r[0]+'</td><td>'+(r[1]==='PICK'?'Pick':'<span class="tag '+r[1]+'">'+r[1]+'</span>')+'</td><td>'+f(r[2],1)+'</td><td>'+r[3].toLocaleString()+'</td><td><span class="'+(d>0?'up':d<0?'dn':'')+'">'+(d>0?'+':'')+d.toLocaleString()+'</span></td><td>'+(p&&ML.PR[p.id]?p.x[1]+ML.PR[p.id]:'–')+'</td><td>'+r[4].replace(/</g,'&lt;')+'</td></tr>'}).join('')+'</table></div>':'<p class="sub">Nothing within 15% of that value at this position. Try All.</p>'}
 // ---------------- Fantasy start/sit
 var FS={p:'ALL',c:'adj',d:-1};
 function grade(m){return m>=1.15?'A':m>=1.05?'B':m>=.95?'C':m>=.85?'D':'F'}

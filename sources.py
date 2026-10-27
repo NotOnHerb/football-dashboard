@@ -105,6 +105,14 @@ def dynastyprocess_values():
     return v, {'provider': 'DynastyProcess', 'asof': str(v.scrape_date.max())}
 
 
+def dynastyprocess_ids():
+    """Cross-site player ID map (Sleeper, FantasyPros, nflverse gsis and more)."""
+    local = os.environ.get('DP_DIR')
+    f = os.path.join(local, 'db_playerids.csv') if local else _get(DYNASTYPROCESS + 'db_playerids.csv')
+    df = pd.read_csv(f, usecols=['sleeper_id', 'gsis_id', 'name', 'position', 'team', 'age'])
+    return df, {'provider': 'DynastyProcess'}
+
+
 def nflverse_schedule():
     df = _need(pd.read_csv(_get(NFLVERSE + 'schedules/games.csv')), SCHEDULE, 'schedule')
     return df, {'provider': 'nflverse'}
@@ -123,6 +131,7 @@ PROVIDERS = {
     'snaps': nflverse_snaps,
     'players': nflverse_players,
     'dynasty_values': dynastyprocess_values,
+    'player_ids': dynastyprocess_ids,
     'schedule': nflverse_schedule,
 }
 
