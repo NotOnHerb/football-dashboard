@@ -49,7 +49,7 @@ h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
 <div class="bar"><div class="seg" id="tabs"><button data-v="p" aria-pressed="true">Players</button><button data-v="t" aria-pressed="false">Teams</button><button data-v="n" aria-pressed="false">Trenches</button><button data-v="c" aria-pressed="false">Compare</button><button data-v="d" aria-pressed="false">Defense</button></div></div>
 <section id="vp">
  <div class="bar"><input id="q" type="search" placeholder="Search players" aria-label="Search players"><select id="tm" aria-label="Team"></select><select id="mn" aria-label="Minimum usage"><option value="0">Any usage</option><option value="10">10+ touches or targets</option><option value="25">25+</option><option value="50">50+</option></select></div>
- <div class="bar"><div class="seg" id="pos"></div></div>
+ <div class="bar"><div class="seg" id="pos"></div><div class="seg" id="sc"><button data-s="ppr" aria-pressed="true">PPR</button><button data-s="half" aria-pressed="false">Half PPR</button><button data-s="std" aria-pressed="false">Standard</button></div></div>
  <div class="wrap" id="pt"></div><p class="sub" id="ld">Loading stats…</p>
 </section>
 <section id="vt" hidden><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
@@ -60,7 +60,7 @@ h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
 <section id="vd" hidden><div class="bar"><div class="seg" id="xg"></div></div>
 <div class="bar"><input id="xq" type="search" placeholder="Search players" aria-label="Search players"><select id="xt" aria-label="Team"></select></div>
 <div class="wrap" id="xp"></div>
-<div class="note">Defenders appear if they recorded a tackle, sack or interception. A player’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Kicker fantasy points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and your league may score differently. Punters aren’t included.</div></section>
+<div class="note">Defenders appear if they recorded a tackle, sack or interception. A player’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Kickers are in the Players tab. Punters aren’t included.</div></section>
 <section id="vn" hidden><h2>Matchup</h2><p class="sub">Pick a game to see each line against the unit it faces. Rank 1 is best in the league.</p>
 <div class="bar"><select id="gm" aria-label="Game"></select></div><div id="mu"></div>
 <h3>Offensive line units</h3><div class="wrap" id="ou"></div>
@@ -68,7 +68,7 @@ h3{font:600 17px Barlow,system-ui,sans-serif;margin:18px 0 6px}
 <h3>Defensive linemen</h3><div class="bar"><input id="dq" type="search" placeholder="Search defensive linemen" aria-label="Search defensive linemen"></div><div class="wrap" id="dp"></div>
 <h3>Offensive linemen (penalties only)</h3><div class="wrap" id="op"></div>
 <div class="note">Individual offensive line ratings aren’t in this data: the file only lists linemen who drew a flag, so that table shows penalties and nothing about blocking quality. The numbers that grade blockers are ESPN’s pass and run block win rates (free on ESPN) and PFF grades (paid). Line unit stats here are shared with the QB and RBs behind them. An “edge” means the two units’ league ranks are 5 or more apart, which is a rough guide, not a prediction. Run defense allowed needs game-by-game data, so tackles for loss stands in for it. A lineman’s games count only weeks with a recorded stat. Edge rushers listed as OLB appear only with 2+ sacks. The schedule refreshes with the data.</div></section>
-<div class="note">Real stats from nflverse (CC-BY 4.0), updated __DATE__. Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter.</div>
+<div class="note">Real stats from nflverse (CC-BY 4.0), updated __DATE__. Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently.</div>
 </main>
 <script>
 var D,A=[],B='__B64__';
@@ -118,7 +118,8 @@ function wire(){
   ['tt','ou','du'].forEach(function(id){$(id).addEventListener('click',function(e){var tr=e.target.closest('tr[data-t]');if(tr)return team(tr.dataset.t);var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c,s=TS[id];if(s[0]===c)s[1]*=-1;else{s[0]=c;s[1]=c===0?1:-1}teamTbl(id)});$(id).addEventListener('keydown',function(e){if(e.key==='Enter'){var tr=e.target.closest('tr[data-t]');if(tr)team(tr.dataset.t)}})});
   $('tabs').addEventListener('click',function(e){var v=e.target.dataset.v;if(v)tab(v)});
   $('mn').onchange=function(){st.mn=+this.value;renderP()};
-  $('pos').innerHTML=['ALL','QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
+  $('sc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
+  $('pos').innerHTML=['ALL','QB','RB','WR','TE','K'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p==='K'?'Kickers':p)+'</button>'}).join('');
   $('pos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;st.pos=p;[].forEach.call($('pos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});renderP()});
   $('tm').innerHTML='<option value="ALL">All teams</option>'+Object.keys(D.N).sort().map(function(t){return '<option value="'+t+'">'+t+' '+D.N[t]+'</option>'}).join('');
   $('tm').onchange=function(){st.tm=this.value;renderP()};
@@ -188,20 +189,22 @@ function renderX(){
   $('xp').innerHTML=rows.length?tbl(cols,sortRows(rows,DX.c,DX.d),DX.c,DX.d):'<p class="sub" style="padding:14px">No players match. Try clearing the search or filters.</p>';
 }
 function initX(){
-  $('xg').innerHTML=['ALL','DL','LB','CB','S','K'].map(function(g){return '<button data-g="'+g+'" aria-pressed="'+(g==='ALL')+'">'+(g==='ALL'?'All defense':g==='K'?'Kickers':g)+'</button>'}).join('');
+  $('xg').innerHTML=['ALL','DL','LB','CB','S'].map(function(g){return '<button data-g="'+g+'" aria-pressed="'+(g==='ALL')+'">'+(g==='ALL'?'All defense':g==='K'?'Kickers':g)+'</button>'}).join('');
   $('xg').addEventListener('click',function(e){var g=e.target.dataset.g;if(!g)return;DX.g=g;[].forEach.call($('xg').children,function(b){b.setAttribute('aria-pressed',b.dataset.g===g)});renderX()});
   $('xt').innerHTML=$('tm').innerHTML;$('xt').onchange=function(){DX.t=this.value;renderX()};
   $('xq').oninput=function(){DX.q=this.value;renderX()};
   $('xp').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.c;if(DX.c===c)DX.d*=-1;else{DX.c=c;DX.d=c<=2?1:-1}renderX()});
   renderX();
 }
+var SCL={ppr:'PPR/g',half:'Half PPR/g',std:'Std/g'};
+function setSc(m){st.sc=m;A.forEach(function(r){r[4]=m==='ppr'?r.pp:m==='std'?r.sd:Math.round((r.pp+r.sd)*5)/10});['QB','RB','WR','TE'].forEach(function(p){D.PC[p][0][0]=SCL[m]});[].forEach.call($('sc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});renderP();if(CP.a)cRender()}
 async function load(){
   if(typeof DecompressionStream==='undefined'){$('ld').textContent='This browser can’t open the stats. Try a recent Chrome, Safari or Firefox.';return}
   try{
     var u=Uint8Array.from(atob(B),function(c){return c.charCodeAt(0)});
     D=JSON.parse(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
   }catch(err){$('ld').textContent='Couldn’t read the stats data. Refresh the page to try again.';return}
-  ['QB','RB','WR','TE'].forEach(function(p){D.P[p].forEach(function(r){A.push([r[0],r[1],p,r[2]].concat(r[3]))})});
+  ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];A.push(a)})});
   $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();
 }
 load();

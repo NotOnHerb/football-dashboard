@@ -48,13 +48,14 @@ PC={'QB':com+[('Cmp %',1,'cmp'),('Pass yds/g',0,'pyg'),('Y/A',1,'ypa'),('Pass TD
 wr=com+[('Targets/g',1,'tgg'),('Catches/g',1,'recg'),('Air yds share',0,'ays'),('WOPR',2,'wopr'),('RACR',2,'racr'),('Yds/target',1,'ypt'),('EPA/target',2,'epat'),('Rec EPA',1,'reca'),('YAC/catch',1,'yacr'),('Catch %',0,'cr'),('aDOT',1,'adot'),('1st down/tgt %',0,'fdr'),('Fum lost',0,'fuml')]
 PC['WR']=wr; PC['TE']=wr
 M={'QB':(df.attempts>=1,999),'RB':((df.carries+df.targets)>=5,999),'WR':(df.targets>=5,999),'TE':(df.targets>=3,999)}
+df['fantasy_points']=df.fantasy_points.fillna(0)
 P={};n=0
 for pos,(m,k) in M.items():
     d=df[(df.position==pos)&m].sort_values('fantasy_points_ppr',ascending=False).head(k); P[pos]=[]
     for ix,r in d.iterrows():
         vals=[None if pd.isna(c.at[ix,e]) else round(float(c.at[ix,e]),dd) for _,dd,e in PC[pos]]
         vals=[int(v) if v is not None and dd==0 else v for v,(_,dd,_e) in zip(vals,PC[pos])]
-        P[pos].append([r.player_display_name,r.recent_team,int(r.games),vals]); n+=1
+        P[pos].append([r.player_display_name,r.recent_team,int(r.games),vals,round(float(r.fantasy_points/r.games),1)]); n+=1
 PCout={p:[[l,d] for l,d,_ in v] for p,v in PC.items()}
 # ---- teams
 TC=[('GP',0,1,''),('Pass yds/g',0,1,'Offense'),('Rush yds/g',0,1,'Offense'),('Pass TD',0,1,'Offense'),('Rush TD',0,1,'Offense'),('Yds/attempt',1,1,'Offense'),('Yds/carry',1,1,'Offense'),('Pass EPA/dropback',2,1,'Offense'),('Rush EPA/carry',2,1,'Offense'),('Total pass EPA',0,1,'Offense'),('CPOE',1,1,'Offense'),('Sack % allowed',1,0,'Offense'),('Pass rate % (approx)',0,1,'Offense'),
@@ -91,8 +92,10 @@ print('kicker check: FG made by range matches total for',int(((a39+kx.fg_made_40
 kx=kx.assign(a39=a39,a50=a50,m40=m40).sort_values('pts',ascending=False)
 K=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts),round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
 print('defenders',len(X),'| kickers',len(K),'| top kicker',K[0][:2],K[0][-2:])
+P['K']=[[r.player_display_name,r.recent_team,int(r.games),[round(float(r.pts/r.games),1),None,None,round(float(r.fg_att/r.games),1),None,int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts)],round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
+PCout['K']=[['Pts/g',1],['Yds/g',0],['TD',0],['Opps/g',1],['Tgt %',0],['FG made',0],['FG att',0],['FG %',1],['Long',0],['0-39',0],['40-49',0],['50+',0],['Missed',0],['Missed 40+',0],['XP made',0],['XP att',0],['Fantasy pts',0]]
 names={t:N[t] for t in set(df.recent_team)}
-data=json.dumps({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'K':K,'DL':DL,'OL':OL,'G':G},separators=(',',':'),ensure_ascii=False)
+data=json.dumps({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DL':DL,'OL':OL,'G':G},separators=(',',':'),ensure_ascii=False)
 b64=base64.b64encode(gzip.compress(data.encode(),9)).decode()
 html=open('template.html').read().replace('__B64__',b64).replace('__DATE__',DATE)
 open('index.html','w').write(html)
