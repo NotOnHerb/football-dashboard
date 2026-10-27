@@ -1,8 +1,10 @@
 import pandas as pd, numpy as np, json, gzip, base64
-import os, io, datetime, urllib.request
-SEASON=2026
-BASE='https://github.com/nflverse/nflverse-data/releases/download/'
-def fetch(u): return io.BytesIO(urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'football-dashboard'}),timeout=120).read())
+import os, datetime
+import sources
+SEASON=sources.SEASON
+META={'schema':2,'season':SEASON,'sources':{}}
+def load(name):
+    df,info=sources.load(name); META['sources'][name]=info; return df
 ALIAS={'JAX':'JAC','JAC':'JAX','LA':'LAR','LAR':'LA','OAK':'LV'}
 def games_from(s,teams):
     s=s[(s.season==SEASON)&(s.game_type=='REG')&s.away_score.isna()]
@@ -17,13 +19,12 @@ def games_from(s,teams):
     return out
 def get_games(fb,teams):
     try:
-        g=games_from(pd.read_csv(fetch(BASE+'schedules/games.csv')),teams)
+        g=games_from(load('schedule'),teams)
         if g: print('schedule ok:',len(g),'games'); return g
     except Exception as e: print('schedule fetch failed, using saved list:',e)
     return fb
 DATE=datetime.datetime.now(datetime.timezone.utc).strftime('%b %d, %Y at %H:%M UTC')
-raw=pd.read_csv(os.environ['CSV_PATH'] if os.environ.get('CSV_PATH') else fetch(BASE+'stats_player/stats_player_regpost_%d.csv'%SEASON))
-assert len(raw)>1000 and {'player_display_name','recent_team','fantasy_points_ppr','def_sacks','games'}<=set(raw.columns),'Downloaded file looks wrong, not updating the site'
+raw=load('season_stats')
 print('rows downloaded:',len(raw))
 df=raw[(raw.games<=20)&raw.position.notna()].copy()
 N={'ARI':'Cardinals','ATL':'Falcons','BAL':'Ravens','BUF':'Bills','CAR':'Panthers','CHI':'Bears','CIN':'Bengals','CLE':'Browns','DAL':'Cowboys','DEN':'Broncos','DET':'Lions','GB':'Packers','HOU':'Texans','IND':'Colts','JAX':'Jaguars','JAC':'Jaguars','KC':'Chiefs','LA':'Rams','LAR':'Rams','LAC':'Chargers','LV':'Raiders','MIA':'Dolphins','MIN':'Vikings','NE':'Patriots','NO':'Saints','NYG':'Giants','NYJ':'Jets','PHI':'Eagles','PIT':'Steelers','SEA':'Seahawks','SF':'49ers','TB':'Buccaneers','TEN':'Titans','WAS':'Commanders'}
@@ -55,7 +56,7 @@ for pos,(m,k) in M.items():
     for ix,r in d.iterrows():
         vals=[None if pd.isna(c.at[ix,e]) else round(float(c.at[ix,e]),dd) for _,dd,e in PC[pos]]
         vals=[int(v) if v is not None and dd==0 else v for v,(_,dd,_e) in zip(vals,PC[pos])]
-        P[pos].append([r.player_display_name,r.recent_team,int(r.games),vals,round(float(r.fantasy_points/r.games),1)]); n+=1
+        P[pos].append([r.player_display_name,r.recent_team,int(r.games),vals,round(float(r.fantasy_points/r.games),1),r.player_id]); n+=1
 PCout={p:[[l,d] for l,d,_ in v] for p,v in PC.items()}
 # ---- teams
 # (label, decimals, higher is better, group, views: O=offense D=defense S=special teams; Whole team shows all)
@@ -107,7 +108,7 @@ for cc in ['def_sacks','def_qb_hits','def_interceptions','def_pass_defended','de
 dx['idp']=dx.def_tackles_solo*1+dx.def_tackle_assists*.5+dx.def_tackles_for_loss*1+dx.def_sacks*3+dx.def_qb_hits*.5+dx.def_interceptions*3+dx.def_pass_defended*1+dx.def_fumbles_forced*3+dx.fumble_recovery_opp*2+dx.def_tds*6+dx.def_safeties*2
 dx['tk']=dx.def_tackles_solo+dx.def_tackle_assists
 dx=dx[(dx.tk>=1)|(dx.def_sacks>0)|(dx.def_interceptions>0)].sort_values('tk',ascending=False)
-X=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.tk),int(r.def_tackles_solo),round(float(r.tk/r.games),1),int(r.def_tackles_for_loss),round(float(r.def_sacks),1),int(r.def_qb_hits),int(r.def_interceptions),int(r.def_pass_defended),int(r.def_fumbles_forced),int(r.fumble_recovery_opp),int(r.def_tds),round(float(r.idp),1),round(float(r.idp/r.games),1)] for _,r in dx.iterrows()]
+X=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.tk),int(r.def_tackles_solo),round(float(r.tk/r.games),1),int(r.def_tackles_for_loss),round(float(r.def_sacks),1),int(r.def_qb_hits),int(r.def_interceptions),int(r.def_pass_defended),int(r.def_fumbles_forced),int(r.fumble_recovery_opp),int(r.def_tds),round(float(r.idp),1),round(float(r.idp/r.games),1),r.player_id] for _,r in dx.iterrows()]
 kx=df[df.position=='K'].copy()
 for cc in [c for c in kx.columns if c.startswith(('fg_made_','fg_missed_'))]+['fg_made','fg_att','fg_missed','pat_made','pat_att']: kx[cc]=kx[cc].fillna(0)
 a39=kx.fg_made_0_19+kx.fg_made_20_29+kx.fg_made_30_39; a50=kx.fg_made_50_59+kx.fg_made_60_; m40=kx.fg_missed_40_49+kx.fg_missed_50_59+kx.fg_missed_60_
@@ -116,21 +117,30 @@ print('kicker check: FG made by range matches total for',int(((a39+kx.fg_made_40
 kx=kx.assign(a39=a39,a50=a50,m40=m40).sort_values('pts',ascending=False)
 K=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts),round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
 print('defenders',len(X),'| kickers',len(K),'| top kicker',K[0][:2],K[0][-2:])
-P['K']=[[r.player_display_name,r.recent_team,int(r.games),[round(float(r.pts/r.games),1),None,None,round(float(r.fg_att/r.games),1),None,int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts)],round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
+P['K']=[[r.player_display_name,r.recent_team,int(r.games),[round(float(r.pts/r.games),1),None,None,round(float(r.fg_att/r.games),1),None,int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts)],round(float(r.pts/r.games),1),r.player_id] for _,r in kx.iterrows()]
 PCout['K']=[['Pts/g',1],['Yds/g',0],['TD',0],['Opps/g',1],['Tgt %',0],['FG made',0],['FG att',0],['FG %',1],['Long',0],['0-39',0],['40-49',0],['50+',0],['Missed',0],['Missed 40+',0],['XP made',0],['XP att',0],['Fantasy pts',0]]
 OLSTART={}
+DLAB={}
 def load_inj():
     try:
-        i=pd.read_csv(fetch(BASE+'injuries/injuries_%d.csv'%SEASON))
+        i=load('injuries')
         i=i[(i.season==SEASON)&(i.week==i.week.max())&i.report_status.notna()]
         print('injury report ok: week',int(i.week.max()) if len(i) else '-','|',len(i),'players listed')
-        return {r.gsis_id:[str(r.report_status),str(r.report_primary_injury) if pd.notna(r.report_primary_injury) else '',int(r.week)] for _,r in i.iterrows()}
+        out={r.gsis_id:[str(r.report_status),str(r.report_primary_injury) if pd.notna(r.report_primary_injury) else '',int(r.week)] for _,r in i.iterrows()}
+        try:
+            ro=load('rosters'); ro=ro[(ro.week==ro.week.max())&(ro.status=='RES')]
+            for _,r in ro.iterrows():
+                ir=str(r.status_description_abbr) in ('R01','R48')
+                out[r.gsis_id]=['IR' if ir else 'Reserve','Injured reserve' if ir else 'Reserve list',int(r.week)]
+            print('reserve list ok:',len(ro),'players')
+        except Exception as ex: print('roster status fetch failed:',ex)
+        return out
     except Exception as ex:
         print('injury fetch failed:',ex); return {}
 INJ=load_inj()
 def load_depth(teams):
     try:
-        c=pd.read_csv(fetch(BASE+'depth_charts/depth_charts_%d.csv'%SEASON),usecols=['dt','team','player_name','gsis_id','pos_grp','pos_abb','pos_rank'])
+        c=load('depth')
         dt=str(c.dt.max())[:10]; c=c[c.dt==c.dt.max()].dropna(subset=['player_name']).sort_values('pos_rank'); CALL=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t))); c=c.drop_duplicates(['team','pos_grp','pos_abb'])
         c=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t)))
         ST=df.drop_duplicates('player_id').set_index('player_id')
@@ -165,10 +175,14 @@ def load_depth(teams):
                 dbs.append([sl,r.player_name,int(g('def_interceptions')),int(g('def_pass_defended')),int(g('def_tackles_solo')+g('def_tackle_assists'))])
             for sl in ['LT','LG','C','RG','RT']:
                 r=ct[(ct.pos_abb==sl)&~ct.pos_grp.str.startswith('Base',na=False)&(ct.pos_grp!='Special Teams')]
-                if not r.empty: OLSTART[r.iloc[0].gsis_id]=(t,sl,r.iloc[0].player_name)
+                if not r.empty: OLSTART[r.iloc[0].gsis_id]=(t,sl,r.iloc[0].player_name); DLAB[r.iloc[0].gsis_id]=[sl,True]
             sk={}
+            for _,r in ball.drop_duplicates('gsis_id').iterrows():
+                DLAB.setdefault(r.gsis_id,[r.pos_abb+('' if r.pos_rank==1 else str(int(r.pos_rank))),bool(r.pos_rank==1)])
             for p,n in [('QB',1),('RB',2),('WR',3),('TE',1)]:
-                rr=CALL[(CALL.team==t)&(CALL.pos_abb==p)&~CALL.pos_grp.str.startswith('Base',na=False)&(CALL.pos_grp!='Special Teams')].drop_duplicates('gsis_id').head(n)
+                rall=CALL[(CALL.team==t)&(CALL.pos_abb==p)&~CALL.pos_grp.str.startswith('Base',na=False)&(CALL.pos_grp!='Special Teams')].drop_duplicates('gsis_id')
+                for k,(_,r) in enumerate(rall.iterrows()): DLAB.setdefault(r.gsis_id,[p+str(k+1),k<n])
+                rr=rall.head(n+4)
                 lst=[]
                 for _,r in rr.iterrows():
                     s=ST.loc[r.gsis_id] if r.gsis_id in ST.index else None
@@ -176,7 +190,7 @@ def load_depth(teams):
                     pp=round(float(s.fantasy_points_ppr)/gm,1) if gm else None; sd=round(float(s.fantasy_points)/gm,1) if gm else None
                     lst.append([r.player_name,pp,sd,INJ.get(r.gsis_id)])
                 sk[p]=lst
-            out[t]={'s':sch,'ol':ols,'fr':frs,'db':dbs,'sk':sk}
+            out[t]={'s':sch,'ol':ols,'fr':frs,'db':dbs,'sk':sk,'n':{'QB':1,'RB':2,'WR':3,'TE':1}}
         allv=np.array([x[6] for v in out.values() for x in v['fr']])
         p90,p75,p50=np.percentile(allv,[90,75,50])
         for v in out.values():
@@ -188,15 +202,15 @@ def load_depth(teams):
 DEP=load_depth({t[0] for t in T})
 OLP={}
 for _,r in df[df.position_group=='OL'].iterrows():
-    OLP[r.player_id]=[r.player_display_name,r.recent_team,r.position,int(r.games),'–',int(r.penalties or 0),int(r.penalty_yards or 0)]
+    OLP[r.player_id]=[r.player_display_name,r.recent_team,r.position,int(r.games),'–',int(r.penalties or 0),int(r.penalty_yards or 0),INJ.get(r.player_id)]
 for gid,(t,sl,nm) in OLSTART.items():
     if gid in OLP: OLP[gid][4]=sl; OLP[gid][1]=t
-    else: OLP[gid]=[nm,t,sl,None,sl,0,0]
+    else: OLP[gid]=[nm,t,sl,None,sl,0,0,INJ.get(gid)]
 OLP=sorted(OLP.values(),key=lambda x:(x[4]=='–',x[1],['LT','LG','C','RG','RT','–'].index(x[4]) if x[4] in ['LT','LG','C','RG','RT','–'] else 9))
 print('OL players',len(OLP),'| starters',sum(1 for x in OLP if x[4]!='–'))
 def load_allowed():
     try:
-        w=pd.read_csv(fetch(BASE+'stats_player/stats_player_week_%d.csv'%SEASON))
+        w=load('weekly_stats')
         w=w[(w.season==SEASON)&(w.season_type=='REG')&w.position.isin(['QB','RB','WR','TE'])].copy()
         for c in ['fantasy_points','fantasy_points_ppr','passing_yards','rushing_yards','receiving_yards','passing_tds','rushing_tds','receiving_tds','receptions']: w[c]=w[c].fillna(0)
         fx=lambda t:t if t in N else ALIAS.get(t,t)
@@ -224,8 +238,14 @@ def clean(o):
     if isinstance(o,(np.integer,)): return int(o)
     if isinstance(o,(np.floating,)): return clean(float(o))
     return o
-data=json.dumps(clean({'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
-b64=base64.b64encode(gzip.compress(data.encode(),9)).decode()
-html=open('template.html').read().replace('__B64__',b64).replace('__DATE__',DATE)
+for pos in P:
+    for row in P[pos]: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid))
+for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid))
+print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
+META['built']=DATE
+data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+open('data.json','w').write(data)
+ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
+html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)
 open('index.html','w').write(html)
-print(n,'players | raw json',len(data),'| html bytes',len(html.encode()))
+print(n,'players | data.json',len(data),'bytes | index.html',len(html.encode()),'bytes')
