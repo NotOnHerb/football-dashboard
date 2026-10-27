@@ -3,9 +3,10 @@
 The dream: a football app that's fun and powerful to use, starting as a personal assistant for bets,
 fantasy lineups and football knowledge, then opened up to help other people too.
 
-## In progress
-- Player cards: tap any player for headshot, stats, game log, this week's matchup, dynasty value,
-  latest news, and (later) prop lines with hit rates.
+## Done recently
+- Player cards (Oct 27): tap any player name for headshot, bio, stats, game log chart, this week's
+  matchup, dynasty value, live ESPN news with the RotoWire fantasy note. Betting slot reserved.
+- Colored stat cells site-wide, personalized start/sit, NFL / Fantasy / Betting layout.
 
 ## Next up (agreed Oct 27, 2026)
 1. Betting tab: game lines, player props next to averages and matchups, flagged lines that look off.

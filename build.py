@@ -282,7 +282,7 @@ try:
             int(b_.draft_round) if b_ is not None and pd.notna(b_.draft_round) else None,
             str(b_.college_name) if b_ is not None and pd.notna(b_.college_name) else '',
             int(r.value_1qb),int(r.value_2qb),int(gm) if gm else 0,fp,
-            (FORM.get(g) or [None])[0],(SNAP.get(g) or [None,None])[0],(SNAP.get(g) or [None,None])[1],INJ.get(g),DLAB.get(g)])
+            (FORM.get(g) or [None])[0],(SNAP.get(g) or [None,None])[0],(SNAP.get(g) or [None,None])[1],INJ.get(g),DLAB.get(g),g])
     DY={'P':rows,'K':picks}
     # ---- Sleeper lookup: sleeper_id -> [name,pos,team,age,v1qb,v2qb,ppr/g,std/g,gp,last3 ppr,idp/g,inj,depth]
     ids=load('player_ids').dropna(subset=['sleeper_id','gsis_id']).drop_duplicates('sleeper_id')
@@ -432,12 +432,31 @@ def clean(o):
     if isinstance(o,(np.integer,)): return int(o)
     if isinstance(o,(np.floating,)): return clean(float(o))
     return o
+IDS=set()
 for pos in P:
-    for row in P[pos]: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); f_=FORM.get(pid,[None,None]); s_=SNAP.get(pid,[None,None]); row.append([f_[0],f_[1],s_[0],s_[1]])
-for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); s_=SNAP.get(pid,[None,None]); row.append([None,None,s_[0],s_[1]])
+    for row in P[pos]: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); f_=FORM.get(pid,[None,None]); s_=SNAP.get(pid,[None,None]); row.append([f_[0],f_[1],s_[0],s_[1]]); row.append(pid); IDS.add(pid)
+for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); s_=SNAP.get(pid,[None,None]); row.append([None,None,s_[0],s_[1]]); row.append(pid); IDS.add(pid)
+# ---- player card extras: photo, ESPN id, size, game log
+PL={};LOG={}
+try:
+    if DY: IDS|={r[16] for r in DY['P'] if isinstance(r[16],str)}
+    bio2=pl.drop_duplicates('gsis_id').set_index('gsis_id') if pl is not None else None
+    if WK is not None:
+        for pid,g in WK.sort_values('week').groupby('player_id'):
+            LOG[pid]=[[int(r.week),r.opponent_team,round(float(r.fantasy_points_ppr),1),round(float(r.fantasy_points),1),int(r.yds),int(r.td),int(r.receptions)] for _,r in g.iterrows()]
+    HS=df.drop_duplicates('player_id').set_index('player_id').headshot_url if 'headshot_url' in df else {}
+    for g in IDS|set(LOG):
+        b_=bio2.loc[g] if bio2 is not None and g in bio2.index else None
+        hs=HS.get(g) if hasattr(HS,'get') else None
+        if (hs is None or hs!=hs) and b_ is not None: hs=b_.get('headshot')
+        PL[g]=[hs if isinstance(hs,str) else None,(str(int(float(b_['espn_id']))) if b_ is not None and pd.notna(b_.get('espn_id')) else None),
+               (int(b_['height']) if b_ is not None and pd.notna(b_.get('height')) else None),(int(b_['weight']) if b_ is not None and pd.notna(b_.get('weight')) else None),
+               (str(b_['birth_date'])[:10] if b_ is not None and pd.notna(b_.get('birth_date')) else None)]
+    print('player cards ok:',len(PL),'players | with photo',sum(1 for v in PL.values() if v[0]),'| with ESPN id',sum(1 for v in PL.values() if v[1]),'| game logs',len(LOG))
+except Exception as ex: print('player card extras failed:',ex)
 print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
 META['built']=DATE
-data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
 ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
 html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)
