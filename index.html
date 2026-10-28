@@ -980,7 +980,7 @@ var MKS=['ALL','Pass yds','Rush yds','Rec yds','Receptions','Pass TDs','Anytime 
     var b=e.target.closest('.gprop');if(b){BS.v='props';BS.gm=b.dataset.gm;$('bgm').value=BS.gm;renderB();$('sb').scrollIntoView({behavior:'smooth'})}})}
 async function load(){
   try{
-    var res=await fetch('data.json?v=202610280117',{cache:'no-cache'});
+    var res=await fetch('data.json?v=202610280118',{cache:'no-cache'});
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
   }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
