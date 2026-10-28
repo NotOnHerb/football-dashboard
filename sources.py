@@ -145,6 +145,89 @@ def cfbd_college():
     return {'stats': stats, 'usage': usage, 'ppa': ppa, 'roster': roster, 'recruits': recruits, 'games': games}, {'provider': 'CollegeFootballData.com', 'season': yr}
 
 
+ODDS = 'https://api.the-odds-api.com/v4/sports/americanfootball_nfl/'
+PROP_MARKETS = 'player_pass_yds,player_rush_yds,player_reception_yds,player_receptions,player_pass_tds,player_anytime_td'
+ODDS_RESERVE = 40   # never let a refresh take credits below this
+
+
+def odds_update(week_pairs, team_of_name, cache_dir='odds'):
+    """Game lines every run (about 3 credits) plus player props on a schedule, cached in cache_dir.
+    week_pairs: set of (away, home) team codes for this week's games. team_of_name: full name -> code.
+    Free plan (default): props on Thursday for Thursday games and on Friday for the rest of the week.
+    ODDS_PLAN=paid: props for games in the next 4 days, refreshed when older than 6 hours.
+    ODDS_PROPS=all fetches props for every game this week that isn't cached yet (one-off)."""
+    import json, datetime as dt
+    key = os.environ.get('ODDS_API_KEY')
+    if os.environ.get('ODDS_OFFLINE'):   # local testing: use the saved odds, spend no credits
+        L = json.load(open(os.path.join(cache_dir, 'lines.json')))
+        evs = [e for e in L['data'] if (team_of_name.get(e['away_team']), team_of_name.get(e['home_team'])) in week_pairs]
+        pr = {}
+        for e in evs:
+            f = os.path.join(cache_dir, 'props', e['id'] + '.json')
+            if os.path.exists(f): pr[e['id']] = json.load(open(f))
+        return {'lines': L['data'], 'events': evs, 'props': pr}, {'provider': 'The Odds API', 'lines_at': L['fetched'], 'props_games': len(pr),
+                'props_fetched_now': 0, 'credits_used_now': 0, 'credits_left': None, 'plan': 'offline'}
+    if not key:
+        raise RuntimeError('no ODDS_API_KEY secret set')
+    os.makedirs(os.path.join(cache_dir, 'props'), exist_ok=True)
+    state = {'remaining': None, 'used_now': 0}
+
+    def call(path):
+        req = urllib.request.Request(ODDS + path + ('&' if '?' in path else '?') + 'apiKey=' + key, headers={'User-Agent': 'football-dashboard'})
+        r = urllib.request.urlopen(req, timeout=60)
+        rem = r.headers.get('x-requests-remaining'); last = r.headers.get('x-requests-last')
+        if rem is not None: state['remaining'] = int(float(rem))
+        if last is not None: state['used_now'] += int(float(last))
+        return json.load(r)
+
+    now = dt.datetime.now(dt.timezone.utc)
+    lines = call('odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american')
+    json.dump({'fetched': now.isoformat(), 'data': lines}, open(os.path.join(cache_dir, 'lines.json'), 'w'))
+    plan, mode = os.environ.get('ODDS_PLAN', 'free'), os.environ.get('ODDS_PROPS', 'auto')
+    local = now.astimezone(dt.timezone(dt.timedelta(hours=-5)))  # US Central (close enough for scheduling)
+    events = []
+    for ev in lines:
+        pair = (team_of_name.get(ev['away_team']), team_of_name.get(ev['home_team']))
+        if pair in week_pairs:
+            events.append(ev)
+    props, fetched = {}, 0
+    for ev in events:
+        f = os.path.join(cache_dir, 'props', ev['id'] + '.json')
+        cached = json.load(open(f)) if os.path.exists(f) else None
+        start = dt.datetime.fromisoformat(ev['commence_time'].replace('Z', '+00:00'))
+        if start < now:
+            if cached: props[ev['id']] = cached
+            continue
+        age_h = (now - dt.datetime.fromisoformat(cached['fetched'])).total_seconds() / 3600 if cached else None
+        days_out = (start - now).total_seconds() / 86400
+        start_local = start.astimezone(dt.timezone(dt.timedelta(hours=-5)))
+        if mode == 'off':
+            want = False
+        elif mode == 'all':
+            want = cached is None
+        elif plan == 'paid':
+            want = days_out <= 4 and (cached is None or age_h > 6)
+        else:
+            dow = local.weekday()  # Mon 0 .. Sun 6
+            want = ((dow == 3 and start_local.weekday() in (3, 4)) or (dow == 4 and start_local.weekday() in (5, 6, 0))) and (cached is None or age_h > 20)
+        if want and (state['remaining'] is None or state['remaining'] - 6 >= ODDS_RESERVE):
+            try:
+                data = call('events/%s/odds?regions=us&markets=%s&oddsFormat=american' % (ev['id'], PROP_MARKETS))
+                cached = {'fetched': now.isoformat(), 'data': data}
+                json.dump(cached, open(f, 'w')); fetched += 1
+            except Exception as ex:
+                print('props fetch failed for', ev['id'], ex)
+        if cached:
+            props[ev['id']] = cached
+    keep = {e['id'] for e in lines}
+    for fn in os.listdir(os.path.join(cache_dir, 'props')):
+        if fn[:-5] not in keep:
+            os.remove(os.path.join(cache_dir, 'props', fn))
+    info = {'provider': 'The Odds API', 'lines_at': now.isoformat(), 'props_games': len(props), 'props_fetched_now': fetched,
+            'credits_used_now': state['used_now'], 'credits_left': state['remaining'], 'plan': plan}
+    return {'lines': lines, 'events': events, 'props': props}, info
+
+
 def nflverse_schedule():
     df = _need(pd.read_csv(_get(NFLVERSE + 'schedules/games.csv')), SCHEDULE, 'schedule')
     return df, {'provider': 'nflverse'}

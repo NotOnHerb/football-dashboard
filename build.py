@@ -424,6 +424,112 @@ try:
     print('college ok:',len(rows),'players | draft-eligible',sum(1 for x in rows if x[11]),'| with recruiting stars',sum(1 for x in rows if x[5]))
 except Exception as ex:
     print('college data skipped:',ex)
+# ---- betting: lines and props (The Odds API, needs the ODDS_API_KEY secret)
+ODD=None
+try:
+    import re as _re2, statistics as _st
+    tset={t[0] for t in T}
+    class _TeamMap(dict):
+        def get(self,name,default=None):
+            nick=str(name).split()[-1]
+            for c_ in tset:
+                if N.get(c_)==nick: return c_
+            return default
+    TM=_TeamMap()
+    od,oinfo=sources.odds_update({(g_[0],g_[1]) for g_ in G},TM,'odds')
+    META['sources']['odds']=oinfo
+    BOOK={'draftkings':'DraftKings','fanduel':'FanDuel','betmgm':'BetMGM','betrivers':'BetRivers','bovada':'Bovada','betonlineag':'BetOnline','mybookieag':'MyBookie','lowvig':'LowVig','betus':'BetUS','williamhill_us':'Caesars','espnbet':'ESPN BET','fanatics':'Fanatics','ballybet':'Bally Bet','hardrockbet':'Hard Rock'}
+    bk=lambda k:BOOK.get(k,k)
+    def prob(a):
+        a=float(a); return 100/(a+100) if a>0 else -a/(-a+100)
+    better=lambda p,q:(q is None) or (p>q)   # higher american price is always better for the bettor
+    GL=[]
+    for ev in od['events']:
+        a_,h_=TM.get(ev['away_team']),TM.get(ev['home_team'])
+        sp,tot,mlh,mla=[],[],[],[]
+        bs={'hs':None,'as':None,'ov':None,'un':None,'mh':None,'ma':None}
+        for B in ev.get('bookmakers',[]):
+            for M in B.get('markets',[]):
+                for o in M.get('outcomes',[]):
+                    nm,pr,pt=o.get('name'),o.get('price'),o.get('point')
+                    if M['key']=='h2h':
+                        k='mh' if nm==ev['home_team'] else 'ma'; (mlh if k=='mh' else mla).append(pr)
+                        if bs[k] is None or pr>bs[k][1]: bs[k]=[None,pr,bk(B['key'])]
+                    elif M['key']=='spreads':
+                        k='hs' if nm==ev['home_team'] else 'as'
+                        if k=='hs': sp.append(pt)
+                        cur=bs[k]
+                        if cur is None or pt>cur[0] or (pt==cur[0] and pr>cur[1]): bs[k]=[pt,pr,bk(B['key'])]
+                    elif M['key']=='totals':
+                        if nm=='Over':
+                            tot.append(pt); cur=bs['ov']
+                            if cur is None or pt<cur[0] or (pt==cur[0] and pr>cur[1]): bs['ov']=[pt,pr,bk(B['key'])]
+                        else:
+                            cur=bs['un']
+                            if cur is None or pt>cur[0] or (pt==cur[0] and pr>cur[1]): bs['un']=[pt,pr,bk(B['key'])]
+        wp=None
+        if mlh and mla:
+            ph,pa=prob(_st.median(mlh)),prob(_st.median(mla)); wp=round(ph/(ph+pa)*100,1)
+        GL.append([a_,h_,ev['commence_time'],len(ev.get('bookmakers',[])),_st.median(sp) if sp else None,bs['hs'],bs['as'],_st.median(tot) if tot else None,bs['ov'],bs['un'],bs['mh'],bs['ma'],wp])
+    # ---- props
+    def nn(s): s=str(s).lower().replace('’',"'"); s=_re2.sub(r"[.,']",'',s); s=_re2.sub(r'\b(jr|sr|ii|iii|iv|v)\b','',s); return _re2.sub(r'\s+',' ',s).strip()
+    who={}
+    for pos_,rows_ in P.items():
+        if pos_=='K': continue
+        for r_ in rows_: who.setdefault(nn(r_[0]),[]).append((pos_,r_[1],r_[8]))
+    MK={'player_pass_yds':('Pass yds',7),'player_rush_yds':('Rush yds',8),'player_reception_yds':('Rec yds',9),'player_receptions':('Receptions',6),'player_pass_tds':('Pass TDs',10),'player_anytime_td':('Anytime TD',11)}
+    ALT={'Pass yds':2,'Rush yds':2,'Rec yds':2,'Receptions':4,'Pass TDs':3,'Anytime TD':3}
+    LA={}
+    if ALW:
+        for p_ in ['QB','RB','WR','TE']:
+            v_=[t_['a'][p_] for t_ in ALW['T'].values() if p_ in t_['a']]; LA[p_]=[sum(x[i] for x in v_)/len(v_) for i in range(5)]
+    PR=[]
+    for eid,pc in od['props'].items():
+        ev=pc['data']; a_,h_=TM.get(ev.get('away_team','')),TM.get(ev.get('home_team',''))
+        agg={}
+        for B in ev.get('bookmakers',[]):
+            for M in B.get('markets',[]):
+                if M['key'] not in MK: continue
+                for o in M.get('outcomes',[]):
+                    d=agg.setdefault((o.get('description'),M['key']),{'pts':[],'ov':None,'un':None,'yes':[],'yb':None,'books':set()})
+                    d['books'].add(B['key']); pr,pt=o.get('price'),o.get('point')
+                    if o.get('name')=='Over':
+                        d['pts'].append(pt)
+                        if d['ov'] is None or pt<d['ov'][0] or (pt==d['ov'][0] and pr>d['ov'][1]): d['ov']=[pt,pr,bk(B['key'])]
+                    elif o.get('name')=='Under':
+                        if d['un'] is None or pt>d['un'][0] or (pt==d['un'][0] and pr>d['un'][1]): d['un']=[pt,pr,bk(B['key'])]
+                    elif o.get('name')=='Yes':
+                        d['yes'].append(pr)
+                        if d['yb'] is None or pr>d['yb'][1]: d['yb']=[None,pr,bk(B['key'])]
+        for (desc,mk),d in agg.items():
+            c_=[x for x in who.get(nn(desc),[]) if x[1] in (a_,h_)] or who.get(nn(desc),[])
+            if not c_: continue
+            pos_,tm_,gid=c_[0]; opp=h_ if tm_==a_ else a_
+            lab,si=MK[mk]; lg_=LOG.get(gid,[]); vals=[x[si] for x in lg_]
+            if not vals: continue
+            avg=sum(vals)/len(vals); l3=sum(vals[-3:])/len(vals[-3:]); base=.6*avg+.4*l3
+            ai=ALT[lab]; fac=1.0
+            if ALW and opp in ALW['T'] and pos_ in ALW['T'][opp]['a'] and LA.get(pos_) and LA[pos_][ai]>0:
+                fac=1+.5*(ALW['T'][opp]['a'][pos_][ai]/LA[pos_][ai]-1)
+            proj=base*fac; lean=None; strg=0; line=None; hit=None; impl=None
+            if mk=='player_anytime_td':
+                if not d['yes']: continue
+                impl=prob(_st.median(d['yes'])); rate=sum(1 for v in vals if v>=1)/len(vals); proj=min(rate*fac,.95)
+                diff=proj-impl
+                if len(vals)>=4 and diff>=.08: lean='Yes'; strg=3 if diff>=.2 else 2 if diff>=.14 else 1
+                hit=rate
+            else:
+                if not d['pts']: continue
+                line=_st.median(d['pts']); hit=sum(1 for v in vals if v>line)/len(vals); edge=(proj-line)/max(line,1)
+                if len(vals)>=3:
+                    if edge>=.10 and hit>=.55: lean='Over'; strg=3 if edge>=.25 else 2 if edge>=.17 else 1
+                    elif edge<=-.10 and hit<=.45: lean='Under'; strg=3 if edge<=-.25 else 2 if edge<=-.17 else 1
+            PR.append([desc,tm_,pos_,gid,lab,line,len(d['books']),d['ov'],d['un'],d['yb'],round(avg,1),round(l3,1),round(hit,2),len(vals),round(proj,2 if mk=='player_anytime_td' else 1),lean,strg,opp,round(impl,3) if impl is not None else None,round(fac,2)])
+    pat=max([pc['fetched'] for pc in od['props'].values()],default=None)
+    ODD={'G':GL,'P':PR,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    print('odds ok: games',len(GL),'| props rows',len(PR),'from',len(od['props']),'games | leans',sum(1 for x in PR if x[15]),'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
+except Exception as ex:
+    print('odds skipped:',ex)
 names={t:N[t] for t in set(df.recent_team)}
 def clean(o):
     if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
@@ -443,7 +549,7 @@ try:
     bio2=pl.drop_duplicates('gsis_id').set_index('gsis_id') if pl is not None else None
     if WK is not None:
         for pid,g in WK.sort_values('week').groupby('player_id'):
-            LOG[pid]=[[int(r.week),r.opponent_team,round(float(r.fantasy_points_ppr),1),round(float(r.fantasy_points),1),int(r.yds),int(r.td),int(r.receptions)] for _,r in g.iterrows()]
+            LOG[pid]=[[int(r.week),r.opponent_team,round(float(r.fantasy_points_ppr),1),round(float(r.fantasy_points),1),int(r.yds),int(r.td),int(r.receptions),int(r.passing_yards),int(r.rushing_yards),int(r.receiving_yards),int(r.passing_tds),int(r.rushing_tds+r.receiving_tds)] for _,r in g.iterrows()]
     HS=df.drop_duplicates('player_id').set_index('player_id').headshot_url if 'headshot_url' in df else {}
     for g in IDS|set(LOG):
         b_=bio2.loc[g] if bio2 is not None and g in bio2.index else None
@@ -456,7 +562,7 @@ try:
 except Exception as ex: print('player card extras failed:',ex)
 print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
 META['built']=DATE
-data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
 ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
 html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)
