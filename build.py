@@ -473,35 +473,104 @@ try:
     bk=lambda k:BOOK.get(k,k)
     def prob(a):
         a=float(a); return 100/(a+100) if a>0 else -a/(-a+100)
-    better=lambda p,q:(q is None) or (p>q)   # higher american price is always better for the bettor
+    dec=lambda a:(1+a/100) if a>0 else (1-100/a)
+    def novig(p1,p2):
+        q1,q2=prob(p1),prob(p2); return q1/(q1+q2)
+    def mode(xs):
+        xs=[x for x in xs if x is not None]
+        return max(set(xs),key=lambda x:(xs.count(x),-abs(x-_st.median(xs)))) if xs else None
+    med=lambda xs:(_st.median(xs) if xs else None)
+    from math import erf,sqrt
+    Phi=lambda x:.5*(1+erf(x/sqrt(2)))
+    # ---- team model from game scores (nflverse schedule): ridge-regressed ratings, with half of last season as a prior
+    sch=sources.load('schedule')[0]; sch=sch[sch.game_type=='REG'].copy()
+    fx=lambda t:t if t in tset else ALIAS.get(t,t)
+    sch['home_team']=sch.home_team.map(fx); sch['away_team']=sch.away_team.map(fx)
+    def fit(g,prior=None,lam=8.0):
+        tl=sorted(tset); ix={t:i for i,t in enumerate(tl)}; n=len(tl); Xm=[];ym=[];Xp=[];yp=[]
+        for r in g.itertuples():
+            if r.home_team not in ix or r.away_team not in ix: continue
+            h,a=ix[r.home_team],ix[r.away_team]
+            x=np.zeros(n+1);x[h]=1;x[a]=-1;x[n]=1;Xm.append(x);ym.append(r.home_score-r.away_score-((prior[r.home_team]-prior[r.away_team]) if prior else 0))
+            for sc,o,dd,hm in ((r.home_score,h,a,1),(r.away_score,a,h,-1)):
+                x=np.zeros(2*n+2);x[o]=1;x[n+dd]=-1;x[2*n]=1;x[2*n+1]=hm/2;Xp.append(x);yp.append(sc)
+        rid=lambda X,y,pen:np.linalg.solve(np.array(X).T@np.array(X)+np.diag(pen),np.array(X).T@np.array(y))
+        bm=rid(Xm,ym,np.r_[np.full(n,lam),.01]); bp_=rid(Xp,yp,np.r_[np.full(2*n,lam),.01,.01])
+        R={t:bm[ix[t]]+(prior[t] if prior else 0) for t in tl}
+        return R,bm[n],{t:bp_[ix[t]] for t in tl},{t:bp_[n+ix[t]] for t in tl},bp_[2*n]
+    last=sch[(sch.season==SEASON-1)&sch.home_score.notna()]
+    PRI={t:.5*v for t,v in fit(last)[0].items()} if len(last) else None
+    cur=sch[(sch.season==SEASON)&sch.home_score.notna()]
+    def proj(R,hfa,O,D_,mu,h,a):
+        m=R[h]-R[a]+hfa; t=2*mu+O[h]+O[a]-D_[h]-D_[a]; return m,t
+    # walk-forward record vs closing lines: weeks 4+, only when the model and the line differ by 2.5+ points
+    MR={'w':0,'l':0,'p':0,'tw':0,'tl':0,'tp':0}
+    for wk in sorted(cur.week.unique()):
+        if wk<4: continue
+        fm=fit(cur[cur.week<wk],PRI)
+        for r in cur[cur.week==wk].itertuples():
+            if r.home_team not in fm[0] or r.away_team not in fm[0] or pd.isna(r.spread_line): continue
+            m,t=proj(*fm,r.home_team,r.away_team)
+            if abs(m-r.spread_line)>=2.5:
+                cv=(r.result-r.spread_line)*np.sign(m-r.spread_line); MR['w' if cv>0 else 'l' if cv<0 else 'p']+=1
+            if not pd.isna(r.total_line) and abs(t-r.total_line)>=3:
+                cv=(r.total-r.total_line)*np.sign(t-r.total_line); MR['tw' if cv>0 else 'tl' if cv<0 else 'tp']+=1
+    FM=fit(cur,PRI)
+    # team against-the-spread and over/under records this season (closing lines from nflverse)
+    REC={t:{'ats':[0,0,0],'ou':[0,0,0],'pf':0,'pa':0,'g':0} for t in tset}
+    for r in cur.itertuples():
+        if pd.isna(r.spread_line): continue
+        for tm_,sg in ((r.home_team,1),(r.away_team,-1)):
+            if tm_ not in REC: continue
+            c_=(r.result-r.spread_line)*sg; REC[tm_]['ats'][0 if c_>0 else 1 if c_<0 else 2]+=1
+            if not pd.isna(r.total_line): o_=r.total-r.total_line; REC[tm_]['ou'][0 if o_>0 else 1 if o_<0 else 2]+=1
+            REC[tm_]['pf']+=r.home_score if sg>0 else r.away_score; REC[tm_]['pa']+=r.away_score if sg>0 else r.home_score; REC[tm_]['g']+=1
+    up=sch[(sch.season==SEASON)&sch.home_score.isna()]
+    UPR={(r.away_team,r.home_team):r for r in up.itertuples()}
+    # line history (one point per refresh), kept in odds/history.json
+    hp='odds/history.json'
+    try: HIST=json.load(open(hp))
+    except Exception: HIST={}
+    BKS={}
     GL=[]
     for ev in od['events']:
         a_,h_=TM.get(ev['away_team']),TM.get(ev['home_team'])
-        sp,tot,mlh,mla=[],[],[],[]
-        bs={'hs':None,'as':None,'ov':None,'un':None,'mh':None,'ma':None}
+        if not a_ or not h_: continue
+        bb={}
         for B in ev.get('bookmakers',[]):
+            nm_=bk(B['key']); x={}
             for M in B.get('markets',[]):
-                for o in M.get('outcomes',[]):
-                    nm,pr,pt=o.get('name'),o.get('price'),o.get('point')
-                    if M['key']=='h2h':
-                        k='mh' if nm==ev['home_team'] else 'ma'; (mlh if k=='mh' else mla).append(pr)
-                        if bs[k] is None or pr>bs[k][1]: bs[k]=[None,pr,bk(B['key'])]
-                    elif M['key']=='spreads':
-                        k='hs' if nm==ev['home_team'] else 'as'
-                        if k=='hs': sp.append(pt)
-                        cur=bs[k]
-                        if cur is None or pt>cur[0] or (pt==cur[0] and pr>cur[1]): bs[k]=[pt,pr,bk(B['key'])]
-                    elif M['key']=='totals':
-                        if nm=='Over':
-                            tot.append(pt); cur=bs['ov']
-                            if cur is None or pt<cur[0] or (pt==cur[0] and pr>cur[1]): bs['ov']=[pt,pr,bk(B['key'])]
-                        else:
-                            cur=bs['un']
-                            if cur is None or pt>cur[0] or (pt==cur[0] and pr>cur[1]): bs['un']=[pt,pr,bk(B['key'])]
-        wp=None
-        if mlh and mla:
-            ph,pa=_st.median([prob(x) for x in mlh]),_st.median([prob(x) for x in mla]); wp=round(ph/(ph+pa)*100,1)
-        GL.append([a_,h_,ev['commence_time'],len(ev.get('bookmakers',[])),_st.median(sp) if sp else None,bs['hs'],bs['as'],_st.median(tot) if tot else None,bs['ov'],bs['un'],bs['mh'],bs['ma'],wp])
+                oc={(o.get('name')):o for o in M.get('outcomes',[])}
+                if M['key']=='h2h' and ev['home_team'] in oc and ev['away_team'] in oc: x['m']=[oc[ev['home_team']]['price'],oc[ev['away_team']]['price']]
+                elif M['key']=='spreads' and ev['home_team'] in oc and ev['away_team'] in oc: x['s']=[oc[ev['home_team']].get('point'),oc[ev['home_team']]['price'],oc[ev['away_team']].get('point'),oc[ev['away_team']]['price']]
+                elif M['key']=='totals' and 'Over' in oc and 'Under' in oc: x['o']=[oc['Over'].get('point'),oc['Over']['price'],oc['Under']['price']]
+            if x: bb[nm_]=x; BKS[nm_]=BKS.get(nm_,0)+1
+        fair={}
+        sp=mode([v['s'][0] for v in bb.values() if 's' in v])
+        if sp is not None:
+            ps=[novig(v['s'][1],v['s'][3]) for v in bb.values() if 's' in v and v['s'][0]==sp]
+            fair['s']=[sp,round(med(ps),4) if len(ps)>=3 else None]
+        tp=mode([v['o'][0] for v in bb.values() if 'o' in v])
+        if tp is not None:
+            ps=[novig(v['o'][1],v['o'][2]) for v in bb.values() if 'o' in v and v['o'][0]==tp]
+            fair['o']=[tp,round(med(ps),4) if len(ps)>=3 else None]
+        pm=[novig(v['m'][0],v['m'][1]) for v in bb.values() if 'm' in v]
+        if pm: fair['m']=round(med(pm),4) if len(pm)>=3 else round(med(pm),4)
+        mod=None
+        if h_ in FM[0] and a_ in FM[0]:
+            m,t=proj(*FM,h_,a_); mod={'m':round(m,1),'t':round(t,1),'wp':round(Phi(m/13.5),3)}
+        u=UPR.get((a_,h_)); ctx={'div':bool(u.div_game) if u is not None and not pd.isna(u.div_game) else False,
+             'rest':[None if u is None or pd.isna(u.away_rest) else int(u.away_rest),None if u is None or pd.isna(u.home_rest) else int(u.home_rest)],
+             'roof':(u.roof if u is not None and isinstance(u.roof,str) else None)}
+        for side,tm_ in (('a',a_),('h',h_)):
+            r_=REC.get(tm_)
+            if r_ and r_['g']: ctx[side]={'ats':r_['ats'],'ou':r_['ou'],'pf':round(r_['pf']/r_['g'],1),'pa':round(r_['pa']/r_['g'],1)}
+        hist=HIST.get(ev['id'],[]); pt_=[oinfo['lines_at'][:16],fair.get('s',[None])[0],fair.get('o',[None])[0],fair.get('m')]
+        if not os.environ.get('ODDS_OFFLINE') and (not hist or hist[-1][1:3]!=pt_[1:3] or hist[-1][0][:10]!=pt_[0][:10]): hist=(hist+[pt_])[-30:]
+        HIST[ev['id']]=hist
+        GL.append({'id':ev['id'],'a':a_,'h':h_,'t':ev['commence_time'],'b':bb,'fair':fair,'mod':mod,'ctx':ctx,'mv':[[x[0],x[1],x[2]] for x in hist]})
+    if not os.environ.get('ODDS_OFFLINE'):
+        live={g_['id'] for g_ in GL}; json.dump({k:v for k,v in HIST.items() if k in live},open(hp,'w'))
     # ---- props
     def nn(s): s=str(s).lower().replace('’',"'"); s=_re2.sub(r"[.,']",'',s); s=_re2.sub(r'\b(jr|sr|ii|iii|iv|v)\b','',s); return _re2.sub(r'\s+',' ',s).strip()
     who={}
@@ -519,47 +588,44 @@ try:
         ev=pc['data']; a_,h_=TM.get(ev.get('away_team','')),TM.get(ev.get('home_team',''))
         agg={}
         for B in ev.get('bookmakers',[]):
+            nm_=bk(B['key'])
             for M in B.get('markets',[]):
                 if M['key'] not in MK: continue
                 for o in M.get('outcomes',[]):
-                    d=agg.setdefault((o.get('description'),M['key']),{'pts':[],'ov':None,'un':None,'yes':[],'yb':None,'books':set()})
-                    d['books'].add(B['key']); pr,pt=o.get('price'),o.get('point')
-                    if o.get('name')=='Over':
-                        d['pts'].append(pt)
-                        if d['ov'] is None or pt<d['ov'][0] or (pt==d['ov'][0] and pr>d['ov'][1]): d['ov']=[pt,pr,bk(B['key'])]
-                    elif o.get('name')=='Under':
-                        if d['un'] is None or pt>d['un'][0] or (pt==d['un'][0] and pr>d['un'][1]): d['un']=[pt,pr,bk(B['key'])]
-                    elif o.get('name')=='Yes':
-                        d['yes'].append(pr)
-                        if d['yb'] is None or pr>d['yb'][1]: d['yb']=[None,pr,bk(B['key'])]
+                    d=agg.setdefault((o.get('description'),M['key']),{})
+                    x=d.setdefault(nm_,[None,None,None,None]); pr,pt=o.get('price'),o.get('point')
+                    if o.get('name')=='Over': x[0],x[1]=pt,pr
+                    elif o.get('name')=='Under': x[2],x[3]=pt,pr
+                    elif o.get('name')=='Yes': x[1]=pr
         for (desc,mk),d in agg.items():
             c_=[x for x in who.get(nn(desc),[]) if x[1] in (a_,h_)] or who.get(nn(desc),[])
             if not c_: continue
             pos_,tm_,gid=c_[0]; opp=h_ if tm_==a_ else a_
-            lab,si=MK[mk]; lg_=LOG.get(gid,[]); vals=[x[si] for x in lg_]
-            if not vals: continue
+            lab,si=MK[mk]; lg_=LOG.get(gid,[])
+            if not lg_: continue
+            vals=[x[si] for x in lg_]
             avg=sum(vals)/len(vals); l3=sum(vals[-3:])/len(vals[-3:]); base=.6*avg+.4*l3
             ai=ALT[lab]; fac=1.0
             if ALW and opp in ALW['T'] and pos_ in ALW['T'][opp]['a'] and LA.get(pos_) and LA[pos_][ai]>0:
                 fac=min(1.25,max(.8,1+.5*(ALW['T'][opp]['a'][pos_][ai]/LA[pos_][ai]-1)))
-            proj=base*fac; lean=None; strg=0; line=None; hit=None; impl=None
+            d={k:v for k,v in d.items() if v[1] is not None}
+            if not d: continue
+            fair=None
             if mk=='player_anytime_td':
-                if not d['yes']: continue
-                impl=_st.median([prob(x) for x in d['yes']]); rate=sum(1 for v in vals if v>=1)/len(vals); proj=min((sum(1 for v in vals if v>=1)+4*impl)/(len(vals)+4)*fac,.95)  # shrink small samples toward the odds
-                diff=proj-impl
-                if len(vals)>=5 and impl<=.6 and diff>=.10: lean='Yes'; strg=3 if diff>=.24 else 2 if diff>=.16 else 1
-                hit=rate
+                impl=med([prob(v[1]) for v in d.values()]); sc=sum(1 for v in vals if v>=1)
+                pj=round(min((sc+4*impl)/(len(vals)+4)*fac,.95),3)   # scoring rate, pulled toward the odds when the sample is small
             else:
-                if not d['pts']: continue
-                line=_st.median(d['pts']); hit=sum(1 for v in vals if v>line)/len(vals); edge=(proj-line)/max(line,1)
-                MINL={'Pass yds':150,'Rush yds':25,'Rec yds':25,'Receptions':2.5,'Pass TDs':.5}
-                if len(vals)>=4 and line>=MINL.get(lab,0):
-                    if edge>=.10 and hit>=.55: lean='Over'; strg=3 if edge>=.25 else 2 if edge>=.17 else 1
-                    elif edge<=-.10 and hit<=.45: lean='Under'; strg=3 if edge<=-.25 else 2 if edge<=-.17 else 1
-            PR.append([desc,tm_,pos_,gid,lab,line,len(d['books']),d['ov'],d['un'],d['yb'],round(avg,1),round(l3,1),round(hit,2),len(vals),round(proj,2 if mk=='player_anytime_td' else 1),lean,strg,opp,round(impl,3) if impl is not None else None,round(fac,2)])
+                pj=round(base*fac,1)
+                pt=mode([v[0] for v in d.values() if v[0] is not None and v[3] is not None])
+                if pt is not None:
+                    ps=[novig(v[1],v[3]) for v in d.values() if v[0]==pt and v[2]==pt and v[3] is not None]
+                    if len(ps)>=3: fair=[pt,round(med(ps),4)]
+            PR.append({'n':desc,'t':tm_,'pos':pos_,'gid':gid,'opp':opp,'mk':lab,'b':d,'fair':fair,'v':[[x[0],x[1],x[si]] for x in lg_],'avg':round(avg,1),'l3':round(l3,1),'pj':pj,'fac':round(fac,2)})
     pat=max([pc['fetched'] for pc in od['props'].values()],default=None)
-    ODD={'G':GL,'P':PR,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
-    print('odds ok: games',len(GL),'| props rows',len(PR),'from',len(od['props']),'games | leans',sum(1 for x in PR if x[15]),'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
+    order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','LowVig','BetUS','MyBookie','Bally Bet']
+    books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
+    ODD={'G':GL,'P':PR,'books':books,'MR':MR,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex)
 META['built']=DATE

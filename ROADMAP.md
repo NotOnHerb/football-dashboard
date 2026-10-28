@@ -7,18 +7,19 @@ fantasy lineups and football knowledge, then opened up to help other people too.
 - Player cards (Oct 27): tap any player name for headshot, bio, stats, game log chart, this week's
   matchup, dynasty value, live ESPN news with the RotoWire fantasy note, and his props this week.
 - Colored stat cells site-wide, personalized start/sit, NFL / Fantasy / Betting layout.
-- Betting tab: Best bets (leans level II+), Game lines (consensus, best price per side, win %), Props with filters. Free odds plan: lines daily, props Thursday and Friday.
+- Betting tab v2: Picks (pick of the week, game-line picks, prop picks with reasons), Games (card per game: every line, win % bar, our model, ATS and over records, rest, line movement), Props (lean, projection, last-games dots, hit rate, opponent grade, price value). Sportsbook picker: best available or one book. Value = price vs the market's no-vig fair odds.
 
 ## Next up (agreed Oct 27, 2026)
    Needs a free key from the-odds-api.com, stored as a GitHub secret (never in the page).
-1. Home screen, "This week at a glance": your lineup moves, biggest matchup edges, injury news for
+1. Betting next: grade our picks automatically every week and show the running record; "My bets" slip saved per person; alerts when a line moves a lot.
+2. Home screen, "This week at a glance": your lineup moves, biggest matchup edges, injury news for
    your players, top diamonds.
-2. Bet and prediction tracker: log bets, picks and start/sit calls, then see your record and profit.
+3. Bet and prediction tracker: log bets, picks and start/sit calls, then see your record and profit.
    The "keeps score on you" idea from day one.
-3. Install like an app on a phone home screen (icon, full screen).
-4. Trade analyzer: enter a 2-for-1 or 3-for-2 deal, see who wins on value, team before and after.
-5. Playoff schedule strength: soft matchups in fantasy playoff weeks 14 to 17.
-6. About page: credit data sources, note it's not betting advice, before sharing widely.
+4. Install like an app on a phone home screen (icon, full screen).
+5. Trade analyzer: enter a 2-for-1 or 3-for-2 deal, see who wins on value, team before and after.
+6. Playoff schedule strength: soft matchups in fantasy playoff weeks 14 to 17.
+7. About page: credit data sources, note it's not betting advice, before sharing widely.
 
 ## Later
 - Kicker, defense and IDP projections in start/sit and lineups.
