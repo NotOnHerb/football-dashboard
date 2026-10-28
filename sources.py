@@ -148,6 +148,8 @@ def cfbd_college():
 ODDS = 'https://api.the-odds-api.com/v4/sports/americanfootball_nfl/'
 PROP_MARKETS = 'player_pass_yds,player_rush_yds,player_reception_yds,player_receptions,player_pass_tds,player_anytime_td'
 ODDS_RESERVE = 40   # never let a refresh take credits below this
+# Up to 10 named books cost the same as one region. Pinnacle is the sharp reference for fair odds.
+ODDS_BOOKS = os.environ.get('ODDS_BOOKS') or 'pinnacle,draftkings,fanduel,betmgm,williamhill_us,espnbet,fanatics,betrivers,bovada,betonlineag'
 
 
 def odds_update(week_pairs, team_of_name, cache_dir='odds'):
@@ -181,7 +183,7 @@ def odds_update(week_pairs, team_of_name, cache_dir='odds'):
         return json.load(r)
 
     now = dt.datetime.now(dt.timezone.utc)
-    lines = call('odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american')
+    lines = call('odds?bookmakers=%s&markets=h2h,spreads,totals&oddsFormat=american' % ODDS_BOOKS)
     json.dump({'fetched': now.isoformat(), 'data': lines}, open(os.path.join(cache_dir, 'lines.json'), 'w'))
     plan, mode = os.environ.get('ODDS_PLAN', 'free'), os.environ.get('ODDS_PROPS', 'auto')
     local = now.astimezone(dt.timezone(dt.timedelta(hours=-5)))  # US Central (close enough for scheduling)
@@ -212,7 +214,7 @@ def odds_update(week_pairs, team_of_name, cache_dir='odds'):
             want = ((dow == 3 and start_local.weekday() in (3, 4)) or (dow == 4 and start_local.weekday() in (5, 6, 0))) and (cached is None or age_h > 20)
         if want and (state['remaining'] is None or state['remaining'] - 6 >= ODDS_RESERVE):
             try:
-                data = call('events/%s/odds?regions=us&markets=%s&oddsFormat=american' % (ev['id'], PROP_MARKETS))
+                data = call('events/%s/odds?bookmakers=%s&markets=%s&oddsFormat=american' % (ev['id'], ODDS_BOOKS, PROP_MARKETS))
                 cached = {'fetched': now.isoformat(), 'data': data}
                 json.dump(cached, open(f, 'w')); fetched += 1
             except Exception as ex:
@@ -255,3 +257,30 @@ PROVIDERS = {
 def load(name):
     """Load one dataset. Returns (dataframe, info)."""
     return PROVIDERS[name]()
+
+
+# ---------------------------------------------------------------- weather (Open-Meteo, free, no key)
+# Home stadium coordinates (roughly; good enough for a forecast). Domes are skipped using the schedule's roof field.
+STADIUMS = {'ARI': (33.528, -112.263), 'ATL': (33.755, -84.401), 'BAL': (39.278, -76.623), 'BUF': (42.774, -78.787), 'CAR': (35.226, -80.853),
+            'CHI': (41.862, -87.617), 'CIN': (39.095, -84.516), 'CLE': (41.506, -81.700), 'DAL': (32.748, -97.093), 'DEN': (39.744, -105.020),
+            'DET': (42.340, -83.046), 'GB': (44.501, -88.062), 'HOU': (29.685, -95.411), 'IND': (39.760, -86.164), 'JAX': (30.324, -81.637),
+            'KC': (39.049, -94.484), 'LV': (36.091, -115.184), 'LAC': (33.953, -118.339), 'LA': (33.953, -118.339), 'MIA': (25.958, -80.239),
+            'MIN': (44.974, -93.258), 'NE': (42.091, -71.264), 'NO': (29.951, -90.081), 'NYG': (40.813, -74.074), 'NYJ': (40.813, -74.074),
+            'PHI': (39.901, -75.168), 'PIT': (40.447, -80.016), 'SF': (37.403, -121.970), 'SEA': (47.595, -122.332), 'TB': (27.976, -82.503),
+            'TEN': (36.166, -86.771), 'WAS': (38.908, -76.864)}
+
+
+def weather_at(team, kickoff_iso):
+    """Forecast at kickoff for the home team's stadium: {'t': temp F, 'w': wind mph, 'g': gusts mph, 'pp': rain/snow chance %}.
+    Returns None when the stadium is unknown or the game is more than about two weeks out."""
+    import json, datetime as dt
+    if team not in STADIUMS: return None
+    lat, lon = STADIUMS[team]
+    k = dt.datetime.fromisoformat(kickoff_iso.replace('Z', '+00:00'))
+    day = k.strftime('%Y-%m-%d')
+    url = ('https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,precipitation_probability'
+           '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC&start_date=%s&end_date=%s') % (lat, lon, day, day)
+    h = json.load(_get(url))['hourly']
+    i = min(range(len(h['time'])), key=lambda j: abs((dt.datetime.fromisoformat(h['time'][j] + '+00:00') - k).total_seconds()))
+    g = lambda c: (None if h[c][i] is None else round(h[c][i]))
+    return {'t': g('temperature_2m'), 'w': g('wind_speed_10m'), 'g': g('wind_gusts_10m'), 'pp': g('precipitation_probability')}
