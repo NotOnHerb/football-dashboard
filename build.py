@@ -424,6 +424,37 @@ try:
     print('college ok:',len(rows),'players | draft-eligible',sum(1 for x in rows if x[11]),'| with recruiting stars',sum(1 for x in rows if x[5]))
 except Exception as ex:
     print('college data skipped:',ex)
+names={t:N[t] for t in set(df.recent_team)}
+def clean(o):
+    if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
+    if isinstance(o,dict): return {k:clean(v) for k,v in o.items()}
+    if isinstance(o,(list,tuple)): return [clean(v) for v in o]
+    if isinstance(o,(np.integer,)): return int(o)
+    if isinstance(o,(np.floating,)): return clean(float(o))
+    return o
+IDS=set()
+for pos in P:
+    for row in P[pos]: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); f_=FORM.get(pid,[None,None]); s_=SNAP.get(pid,[None,None]); row.append([f_[0],f_[1],s_[0],s_[1]]); row.append(pid); IDS.add(pid)
+for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); s_=SNAP.get(pid,[None,None]); row.append([None,None,s_[0],s_[1]]); row.append(pid); IDS.add(pid)
+# ---- player card extras: photo, ESPN id, size, game log
+PL={};LOG={}
+try:
+    if DY: IDS|={r[16] for r in DY['P'] if isinstance(r[16],str)}
+    bio2=pl.drop_duplicates('gsis_id').set_index('gsis_id') if pl is not None else None
+    if WK is not None:
+        for pid,g in WK.sort_values('week').groupby('player_id'):
+            LOG[pid]=[[int(r.week),r.opponent_team,round(float(r.fantasy_points_ppr),1),round(float(r.fantasy_points),1),int(r.yds),int(r.td),int(r.receptions),int(r.passing_yards),int(r.rushing_yards),int(r.receiving_yards),int(r.passing_tds),int(r.rushing_tds+r.receiving_tds)] for _,r in g.iterrows()]
+    HS=df.drop_duplicates('player_id').set_index('player_id').headshot_url if 'headshot_url' in df else {}
+    for g in IDS|set(LOG):
+        b_=bio2.loc[g] if bio2 is not None and g in bio2.index else None
+        hs=HS.get(g) if hasattr(HS,'get') else None
+        if (hs is None or hs!=hs) and b_ is not None: hs=b_.get('headshot')
+        PL[g]=[hs if isinstance(hs,str) else None,(str(int(float(b_['espn_id']))) if b_ is not None and pd.notna(b_.get('espn_id')) else None),
+               (int(b_['height']) if b_ is not None and pd.notna(b_.get('height')) else None),(int(b_['weight']) if b_ is not None and pd.notna(b_.get('weight')) else None),
+               (str(b_['birth_date'])[:10] if b_ is not None and pd.notna(b_.get('birth_date')) else None)]
+    print('player cards ok:',len(PL),'players | with photo',sum(1 for v in PL.values() if v[0]),'| with ESPN id',sum(1 for v in PL.values() if v[1]),'| game logs',len(LOG))
+except Exception as ex: print('player card extras failed:',ex)
+print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
 # ---- betting: lines and props (The Odds API, needs the ODDS_API_KEY secret)
 ODD=None
 try:
@@ -469,7 +500,7 @@ try:
                             if cur is None or pt>cur[0] or (pt==cur[0] and pr>cur[1]): bs['un']=[pt,pr,bk(B['key'])]
         wp=None
         if mlh and mla:
-            ph,pa=prob(_st.median(mlh)),prob(_st.median(mla)); wp=round(ph/(ph+pa)*100,1)
+            ph,pa=_st.median([prob(x) for x in mlh]),_st.median([prob(x) for x in mla]); wp=round(ph/(ph+pa)*100,1)
         GL.append([a_,h_,ev['commence_time'],len(ev.get('bookmakers',[])),_st.median(sp) if sp else None,bs['hs'],bs['as'],_st.median(tot) if tot else None,bs['ov'],bs['un'],bs['mh'],bs['ma'],wp])
     # ---- props
     def nn(s): s=str(s).lower().replace('’',"'"); s=_re2.sub(r"[.,']",'',s); s=_re2.sub(r'\b(jr|sr|ii|iii|iv|v)\b','',s); return _re2.sub(r'\s+',' ',s).strip()
@@ -510,18 +541,19 @@ try:
             avg=sum(vals)/len(vals); l3=sum(vals[-3:])/len(vals[-3:]); base=.6*avg+.4*l3
             ai=ALT[lab]; fac=1.0
             if ALW and opp in ALW['T'] and pos_ in ALW['T'][opp]['a'] and LA.get(pos_) and LA[pos_][ai]>0:
-                fac=1+.5*(ALW['T'][opp]['a'][pos_][ai]/LA[pos_][ai]-1)
+                fac=min(1.25,max(.8,1+.5*(ALW['T'][opp]['a'][pos_][ai]/LA[pos_][ai]-1)))
             proj=base*fac; lean=None; strg=0; line=None; hit=None; impl=None
             if mk=='player_anytime_td':
                 if not d['yes']: continue
-                impl=prob(_st.median(d['yes'])); rate=sum(1 for v in vals if v>=1)/len(vals); proj=min(rate*fac,.95)
+                impl=_st.median([prob(x) for x in d['yes']]); rate=sum(1 for v in vals if v>=1)/len(vals); proj=min((sum(1 for v in vals if v>=1)+4*impl)/(len(vals)+4)*fac,.95)  # shrink small samples toward the odds
                 diff=proj-impl
-                if len(vals)>=4 and diff>=.08: lean='Yes'; strg=3 if diff>=.2 else 2 if diff>=.14 else 1
+                if len(vals)>=5 and impl<=.6 and diff>=.10: lean='Yes'; strg=3 if diff>=.24 else 2 if diff>=.16 else 1
                 hit=rate
             else:
                 if not d['pts']: continue
                 line=_st.median(d['pts']); hit=sum(1 for v in vals if v>line)/len(vals); edge=(proj-line)/max(line,1)
-                if len(vals)>=3:
+                MINL={'Pass yds':150,'Rush yds':25,'Rec yds':25,'Receptions':2.5,'Pass TDs':.5}
+                if len(vals)>=4 and line>=MINL.get(lab,0):
                     if edge>=.10 and hit>=.55: lean='Over'; strg=3 if edge>=.25 else 2 if edge>=.17 else 1
                     elif edge<=-.10 and hit<=.45: lean='Under'; strg=3 if edge<=-.25 else 2 if edge<=-.17 else 1
             PR.append([desc,tm_,pos_,gid,lab,line,len(d['books']),d['ov'],d['un'],d['yb'],round(avg,1),round(l3,1),round(hit,2),len(vals),round(proj,2 if mk=='player_anytime_td' else 1),lean,strg,opp,round(impl,3) if impl is not None else None,round(fac,2)])
@@ -530,37 +562,6 @@ try:
     print('odds ok: games',len(GL),'| props rows',len(PR),'from',len(od['props']),'games | leans',sum(1 for x in PR if x[15]),'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex)
-names={t:N[t] for t in set(df.recent_team)}
-def clean(o):
-    if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
-    if isinstance(o,dict): return {k:clean(v) for k,v in o.items()}
-    if isinstance(o,(list,tuple)): return [clean(v) for v in o]
-    if isinstance(o,(np.integer,)): return int(o)
-    if isinstance(o,(np.floating,)): return clean(float(o))
-    return o
-IDS=set()
-for pos in P:
-    for row in P[pos]: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); f_=FORM.get(pid,[None,None]); s_=SNAP.get(pid,[None,None]); row.append([f_[0],f_[1],s_[0],s_[1]]); row.append(pid); IDS.add(pid)
-for row in X: pid=row.pop(); row.append(INJ.get(pid)); row.append(DLAB.get(pid)); s_=SNAP.get(pid,[None,None]); row.append([None,None,s_[0],s_[1]]); row.append(pid); IDS.add(pid)
-# ---- player card extras: photo, ESPN id, size, game log
-PL={};LOG={}
-try:
-    if DY: IDS|={r[16] for r in DY['P'] if isinstance(r[16],str)}
-    bio2=pl.drop_duplicates('gsis_id').set_index('gsis_id') if pl is not None else None
-    if WK is not None:
-        for pid,g in WK.sort_values('week').groupby('player_id'):
-            LOG[pid]=[[int(r.week),r.opponent_team,round(float(r.fantasy_points_ppr),1),round(float(r.fantasy_points),1),int(r.yds),int(r.td),int(r.receptions),int(r.passing_yards),int(r.rushing_yards),int(r.receiving_yards),int(r.passing_tds),int(r.rushing_tds+r.receiving_tds)] for _,r in g.iterrows()]
-    HS=df.drop_duplicates('player_id').set_index('player_id').headshot_url if 'headshot_url' in df else {}
-    for g in IDS|set(LOG):
-        b_=bio2.loc[g] if bio2 is not None and g in bio2.index else None
-        hs=HS.get(g) if hasattr(HS,'get') else None
-        if (hs is None or hs!=hs) and b_ is not None: hs=b_.get('headshot')
-        PL[g]=[hs if isinstance(hs,str) else None,(str(int(float(b_['espn_id']))) if b_ is not None and pd.notna(b_.get('espn_id')) else None),
-               (int(b_['height']) if b_ is not None and pd.notna(b_.get('height')) else None),(int(b_['weight']) if b_ is not None and pd.notna(b_.get('weight')) else None),
-               (str(b_['birth_date'])[:10] if b_ is not None and pd.notna(b_.get('birth_date')) else None)]
-    print('player cards ok:',len(PL),'players | with photo',sum(1 for v in PL.values() if v[0]),'| with ESPN id',sum(1 for v in PL.values() if v[1]),'| game logs',len(LOG))
-except Exception as ex: print('player card extras failed:',ex)
-print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
 META['built']=DATE
 data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)

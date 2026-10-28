@@ -5,11 +5,11 @@ fantasy lineups and football knowledge, then opened up to help other people too.
 
 ## Done recently
 - Player cards (Oct 27): tap any player name for headshot, bio, stats, game log chart, this week's
-  matchup, dynasty value, live ESPN news with the RotoWire fantasy note. Betting slot reserved.
+  matchup, dynasty value, live ESPN news with the RotoWire fantasy note, and his props this week.
 - Colored stat cells site-wide, personalized start/sit, NFL / Fantasy / Betting layout.
+- Betting tab: Best bets (leans level II+), Game lines (consensus, best price per side, win %), Props with filters. Free odds plan: lines daily, props Thursday and Friday.
 
 ## Next up (agreed Oct 27, 2026)
-1. Betting tab: game lines, player props next to averages and matchups, flagged lines that look off.
    Needs a free key from the-odds-api.com, stored as a GitHub secret (never in the page).
 2. Home screen, "This week at a glance": your lineup moves, biggest matchup edges, injury news for
    your players, top diamonds.
@@ -31,5 +31,5 @@ fantasy lineups and football knowledge, then opened up to help other people too.
 
 ## Waiting on
 - ESPN league 464142 made public by the commissioner, to verify the ESPN connection on a real league.
-- the-odds-api.com free key for the Betting tab.
+- Odds API $30 plan: set repo variable ODDS_PLAN=paid (props refresh every run, any day) and backtest leans on historical odds.
 - Big board consensus refresh every few weeks (boards/boards_2027.csv).
