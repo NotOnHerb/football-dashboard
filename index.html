@@ -756,7 +756,7 @@ function initCards(){$('pcx').onclick=closeCard;$('pc').addEventListener('click'
   document.querySelector('main').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var el=e.target.closest&&e.target.closest('td.nm');if(el){el.click();e.preventDefault()}})}
 async function load(){
   try{
-    var res=await fetch('data.json?v=202610280007',{cache:'no-cache'});
+    var res=await fetch('data.json?v=202610280008',{cache:'no-cache'});
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
   }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
