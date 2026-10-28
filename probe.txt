@@ -1,0 +1,20 @@
+key length: 32
+events -> 200 count 29
+x-requests-remaining: 500
+x-requests-last: 0
+x-requests-used: 0
+event keys: ["away_team","commence_time","home_team","id","sport_key","sport_title"]
+first events: [{"home_team":"Green Bay Packers","away_team":"Carolina Panthers","commence_time":"2026-10-30T00:15:00Z"},{"home_team":"Dallas Cowboys","away_team":"Arizona Cardinals","commence_time":"2026-11-01T18:00:00Z"},{"home_team":"Tampa Bay Buccaneers","away_team":"Atlanta Falcons","commence_time":"2026-11-01T18:00:00Z"}]
+odds -> 200 games 29
+x-requests-remaining: 497
+x-requests-last: 3
+x-requests-used: 3
+bookmakers on game 1: ["draftkings","betus","fanduel","betrivers","lowvig","betonlineag","mybookieag","betmgm","bovada"]
+game 1 sample: {"home_team":"Green Bay Packers","away_team":"Carolina Panthers","bm":{"key":"draftkings","last_update":"2026-10-28T00:03:45Z","markets":[{"key":"h2h","outcomes":[{"name":"Carolina Panthers","price":160},{"name":"Green Bay Packers","price":-192}]},{"key":"spreads","outcomes":[{"name":"Carolina Panthers","price":-108,"point":3.5},{"name":"Green Bay Packers","price":-112,"point":-3.5}]},{"key":"totals","outcomes":[{"name":"Over","price":-112,"point":47.5},{"name":"Under","price":-108,"point":47.5}]}]}}
+props -> 200
+x-requests-remaining: 491
+x-requests-last: 6
+x-requests-used: 9
+props bookmakers: [{"key":"draftkings","m":["player_anytime_td","player_pass_tds","player_pass_yds","player_reception_yds","player_receptions","player_rush_yds"]},{"key":"fanduel","m":["player_anytime_td","player_pass_tds","player_pass_yds","player_reception_yds","player_receptions","player_rush_yds"]},{"key":"betrivers","m":["player_anytime_td","player_pass_tds","player_pass_yds","player_reception_yds","player_receptions","player_rush_yds"]},{"key":"betonlineag","m":["player_anytime_td","player_pass_tds","player_pass_yds","player_reception_yds","player_receptions","player_rush_yds"]},{"key":"betmgm","m":["play
+prop sample: {"key":"player_anytime_td","outcomes":[{"name":"Yes","description":"Josh Jacobs","price":-145},{"name":"Yes","description":"Chuba Hubbard","price":-120},{"name":"Yes","description":"Christian Watson","price":120},{"name":"Yes","description":"Matthew Golden","price":150}]}
+anytime td sample: [{"name":"Yes","description":"Josh Jacobs","price":-145},{"name":"Yes","description":"Chuba Hubbard","price":-120},{"name":"Yes","description":"Christian Watson","price":120}]
