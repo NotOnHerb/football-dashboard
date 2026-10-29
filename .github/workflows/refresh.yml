@@ -21,6 +21,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pandas numpy
+      - name: Refit the projection model (weekly; skips itself if fresh)
+        run: python model_fit.py || echo 'model fit failed, keeping the saved model'
       - run: python build.py
         env:
           CFBD_KEY: ${{ secrets.CFBD_KEY }}
@@ -32,6 +34,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add index.html data.json
+          if [ -f model.json ]; then git add model.json; fi
           if [ -d odds ]; then git add odds; fi
           git diff --staged --quiet || git commit -m "Refresh data"
           git push

@@ -301,7 +301,7 @@ try:
             (s_.player_display_name if s_ is not None else r['name']),pos,(s_.recent_team if s_ is not None else (r.team if pd.notna(r.team) else 'FA')),
             round(float(age),1) if age is not None else None,v[0],v[1],
             round(float(s_.fantasy_points_ppr)/gm,1) if gm else None,round(float(s_.fantasy_points)/gm,1) if gm else None,gm,
-            (FORM.get(g) or [None])[0],IDPG.get(g) if g in IDPG else KPG.get(g),INJ.get(g),DLAB.get(g),(FORM.get(g) or [None,None])[1]]
+            (FORM.get(g) or [None])[0],IDPG.get(g) if g in IDPG else KPG.get(g),INJ.get(g),DLAB.get(g),(FORM.get(g) or [None,None])[1],g]
         if pd.notna(r.espn_id): EM[str(int(float(r.espn_id)))]=list(LK)[-1]
     DY['L']=LK;DY['E']=EM
     print('sleeper lookup ok:',len(LK),'players | with value',sum(1 for x in LK.values() if x[4] is not None),'| espn ids',len(EM))
@@ -459,6 +459,16 @@ print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for
 ODD=None
 try:
     import re as _re2, statistics as _st
+    try: MODEL=json.load(open('model.json'))
+    except Exception as ex_: MODEL=None; print('model.json missing, using simple projections:',ex_)
+    MW,MK0,MB=(MODEL['w'],MODEL['k0'],MODEL['blend']) if MODEL else (.6,0,1.0)
+    PRIC={c:i for i,c in enumerate(MODEL['prior_cols'])} if MODEL else {}
+    USE={r.player_id:(float(r.carries)/r.games,float(r.targets)/r.games,int(r.games)) for r in df.itertuples() if r.games}
+    def td_model(gid,pos):
+        u=USE.get(gid)
+        if not MODEL or not u or u[2]<4 or u[0]+u[1]<5 or pos not in ('RB','WR','TE'): return None
+        t=MODEL['td']; x=[u[0],u[1],1.0 if pos=='RB' else 0.0,1.0 if pos=='TE' else 0.0]
+        z=t['w'][0]+sum(t['w'][i+1]*(x[i]-t['mu'][i])/t['sd'][i] for i in range(4)); return 1/(1+np.exp(-z))
     tset={t[0] for t in T}
     class _TeamMap(dict):
         def get(self,name,default=None):
@@ -620,7 +630,9 @@ try:
             lab,si=MK[mk]; lg_=LOG.get(gid,[])
             if not lg_: continue
             vals=[x[si] for x in lg_]
-            avg=sum(vals)/len(vals); l3=sum(vals[-3:])/len(vals[-3:]); base=.6*avg+.4*l3
+            avg=sum(vals)/len(vals); l3=sum(vals[-3:])/len(vals[-3:]); base=MW*avg+(1-MW)*l3
+            pri=(MODEL['priors'].get(gid) or [None]*9)[PRIC[lab]] if MODEL else None
+            if pri is not None and MK0: base=(len(vals)*base+MK0*pri)/(len(vals)+MK0)   # early season: mix in last season
             ai=ALT[lab]; fac=1.0
             if ALW and opp in ALW['T'] and pos_ in ALW['T'][opp]['a'] and LA.get(pos_) and LA[pos_][ai]>0:
                 fac=min(1.25,max(.8,1+.5*(ALW['T'][opp]['a'][pos_][ai]/LA[pos_][ai]-1)))
@@ -628,18 +640,19 @@ try:
             if not d: continue
             fair=None
             if mk=='player_anytime_td':
-                impl=med([prob(v[1]) for v in d.values()]); sc=sum(1 for v in vals if v>=1)
-                pj=round(min((sc+4*impl)/(len(vals)+4)*fac,.95),3)   # scoring rate, pulled toward the odds when the sample is small
+                impl=med([prob(v[1]) for v in d.values()])
+                tm_p=td_model(gid,pos_); pj=None if tm_p is None else round(min(tm_p*fac,.9),3)   # chance he scores, from his usage
+                fair=[None,round(min(impl/1.12,.95),4)]   # books only post "yes"; take out a typical cut to get a fair chance
             else:
                 pj=round(base*fac,1)
                 pt=mode([v[0] for v in d.values() if v[0] is not None and v[3] is not None])
                 if pt is not None:
                     ps=[novig(v[1],v[3]) for v in d.values() if v[0]==pt and v[2]==pt and v[3] is not None]
                     if len(ps)>=3: fair=[pt,round(med(ps),4)]
-            PR.append({'eid':eid,'ko':ev.get('commence_time'),'n':desc,'t':tm_,'pos':pos_,'gid':gid,'opp':opp,'mk':lab,'b':d,'fair':fair,'v':[[x[0],x[1],x[si]] for x in lg_],'avg':round(avg,1),'l3':round(l3,1),'pj':pj,'fac':round(fac,2)})
+            PR.append({'eid':eid,'ko':ev.get('commence_time'),'n':desc,'t':tm_,'pos':pos_,'gid':gid,'opp':opp,'mk':lab,'b':d,'fair':fair,'v':[[x[0],x[1],x[si]] for x in lg_],'avg':round(avg,1),'l3':round(l3,1),'pj':pj,'md':(None if mk=='player_anytime_td' or not MODEL else round(pj*MODEL['q'][lab][50],1)),'fac':round(fac,2),'use':([round(USE[gid][0],1),round(USE[gid][1],1)] if gid in USE else None)})
     pat=max([pc['fetched'] for pc in od['props'].values()],default=None)
     # ---- official picks (best price across books). The page uses the same rules for single-book views.
-    RU={'val':[.025,.045,.07],'stale':.10,'mlmax':250,'mlmin':-300,'model':2.5,'minl':{'Pass yds':150,'Rush yds':25,'Rec yds':25,'Receptions':2.5,'Pass TDs':.5},'pick':2}
+    RU={'val':[.025,.045,.07],'stale':.10,'mlmax':250,'mlmin':-300,'model':2.5,'minl':{'Pass yds':150,'Rush yds':25,'Rec yds':25,'Receptions':2.5,'Pass TDs':.5},'pick':2,'tdmax':300}
     valS=lambda v:0 if v is None else 3 if v>=RU['val'][2] else 2 if v>=RU['val'][1] else 1 if v>=RU['val'][0] else 0
     GSD={'hs':('s',0,1),'as':('s',2,3),'ov':('o',0,1),'un':('o',0,2),'mh':('m',None,0),'ma':('m',None,1)}
     def gq(g,k):
@@ -697,24 +710,38 @@ try:
                 if (q['pt']>best['pt']) if sd=='u' else (q['pt']<best['pt']): best=q
             elif q['pr']>best['pr']: best=q
         return best
+    def pover(mk,mu,L):
+        if not MODEL or not mu or mu<=0: return None
+        x=L/mu; return sum(1 for v in MODEL['q'][mk] if v>x)/len(MODEL['q'][mk])
+    def ptier(e): return 3 if e>=.10 else 2 if e>=.07 else 1 if e>=.04 else 0
     def pa(p):
         n=len(p['v'])
         if p['mk']=='Anytime TD':
             q=pq(p,'y')
             if not q: return None
-            im=prob(q['pr']); d=p['pj']-im; ls=(3 if d>=.24 else 2 if d>=.16 else 1) if (n>=5 and im<=.6 and d>=.10) else 0
-            return {'sd':'y','q':q,'ls':ls,'vs':0,'v':None,'s':min(ls,2),'srt':d}
+            im=prob(q['pr']); pf=p['fair'][1] if p['fair'] else None
+            P=None if p['pj'] is None or pf is None else MB*p['pj']+(1-MB)*pf
+            ls=ptier(P-im) if (P is not None and n>=4 and q['pr']<=RU['tdmax']) else 0
+            return {'sd':'y','q':q,'ls':ls,'vs':0,'v':None,'s':min(ls,2),'srt':(P-im) if P is not None else 0}
         def side(q,dr):
             if not q: return None
-            e=(p['pj']-q['pt'])/max(q['pt'],1)*dr; h=sum(1 for v in p['v'] if (v[2]>q['pt'] if dr>0 else v[2]<q['pt']))/n
-            ls=(3 if e>=.25 else 2 if e>=.17 else 1) if (n>=4 and q['pt']>=RU['minl'].get(p['mk'],0) and e>=.10 and h>=.55) else 0
+            po=pover(p['mk'],p['pj'],q['pt'])
+            if p['fair'] and p['fair'][0]==q['pt']: fo=p['fair'][1]
+            else:
+                pr_=[x for x in p['b'].values() if x[0]==q['pt'] and x[2]==q['pt'] and x[1] is not None and x[3] is not None]
+                fo=(lambda a,b_:prob(a)/(prob(a)+prob(b_)))(pr_[0][1],pr_[0][3]) if pr_ else None
+            P=None
+            if po is not None and fo is not None: P=MB*po+(1-MB)*fo; P=P if dr>0 else 1-P
+            e=None if P is None else P-prob(q['pr'])
+            ls=ptier(e) if (e is not None and n>=4 and q['pt']>=RU['minl'].get(p['mk'],0)) else 0
             v=None
             if p['fair'] and p['fair'][0]==q['pt']: v=(p['fair'][1] if dr>0 else 1-p['fair'][1])*dec(q['pr'])-1
             vs=valS(v)
             if v is not None and v>RU['stale']: vs=0
-            return {'sd':'o' if dr>0 else 'u','q':q,'ls':ls,'vs':vs,'v':v,'s':min(ls,2)+vs,'srt':abs(e)}  # a lean alone tops out at level II; III needs a good price too
+            if e is not None and e<0: vs=0   # never pick a side our own chance says loses at this price
+            return {'sd':'o' if dr>0 else 'u','q':q,'ls':ls,'vs':vs,'v':v,'s':min(ls,2)+vs,'srt':e or 0}
         o,u=side(pq(p,'o'),1),side(pq(p,'u'),-1)
-        if o and u: return u if u['s']>o['s'] else o
+        if o and u: return u if u['s']>o['s'] or (u['s']==o['s'] and u['srt']>o['srt']) else o
         return o or u
     nowu=datetime.datetime.now(datetime.timezone.utc)
     started=lambda iso:datetime.datetime.fromisoformat(iso.replace('Z','+00:00'))<=nowu
@@ -772,12 +799,18 @@ try:
     FIN=[[int(r.week),r.away_team,r.home_team,int(r.away_score),int(r.home_score)] for r in cur.itertuples()]
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
     books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
-    ODD={'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    ODD={'MQ':(MODEL['q'] if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
     print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex)
 META['built']=DATE
-data=json.dumps(clean({'META':META,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+PRI={}
+try:
+    _m=json.load(open('model.json')); _c=_m['prior_cols']; _ids=set(df.player_id)
+    PRI={g:[v[_c.index('PPR')],v[_c.index('Std')]] for g,v in _m['priors'].items() if g in _ids}
+    META['model']={'fit_at':_m['fit_at'],'w':_m['w'],'k0':_m['k0'],'blend':_m['blend']}
+except Exception as ex: print('no model priors:',ex)
+data=json.dumps(clean({'META':META,'PRI':PRI,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
 ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
 html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)

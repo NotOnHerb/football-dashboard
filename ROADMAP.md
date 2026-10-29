@@ -8,6 +8,7 @@ fantasy lineups and football knowledge, then opened up to help other people too.
   matchup, dynasty value, live ESPN news with the RotoWire fantasy note, and his props this week.
 - Colored stat cells site-wide, personalized start/sit, NFL / Fantasy / Betting layout.
 - Betting tab v2: Picks (pick of the week, game-line picks, prop picks with reasons), Games (card per game: every line, win % bar, our model, ATS and over records, rest, line movement), Props (lean, projection, last-games dots, hit rate, opponent grade, price value). Sportsbook picker: best available or one book. Value = price vs fair odds (Pinnacle with its cut removed by Shin's method; market middle when Pinnacle is missing).
+- Projections v2 (backtested on 2025-26 games): 85% season + 15% last 3, plus about 4 games of last season; props use chance-of-going-over from how each stat swings game to game, blended 50/50 with the sportsbooks' fair odds; anytime TD from usage (carries, targets, position), no picks above +300. Fantasy start/sit uses the same base. model_fit.py refits weekly into model.json.
 - Betting v3: our picks logged each refresh, locked at kickoff, graded automatically (Results view, running record in units). My bets slip (saved per browser, grades itself, stakes and profit). Weather at kickoff for outdoor games (Open-Meteo). Same-game combos (QB + receiver who hit together). Line moves list. Long shots past +250 and stale prices (10%+ better than fair) are never picks.
 
 ## Next up (agreed Oct 27, 2026)
