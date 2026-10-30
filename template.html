@@ -850,7 +850,7 @@ function gname(g,k,q){var t=k==='hs'||k==='mh'?g.h:g.a;return k==='ov'?'Over '+q
 // ---- props
 function pq(p,sd){var best=null;Object.keys(p.b).forEach(function(bn){if(BS.book!=='best'&&bn!==BS.book)return;var x=p.b[bn],q=sd==='u'?{pt:x[2],pr:x[3],bk:bn}:{pt:x[0],pr:x[1],bk:bn};if(q.pr==null||(sd!=='y'&&q.pt==null))return;
   if(!best)best=q;else if(q.pt!==best.pt){if(sd==='u'?q.pt>best.pt:q.pt<best.pt)best=q}else if(q.pr>best.pr)best=q});return best}
-function pOver(mk,mu,L){var q=D.ODD.MQ&&D.ODD.MQ[mk];if(!q||!(mu>0))return null;var x=L/mu,c=0;for(var i=0;i<q.length;i++)if(q[i]>x)c++;return c/q.length}
+function pOver(mk,mu,L){var q=D.ODD.MQ&&D.ODD.MQ[mk];if(!q||!(mu>0))return null;var x=L/mu,c=0;for(var i=0;i<q.length;i++)if(q[i]>x)c++;return Math.min(.99,Math.max(.01,c/q.length+((D.ODD.MC||{})[mk]||0)))}
 function ptier(e){return e>=.10?3:e>=.07?2:e>=.04?1:0}
 function pa(p){var td=p.mk==='Anytime TD',n=p.v.length,o={p:p,td:td,n:n},MB=D.ODD.MB==null?.5:D.ODD.MB;
   if(td){var q=pq(p,'y');if(!q)return null;var im=i2p(q.pr),pf=p.fair?p.fair[1]:null,P=(p.pj==null||pf==null)?null:MB*p.pj+(1-MB)*pf;

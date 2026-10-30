@@ -63,7 +63,7 @@ def main():
     if fresh() and not os.environ.get('FORCE'):
         print('model.json is fresh, not refitting'); return
     D = {y: weekly(y) for y in (SEASON - 2, SEASON - 1, SEASON)}
-    ratio = {k: [] for k in MK if k != 'Anytime TD'}; tdX, tdy = [], []
+    ratio = {k: [] for k in MK if k != 'Anytime TD'}; tdX, tdy = [], []; pairs = {k: [] for k in ratio}
     for y in (SEASON - 1, SEASON):
         cur, prev = D[y], D[y - 1]
         pg = prev.groupby('player_id'); pn = pg.size()
@@ -82,18 +82,29 @@ def main():
                         if i >= 4: tdX.append([c_, t_, pos == 'RB', pos == 'TE']); tdy.append(v[i])
                         continue
                     mu = base(v[:i], None if pri is None else pri[col])
-                    if mu > 0: ratio[k].append(v[i] / mu)
+                    if mu > 0:
+                        if y == SEASON - 1: ratio[k].append(v[i] / mu)   # swing pattern learned from last season...
+                        else: pairs[k].append((v[i], mu))              # ...and checked against this season's games
     q = {k: np.quantile(np.array(r), np.linspace(0, 1, 101)).round(4).tolist() for k, r in ratio.items()}
+    # calibration: how far our "chance of over" ran from reality on this season's games (lines at 0.8x-1.2x projection).
+    # Shrunk toward 0 when there are few games, so early in a season it barely moves anything.
+    cal = {}
+    for k, pr in pairs.items():
+        qa = np.array(q[k]); P, Y = [], []
+        for act, mu in pr:
+            for f in (0.8, 0.9, 1.0, 1.1, 1.2):
+                L = np.floor(mu * f) + .5; P.append(np.mean(qa > L / mu)); Y.append(act > L)
+        n = len(pr); cal[k] = round(float((np.mean(Y) - np.mean(P)) * n / (n + 100)), 4) if n else 0.0
     td = fitlog(np.array(tdX, float), np.array(tdy, float))
     # last season per-game numbers for every player with 4+ games (used as the early-season prior)
     last = D[SEASON - 1]; g = last.groupby('player_id'); n = g.size()
     agg = g[list(MK.values()) + ['fantasy_points_ppr', 'fantasy_points']].mean()
     pri = {pid: [round(float(x), 3) for x in agg.loc[pid].values] + [int(n[pid])] for pid in agg.index if n[pid] >= 4}
     out = {'season': SEASON, 'fit_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'w': W, 'k0': K0, 'blend': BLEND,
-           'q': q, 'td': td, 'prior_cols': list(MK.keys()) + ['PPR', 'Std', 'games'], 'priors': pri,
+           'q': q, 'cal': cal, 'td': td, 'prior_cols': list(MK.keys()) + ['PPR', 'Std', 'games'], 'priors': pri,
            'n': {k: len(r) for k, r in ratio.items()} | {'Anytime TD': len(tdy)}}
     json.dump(out, open(OUT, 'w'), separators=(',', ':'))
-    print('model fit:', out['n'], '| priors', len(pri), '| median swing', {k: v[50] for k, v in q.items()})
+    print('model fit:', out['n'], '| calibration', cal, '| priors', len(pri), '| median swing', {k: v[50] for k, v in q.items()})
 
 
 if __name__ == '__main__':

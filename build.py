@@ -712,7 +712,8 @@ try:
         return best
     def pover(mk,mu,L):
         if not MODEL or not mu or mu<=0: return None
-        x=L/mu; return sum(1 for v in MODEL['q'][mk] if v>x)/len(MODEL['q'][mk])
+        x=L/mu; p_=sum(1 for v in MODEL['q'][mk] if v>x)/len(MODEL['q'][mk])
+        return min(.99,max(.01,p_+MODEL.get('cal',{}).get(mk,0)))   # weekly calibration nudge
     def ptier(e): return 3 if e>=.10 else 2 if e>=.07 else 1 if e>=.04 else 0
     def pa(p):
         n=len(p['v'])
@@ -799,7 +800,7 @@ try:
     FIN=[[int(r.week),r.away_team,r.home_team,int(r.away_score),int(r.home_score)] for r in cur.itertuples()]
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
     books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
-    ODD={'MQ':(MODEL['q'] if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
     print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex)
