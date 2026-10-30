@@ -12,15 +12,37 @@ fantasy lineups and football knowledge, then opened up to help other people too.
 - Betting v3: our picks logged each refresh, locked at kickoff, graded automatically (Results view, running record in units). My bets slip (saved per browser, grades itself, stakes and profit). Weather at kickoff for outdoor games (Open-Meteo). Same-game combos (QB + receiver who hit together). Line moves list. Long shots past +250 and stale prices (10%+ better than fair) are never picks.
 
 ## Next up (agreed Oct 27, 2026)
-   Needs a free key from the-odds-api.com, stored as a GitHub secret (never in the page).
 1. Home screen, "This week at a glance": your lineup moves, biggest matchup edges, injury news for
    your players, top diamonds.
 2. Bet and prediction tracker: log bets, picks and start/sit calls, then see your record and profit.
-   The "keeps score on you" idea from day one.
+   The "keeps score on you" idea from day one. (Partly done: My bets and Results on the Betting tab;
+   start/sit calls still to add.)
 3. Install like an app on a phone home screen (icon, full screen).
 4. Trade analyzer: enter a 2-for-1 or 3-for-2 deal, see who wins on value, team before and after.
 5. Playoff schedule strength: soft matchups in fantasy playoff weeks 14 to 17.
 6. About page: credit data sources, note it's not betting advice, before sharing widely.
+
+## The Analyst (planned Oct 29, 2026; build when ready)
+A research assistant that keeps refining the model toward the dream. Lives outside the build chat.
+Free route: runs on the existing Claude plan, no API key, no per-question cost.
+- One front door, the Analyst Desk: a private page in the Claude account (works on a phone) with an
+  ask box, an idea inbox, grades and weekly reports.
+- Behind it:
+  - Site code grades every pick and tracks closing-line value (plain code, already mostly exists).
+  - Researcher: weekly scheduled run (Tuesday after Monday night). Reviews the week, checks the model
+    for tilts, tests queued ideas on past seasons it hasn't seen, writes proposals with numbers.
+  - Skeptic: a separate run that never sees the researcher's reasoning. Labels each proposal
+    Solid, Shaky or Fails. Can only block what fails on unseen games; rejected ones stay visible.
+  - Ask box: quick answers about the data any time.
+- Authority: owner > skeptic > researcher. Every change needs the owner's approval; both sides are
+  shown on every proposal. Approved changes are logged in an analyst notebook and tracked afterward.
+- Phone notification when the weekly report is ready.
+- Guardrails: tested on unseen games, judged on closing-line value and long-run units, never places
+  bets or sets stakes. Realistic target: about 53-56% at normal prices over hundreds of picks.
+- Start with researcher + ask box; add the skeptic when the first real model change is proposed.
+- Optional later: public ask box on the site (needs a paid API key; roughly $1/month on the light
+  model or $15/month on the smart one at 10 questions a day), and an nfelo-style game model.
+- Open decisions: report day/time, phone only or email too, public box now/later/never.
 
 ## Later
 - Kicker, defense and IDP projections in start/sit and lineups.
