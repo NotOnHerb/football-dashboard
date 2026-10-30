@@ -1,0 +1,237 @@
+<title>Analyst Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one column "desk" — record strip, tab row, one working view at a time; phone first. */
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --ink:#14202e; --mute:#5b6878; --line:#d6dde6;
+  --accent:#b36d00; --blue:#1b6fb8; --good:#2a8a52; --bad:#c2453d; --warn:#c77a12; --chip:#e7ecf2;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif; --body:Barlow,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1622;--panel:#152131;--ink:#e6edf5;--mute:#93a3b6;--line:#26374c;--accent:#f2b134;--blue:#5bb4f0;--good:#4cc27e;--bad:#ef7468;--warn:#f0a447;--chip:#1d2c40;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d1622;--panel:#152131;--ink:#e6edf5;--mute:#93a3b6;--line:#26374c;--accent:#f2b134;--blue:#5bb4f0;--good:#4cc27e;--bad:#ef7468;--warn:#f0a447;--chip:#1d2c40;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--body)}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--display);line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(30px,7vw,42px);letter-spacing:.5px}
+h2{font-size:26px}
+h3{font-size:20px}
+.sub{color:var(--mute);margin:0;font-size:15px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.kpi b{display:block;font:700 26px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.kpi span{font-size:13px;color:var(--mute)}
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);scrollbar-width:none}
+.tabs button{border:0;background:none;color:var(--mute);font:600 15px var(--body);padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs .n{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--bg);font-size:12px;line-height:20px;text-align:center}
+.view{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.empty{border-style:dashed;color:var(--mute)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{display:inline-block;font:700 12px/1.6 var(--body);border-radius:999px;padding:0 9px;background:var(--chip);color:var(--ink);white-space:nowrap}
+.pill.good{background:var(--good);color:var(--bg)}.pill.bad{background:var(--bad);color:var(--bg)}.pill.warn{background:var(--warn);color:var(--bg)}.pill.blue{background:var(--blue);color:var(--bg)}
+.md p{margin:0 0 8px}.md ul{margin:0 0 8px;padding-left:20px}.md li{margin:3px 0}.md h3{margin:10px 0 6px}
+.side{border-left:3px solid var(--line);padding-left:12px}
+.side.r{border-left-color:var(--blue)}.side.s{border-left-color:var(--accent)}
+.lab{font:700 12px var(--body);letter-spacing:1px;text-transform:uppercase;color:var(--mute)}
+button.b{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 15px var(--body);border-radius:999px;padding:7px 14px;cursor:pointer}
+button.b.pri{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.b.go{background:var(--good);color:var(--bg);border-color:var(--good)}
+button.b:disabled{opacity:.5;cursor:default}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+textarea,input{width:100%;font:400 16px var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:80px;resize:vertical}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:left;border-top:1px solid var(--line);white-space:nowrap}
+th{border-top:0;color:var(--mute);font-weight:600;font-size:13px}
+td.w{white-space:normal;min-width:180px}
+.chat{display:flex;flex-direction:column;gap:10px}
+.msg{max-width:92%;padding:10px 14px;border-radius:14px;white-space:pre-wrap;word-wrap:break-word;min-width:0}
+.msg.u{align-self:flex-end;background:var(--ink);color:var(--bg);border-bottom-right-radius:4px}
+.msg.a{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg .t{font-size:12px;color:var(--mute);margin-top:4px}
+.note{font-size:13px;color:var(--mute)}
+.hint{display:flex;gap:6px;flex-wrap:wrap}
+.hint button{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:999px;padding:5px 11px;font:500 14px var(--body);cursor:pointer}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div><h1>Analyst Desk</h1><p class="sub" id="asof">Waiting for the first snapshot from the analyst.</p></div>
+    <span class="pill" id="who"></span>
+  </div>
+
+  <div class="strip" id="strip">
+    <div class="kpi"><b>–</b><span>Record (all picks)</span></div>
+    <div class="kpi"><b>–</b><span>Units</span></div>
+    <div class="kpi"><b>–</b><span>Beat the later price</span></div>
+    <div class="kpi"><b>–</b><span>Open picks now</span></div>
+  </div>
+
+  <div class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-v="week" aria-selected="true">This week</button>
+    <button role="tab" data-v="proposals" aria-selected="false">Proposals<span class="n" id="npr" hidden></span></button>
+    <button role="tab" data-v="ask" aria-selected="false">Ask</button>
+    <button role="tab" data-v="ideas" aria-selected="false">Ideas</button>
+    <button role="tab" data-v="picks" aria-selected="false">Picks</button>
+    <button role="tab" data-v="notebook" aria-selected="false">Notebook</button>
+  </div>
+
+  <div class="view" id="v-week"></div>
+  <div class="view" id="v-proposals" hidden></div>
+  <div class="view" id="v-ask" hidden>
+    <div class="chat" id="chat"></div>
+    <div class="hint" id="hints">
+      <button type="button">How are our picks doing so far?</button>
+      <button type="button">Which picks this week have the biggest edge, and why?</button>
+      <button type="button">Is the model still leaning under too much?</button>
+    </div>
+    <form id="askf" class="card">
+      <label class="lab" for="askq">Ask the analyst</label>
+      <textarea id="askq" placeholder="Ask about picks, players, games, the model, or anything in the reports"></textarea>
+      <div class="row"><button class="b pri" id="askb" type="submit">Ask</button><button class="b" id="stopb" type="button" hidden>Stop</button><span class="note" id="askn"></span></div>
+    </form>
+  </div>
+  <div class="view" id="v-ideas" hidden>
+    <form id="ideaf" class="card">
+      <label class="lab" for="idea">Drop an idea for the next weekly run</label>
+      <textarea id="idea" placeholder="Example: Do road teams on a short week go under on rushing yards?"></textarea>
+      <div class="row"><button class="b pri" type="submit">Add idea</button><span class="note" id="ideaN">The researcher tests every new idea on games the model hasn’t seen and reports back here.</span></div>
+    </form>
+    <div id="ideas" class="view"></div>
+  </div>
+  <div class="view" id="v-picks" hidden></div>
+  <div class="view" id="v-notebook" hidden></div>
+  <p class="note">The analyst researches and proposes; nothing changes on the site without your approval. Not betting advice.</p>
+</div>
+
+<script>
+(function(){
+var S={snap:{},props:[],reports:[],proposals:[],ideas:[],notebook:[],chat:[],chatV:null},db=null,user=null,sample=null,owner=false,view='week';
+var $=function(id){return document.getElementById(id)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function md(s){var out=[],list=false;String(s||'').split('\n').forEach(function(l){var t=esc(l).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  if(/^\s*[-*] /.test(l)){if(!list){out.push('<ul>');list=true}out.push('<li>'+t.replace(/^\s*[-*] /,'')+'</li>');return}
+  if(list){out.push('</ul>');list=false}if(/^#{1,3} /.test(l)){out.push('<h3>'+t.replace(/^#{1,3} /,'')+'</h3>');return}if(l.trim())out.push('<p>'+t+'</p>')});
+  if(list)out.push('</ul>');return '<div class="md">'+out.join('')+'</div>'}
+function am(x){return x==null?'–':(x>0?'+':'')+x}
+function when(iso){if(!iso)return '';var d=new Date(iso.length<=16?iso+'Z':iso);return isNaN(d)?iso:d.toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
+function rec(x){return x?x.w+'-'+x.l+(x.p?'-'+x.p:''):'–'}
+function pickLabel(r){if(r.k==='g')return r.mk==='total'?(r.sd==='ov'?'Over ':'Under ')+r.pt+' ('+r.a+' at '+r.h+')':r.mk==='ml'?(r.sd==='mh'?r.h:r.a)+' to win ('+r.a+' at '+r.h+')':(r.sd==='hs'?r.h:r.a)+' '+(r.pt>0?'+':'')+r.pt+' ('+r.a+' at '+r.h+')';
+  return r.n+' '+(r.sd==='y'?'anytime TD':(r.sd==='o'?'over ':'under ')+r.pt+' '+String(r.mk).toLowerCase())}
+function resPill(r){return r==='W'?'<span class="pill good">Won</span>':r==='L'?'<span class="pill bad">Lost</span>':r==='P'?'<span class="pill">Push</span>':r==='V'?'<span class="pill">Void</span>':'<span class="pill">Open</span>'}
+var VERD={solid:['good','Solid'],shaky:['warn','Shaky'],fails:['bad','Fails']};
+
+function setView(v){view=v;[].forEach.call($('tabs').children,function(b){b.setAttribute('aria-selected',b.dataset.v===v)});
+  ['week','proposals','ask','ideas','picks','notebook'].forEach(function(k){$('v-'+k).hidden=k!==v});try{if(location.hash!=='#'+v)history.replaceState(null,'','#'+v)}catch(e){}render()}
+$('tabs').addEventListener('click',function(e){var b=e.target.closest('button');if(b)setView(b.dataset.v)});
+window.addEventListener('hashchange',function(){var h=location.hash.slice(1);if($('v-'+h))setView(h)});
+
+function renderStrip(){var m=S.snap.meta,a=m&&m.record&&m.record.all,k=$('strip').children;
+  k[0].firstChild.textContent=a&&a.n?rec(a):'0-0';k[1].firstChild.textContent=a?(a.u>=0?'+':'')+a.u.toFixed(1):'–';
+  k[2].firstChild.textContent=a&&a.moved_n?a.beat_move+' of '+a.moved_n:'–';k[3].firstChild.textContent=S.snap.picks?S.snap.picks.items.length:'–';
+  if(m)$('asof').textContent='Data as of '+when(m.at)+' · site built '+(m.built||'')}
+function renderWeek(){var r=S.reports[0],h='';
+  if(!r)h='<div class="card empty"><h3>No weekly report yet</h3><p class="sub">The first one arrives Tuesday morning after Monday night’s game. It will grade the week, check the model and answer any ideas in your inbox.</p></div>';
+  else h='<div class="card"><div class="row"><span class="pill blue">Week '+esc(r.week)+'</span><span class="note">'+when(r.at)+'</span></div><h2>'+esc(r.title||'Weekly report')+'</h2>'+md(r.body)+'</div>';
+  var open=S.proposals.filter(function(p){return p.status==='ready'});
+  if(open.length)h+='<div class="card"><h3>'+open.length+' proposal'+(open.length>1?'s':'')+' waiting for you</h3><p class="sub">Each has the researcher’s case and the skeptic’s verdict.</p><div class="row"><button class="b pri" type="button" data-go="proposals">Review proposals</button></div></div>';
+  if(S.reports.length>1)h+='<div class="card"><h3>Earlier reports</h3>'+S.reports.slice(1,8).map(function(x){return '<details><summary>Week '+esc(x.week)+': '+esc(x.title||'')+'</summary>'+md(x.body)+'</details>'}).join('')+'</div>';
+  $('v-week').innerHTML=h}
+function propCard(p){var v=p.skeptic&&VERD[p.skeptic.verdict],st=p.status;
+  var h='<div class="card" data-id="'+esc(p._id)+'"><div class="row">'+(v?'<span class="pill '+v[0]+'">Skeptic: '+v[1]+'</span>':'<span class="pill">Awaiting skeptic</span>')+(st==='approved'?'<span class="pill good">Approved, going live next sync</span>':st==='live'?'<span class="pill blue">Live</span>':st==='passed'?'<span class="pill">Passed</span>':st==='rejected'?'<span class="pill bad">Stopped by skeptic</span>':'')+'<span class="note">Week '+esc(p.week||'')+' · '+when(p.at)+'</span></div>'+
+    '<h3>'+esc(p.title)+'</h3>'+(p.spec?'<div class="side"><div class="lab">The change</div>'+md(p.spec)+'</div>':'')+
+    '<div class="side r"><div class="lab">Researcher’s case</div>'+md(p.case)+(p.expected?'<p class="note">Expected effect: '+esc(p.expected)+'</p>':'')+'</div>'+
+    (p.skeptic?'<div class="side s"><div class="lab">Skeptic’s check</div>'+md((p.skeptic.reason?'**'+p.skeptic.reason+'**\n':'')+(p.skeptic.details||''))+'</div>':'');
+  if(st==='ready'&&owner)h+='<label class="lab" for="note-'+esc(p._id)+'">Note (optional)</label><input id="note-'+esc(p._id)+'" placeholder="Why, or anything to change"><div class="row"><button class="b go" type="button" data-act="approve">Approve</button><button class="b" type="button" data-act="pass">Pass</button><span class="note" data-msg></span></div>';
+  if(p.decision)h+='<p class="note">Your decision '+when(p.decision.at)+(p.decision.note?': '+esc(p.decision.note):'')+'</p>';
+  if(p.result)h+='<div class="side"><div class="lab">How it’s doing since</div>'+md(p.result)+'</div>';
+  return h+'</div>'}
+function renderProposals(){var P=S.proposals,ready=P.filter(function(p){return p.status==='ready'}),done=P.filter(function(p){return ['approved','live','passed','rolled_back'].indexOf(p.status)>-1}),rej=P.filter(function(p){return p.status==='rejected'}),rev=P.filter(function(p){return p.status==='review'});
+  var h=ready.length?ready.map(propCard).join(''):'<div class="card empty"><h3>Nothing waiting for a decision</h3><p class="sub">Proposals show up here after the skeptic has checked them, usually Tuesday morning.</p></div>';
+  if(rev.length)h+='<h3>With the skeptic now</h3>'+rev.map(propCard).join('');
+  if(done.length)h+='<h3>Decided</h3>'+done.map(propCard).join('');
+  if(rej.length)h+='<details class="card"><summary><b>Stopped by the skeptic ('+rej.length+')</b></summary><p class="sub">These didn’t hold up on games the model hadn’t seen. Ask in the Ask tab if you want one reconsidered.</p>'+rej.map(propCard).join('')+'</details>';
+  $('v-proposals').innerHTML=h}
+$('v-proposals').addEventListener('click',async function(e){var b=e.target.closest('[data-act]');if(!b||!db)return;var card=b.closest('[data-id]'),id=card.dataset.id,msg=card.querySelector('[data-msg]'),act=b.dataset.act;
+  if(b.dataset.armed!=='1'){[].forEach.call(card.querySelectorAll('[data-act]'),function(x){x.dataset.armed='';x.textContent=x.dataset.act==='approve'?'Approve':'Pass'});b.dataset.armed='1';b.textContent=act==='approve'?'Confirm approve':'Confirm pass';msg.textContent='Tap again to confirm.';return}
+  [].forEach.call(card.querySelectorAll('button'),function(x){x.disabled=true});msg.textContent='Saving…';
+  try{await db.doc('proposals/'+id).update({status:act==='approve'?'approved':'passed',decision:{at:new Date().toISOString(),note:(card.querySelector('input')||{}).value||''}});msg.textContent=act==='approve'?'Approved. It goes live on the next daily sync.':'Passed.'}
+  catch(err){msg.textContent='Couldn’t save that. Try again in a moment.';[].forEach.call(card.querySelectorAll('button'),function(x){x.disabled=false})}});
+$('v-week').addEventListener('click',function(e){var b=e.target.closest('[data-go]');if(b)setView(b.dataset.go)});
+
+function renderIdeas(){var I=S.ideas;$('ideas').innerHTML=I.length?I.map(function(i){var st=i.status==='tested'?'<span class="pill blue">Tested</span>':i.status==='testing'?'<span class="pill warn">Being tested</span>':'<span class="pill">Queued</span>';
+  return '<div class="card"><div class="row">'+st+'<span class="note">'+when(i.at)+'</span></div><p style="margin:0">'+esc(i.text)+'</p>'+(i.result?'<div class="side r"><div class="lab">What the researcher found</div>'+md(i.result)+'</div>':'')+'</div>'}).join(''):'<div class="card empty"><p class="sub">No ideas yet. Anything you add here gets tested on the next weekly run.</p></div>'}
+$('ideaf').addEventListener('submit',async function(e){e.preventDefault();var t=$('idea').value.trim();if(!t||!db)return;$('ideaN').textContent='Saving…';
+  try{await db.collection('ideas').add({text:t,at:new Date().toISOString(),status:'new'});$('idea').value='';$('ideaN').textContent='Added. It goes to the next weekly run.'}catch(err){$('ideaN').textContent='Couldn’t save the idea. Try again in a moment.'}});
+
+function renderPicks(){var P=(S.snap.picks||{}).items||[],L=(S.snap.log||{}).items||[],h='';
+  h+='<div class="card"><h3>Current picks</h3>'+(P.length?'<div class="tw"><table><tr><th>Pick</th><th>Price</th><th>Level</th><th>Kickoff</th></tr>'+P.map(function(r){return '<tr><td class="w">'+esc(pickLabel(r))+'</td><td><b>'+am(r.pr)+'</b> '+esc(r.bk)+'</td><td>'+['','I','II','III'][Math.min(3,r.s||0)]+'</td><td>'+when(r.t)+'</td></tr>'}).join('')+'</table></div>':'<p class="sub">No picks right now.</p>')+'</div>';
+  h+='<div class="card"><h3>Pick log</h3>'+(L.length?'<div class="tw"><table><tr><th>Week</th><th>Pick</th><th>Price</th><th>Result</th><th>Units</th><th>Price later</th></tr>'+L.map(function(r){var mv=r.move==null?'–':r.move>0?'Beat it':r.move<0?'Worse':'Same';
+    return '<tr><td>'+esc(r.wk||'–')+'</td><td class="w">'+esc(pickLabel(r))+'</td><td><b>'+am(r.pr)+'</b> '+esc(r.bk)+'</td><td>'+resPill(r.res)+'</td><td>'+(r.res?((r.u>=0?'+':'')+Number(r.u).toFixed(2)):'–')+'</td><td>'+mv+'</td></tr>'}).join('')+'</table></div><p class="note">“Price later” compares the price when the pick first posted with the price when it locked at kickoff. “Beat it” means the market moved toward our side after we posted it, a sign of real skill.</p>':'<p class="sub">No picks logged yet.</p>')+'</div>';
+  $('v-picks').innerHTML=h}
+function renderNotebook(){var N=S.notebook;$('v-notebook').innerHTML=N.length?'<div class="card">'+N.map(function(n){return '<div class="side"><div class="lab">'+when(n.at)+(n.kind?' · '+esc(n.kind):'')+'</div>'+md(n.text)+'</div>'}).join('')+'</div>':'<div class="card empty"><p class="sub">The analyst’s notebook is empty. Every run, decision and change gets logged here.</p></div>'}
+
+function renderChat(){var T=S.chat;$('chat').innerHTML=T.length?T.slice(-30).map(function(t){return '<div class="msg '+(t.role==='user'?'u':'a')+'">'+esc(t.content)+(t.at?'<div class="t">'+when(t.at)+'</div>':'')+'</div>'}).join(''):'<div class="card empty"><p class="sub">Ask anything about our picks, players, games or the model. The analyst sees the latest snapshot, every report and proposal, and your earlier questions here.</p></div>';
+  $('hints').hidden=T.length>0}
+function render(){renderStrip();var n=S.proposals.filter(function(p){return p.status==='ready'}).length;$('npr').hidden=!n;$('npr').textContent=n;
+  if(view==='week')renderWeek();if(view==='proposals')renderProposals();if(view==='ideas')renderIdeas();if(view==='picks')renderPicks();if(view==='notebook')renderNotebook();if(view==='ask')renderChat()}
+
+// ---- Ask: Claude on the viewer's own plan, with read-only tools over the Desk's data (plus adding an idea)
+var RULES='You are the Analyst for a personal NFL dashboard (football-dashboard). You help its owner understand the betting picks, player props, games and the projection model, and you keep refining the model with him through weekly reports and proposals. '+
+ 'How the model works: projections are 85% season average + 15% last 3 games, plus about 4 games of last season early on, adjusted for the opponent (matchup factor, capped -20% to +25%). For props, the chance of going over comes from how that stat swings game to game, nudged weekly by a calibration, then blended 50/50 with the sportsbooks’ fair odds (Pinnacle with its cut removed, or the middle of the books). A lean needs our chance to beat the price’s break-even by 4+ points (I), 7+ (II), 10+ (III); a pick needs level II, or a smaller lean plus a better-than-fair price. Anytime TD chance comes from usage (carries, targets, position); no TD picks above +300; no moneylines above +250 or below -300. '+
+ 'Rules: use the tools to look things up before answering anything about data; say when a sample is too small to mean much; never present betting as a sure thing; never suggest stake sizes; this is not betting advice. You cannot change the model or the site yourself: changes go through a weekly proposal that a separate skeptic checks and the owner approves. If the owner asks to queue something to test, use add_idea. Answer in plain English, short and direct, like a sharp friend who knows football and numbers. Today is '+new Date().toDateString()+'.';
+function slimProp(p){return p}
+var TOOLS=[
+ {name:'overview',description:'Returns the data snapshot summary: as-of time, record so far (overall, game lines, props, by week, price-movement stats), model settings and calibration, odds credits, counts.',execute:function(){return S.snap.meta||{note:'No snapshot yet'}}},
+ {name:'current_picks',description:'Returns the official picks right now (best price across books), each with market, side, line, price, book, level and kickoff.',execute:function(){return (S.snap.picks||{}).items||[]}},
+ {name:'pick_log',description:'Returns logged picks, newest first, with result (W/L/P/V), units, final score or stat, and price movement. Optional filter: week (number) or status ("graded" or "open").',inputSchema:{type:'object',properties:{week:{type:'number'},status:{type:'string'}}},execute:function(i){var L=(S.snap.log||{}).items||[];if(i.week)L=L.filter(function(r){return r.wk===Number(i.week)});if(i.status==='graded')L=L.filter(function(r){return r.res});if(i.status==='open')L=L.filter(function(r){return !r.res});return L.slice(0,60)}},
+ {name:'player_props',description:'Finds this week’s props for a player by (partial) name. Returns each prop with line, best over/under prices and books, our chance over (blended), model and market chances, typical game, season average, last 3, matchup factor and his recent game values.',inputSchema:{type:'object',properties:{name:{type:'string'}},required:['name']},execute:function(i){var q=String(i.name||'').toLowerCase();var r=S.props.filter(function(p){return p.n.toLowerCase().indexOf(q)>-1});if(!r.length)throw new Error('No props this week for "'+i.name+'"');return r.slice(0,12)}},
+ {name:'game',description:'Returns this week’s game for a team code (e.g. GB, KC): spread, total, win chances, our team model, records, rest, weather, line history and every book’s prices.',inputSchema:{type:'object',properties:{team:{type:'string'}},required:['team']},execute:function(i){var t=String(i.team||'').toUpperCase();var g=((S.snap.games||{}).items||[]).filter(function(x){return x.a===t||x.h===t});if(!g.length)throw new Error('No game this week for '+t);return g[0]}},
+ {name:'best_edges',description:'Returns the props where our blended chance differs most from the break-even of the best price, top 15, both sides.',execute:function(){var out=[];S.props.forEach(function(p){if(p.our_chance_over==null)return;[['over',p.over,p.our_chance_over],['under',p.under,1-p.our_chance_over]].forEach(function(s){if(!s[1])return;var pr=s[1][1],be=pr>0?100/(pr+100):-pr/(-pr+100);out.push({player:p.n,prop:p.mk,side:s[0],line:p.line,price:pr,book:s[1][2],our_chance:Math.round(s[2]*1000)/1000,break_even:Math.round(be*1000)/1000,edge:Math.round((s[2]-be)*1000)/1000})})});return out.sort(function(a,b){return b.edge-a.edge}).slice(0,15)}},
+ {name:'reports',description:'Returns the latest weekly reports (title, week, text), newest first, up to 3.',execute:function(){return S.reports.slice(0,3).map(function(r){return {week:r.week,at:r.at,title:r.title,body:String(r.body||'').slice(0,6000)}})}},
+ {name:'proposals',description:'Returns proposals with status, the change, the researcher’s case, the skeptic’s verdict and the owner’s decision.',execute:function(){return S.proposals.slice(0,20).map(function(p){return {id:p._id,title:p.title,status:p.status,spec:p.spec,case:String(p.case||'').slice(0,1500),skeptic:p.skeptic,decision:p.decision,result:p.result}})}},
+ {name:'ideas_and_notebook',description:'Returns the idea inbox (with any test results) and the latest analyst notebook entries.',execute:function(){return {ideas:S.ideas.slice(0,20),notebook:S.notebook.slice(0,15)}}},
+ {name:'add_idea',description:'Adds an idea to the inbox for the next weekly research run. Use only when the owner asks to test or queue something.',inputSchema:{type:'object',properties:{text:{type:'string'}},required:['text']},execute:async function(i){var t=String(i.text||'').trim();if(!t)throw new Error('Empty idea');await db.collection('ideas').add({text:t,at:new Date().toISOString(),status:'new',from:'ask'});return 'Added to the inbox.'}}
+];
+var ctl=null;
+async function saveChat(){if(!db)return;var turns=S.chat.slice(-60);try{if(S.chatV==null){await db.doc('chat/history').set({turns:turns})}else{await db.doc('chat/history').update({turns:turns})}S.chatV=1}catch(e){}}
+$('askf').addEventListener('submit',async function(e){e.preventDefault();var q=$('askq').value.trim();if(!q)return;
+  if(!sample){$('askn').textContent='Asking Claude isn’t available in this view. Open the Desk in the Claude app or on claude.ai.';return}
+  S.chat.push({role:'user',content:q,at:new Date().toISOString()});$('askq').value='';renderChat();
+  var bubble=document.createElement('div');bubble.className='msg a';bubble.textContent='Thinking…';$('chat').appendChild(bubble);bubble.scrollIntoView({block:'nearest'});
+  $('askb').disabled=true;$('stopb').hidden=false;$('askn').textContent='Looking things up can take up to a minute.';ctl=new AbortController();
+  var hist=S.chat.slice(-13,-1).map(function(t){return {role:t.role,content:t.content}});
+  try{var r=await sample([{role:'user',content:RULES}].concat(hist.length&&hist[0].role==='assistant'?[{role:'user',content:'(earlier conversation follows)'}]:[]).concat(hist).concat([{role:'user',content:q}]),{signal:ctl.signal,cache:false,tools:TOOLS,onText:function(u){bubble.textContent=u.text}});
+    S.chat.push({role:'assistant',content:r.text,at:new Date().toISOString()});$('askn').textContent=r.truncated?'The answer was cut short. Ask for less at a time.':'';await saveChat()}
+  catch(err){var keep=err&&err.text;if(keep){S.chat.push({role:'assistant',content:keep+' (interrupted)',at:new Date().toISOString()});await saveChat()}
+    $('askn').textContent=err.code==='cancelled'?'Stopped.':err.code==='rate_limited'?'Too many questions at once or your Claude usage limit was reached. Try again later.':err.code==='not_granted'?'You chose not to let this page use Claude. Reload the page to be asked again.':err.code==='tools_unavailable'?'This view can’t look up data. Try the Claude app or claude.ai.':'Something went wrong. Try asking again.'}
+  finally{$('askb').disabled=false;$('stopb').hidden=true;ctl=null;renderChat()}});
+$('stopb').addEventListener('click',function(){if(ctl)ctl.abort()});
+$('hints').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;$('askq').value=b.textContent;$('askf').requestSubmit()});
+
+// ---- data
+function listen(q,key,map){q.onSnapshot(function(s){S[key]=s.docs.map(function(d){var x=Object.assign({},d.data());x._id=d.id;return x});if(map)map();render()},function(){})}
+async function start(){var h=location.hash.slice(1);if($('v-'+h))view=h;setView(view);
+  if(!window.claude){$('asof').textContent='Open the Desk inside Claude to see your data.';return}
+  db=await claude.use('db');user=await claude.use('user');sample=await claude.use('sample');
+  if(user){try{owner=user.isOwner()}catch(e){owner=false}}$('who').textContent=owner?'Owner':'Viewer';
+  if(!sample)$('askn').textContent='Asking Claude isn’t available in this view.';
+  if(!db){$('asof').textContent='The Desk’s data isn’t available in this view. Open it in the Claude app or on claude.ai.';return}
+  db.collection('snap').onSnapshot(function(s){var props=[];S.snap={};s.docs.forEach(function(d){var x=d.data();S.snap[d.id]=x;if(/^props\d+$/.test(d.id))props=props.concat(x.items||[])});S.props=props;render()},function(){});
+  listen(db.collection('reports').orderBy('at','desc').limit(20),'reports');
+  listen(db.collection('proposals').orderBy('at','desc').limit(100),'proposals');
+  listen(db.collection('ideas').orderBy('at','desc').limit(100),'ideas');
+  listen(db.collection('notebook').orderBy('at','desc').limit(60),'notebook');
+  try{var c=await db.doc('chat/history').get();if(c.exists){S.chat=(c.data().turns||[]).slice();S.chatV=1}}catch(e){}
+  render()}
+start();
+})();
+</script>

@@ -764,9 +764,12 @@ try:
     pkf='odds/picks.json'
     try: PLOG=json.load(open(pkf))
     except Exception: PLOG={}
+    FIRST={k_:r_.get('first') for k_,r_ in PLOG.items()}   # when and at what price each pick first appeared (for price movement)
     for k_ in [k_ for k_,r_ in PLOG.items() if r_.get('res') is None and not started(r_['t'])]: del PLOG[k_]
     for x in PK:
-        r_={k:v for k,v in x.items() if k!='srt'}; r_['res']=None; r_['at']=oinfo['lines_at'][:16]; PLOG[x['id']]=r_
+        r_={k:v for k,v in x.items() if k!='srt'}; r_['res']=None; r_['at']=oinfo['lines_at'][:16]
+        r_['first']=FIRST.get(x['id']) or {'pr':x['pr'],'pt':x['pt'],'bk':x['bk'],'at':oinfo['lines_at'][:16]}
+        PLOG[x['id']]=r_
     SI={'Pass yds':7,'Rush yds':8,'Rec yds':9,'Receptions':6,'Pass TDs':10,'Anytime TD':11}
     logmax=max((r[0] for L_ in LOG.values() for r in L_),default=0)
     fin={}
