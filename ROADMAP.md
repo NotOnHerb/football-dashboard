@@ -22,7 +22,7 @@ fantasy lineups and football knowledge, then opened up to help other people too.
 5. Playoff schedule strength: soft matchups in fantasy playoff weeks 14 to 17.
 6. About page: credit data sources, note it's not betting advice, before sharing widely.
 
-## The Analyst (planned Oct 29, 2026; build when ready)
+## The Analyst (built Oct 29, 2026; details and playbooks in analyst/README.md)
 A research assistant that keeps refining the model toward the dream. Lives outside the build chat.
 Free route: runs on the existing Claude plan, no API key, no per-question cost.
 - One front door, the Analyst Desk: a private page in the Claude account (works on a phone) with an
@@ -39,10 +39,10 @@ Free route: runs on the existing Claude plan, no API key, no per-question cost.
 - Phone notification when the weekly report is ready.
 - Guardrails: tested on unseen games, judged on closing-line value and long-run units, never places
   bets or sets stakes. Realistic target: about 53-56% at normal prices over hundreds of picks.
-- Start with researcher + ask box; add the skeptic when the first real model change is proposed.
 - Optional later: public ask box on the site (needs a paid API key; roughly $1/month on the light
   model or $15/month on the smart one at 10 questions a day), and an nfelo-style game model.
-- Open decisions: report day/time, phone only or email too, public box now/later/never.
+- Decided: daily sync 6:13 AM CT, researcher Tuesday 5:47 AM, skeptic Tuesday 7:57 AM (phone notification); all three
+  workers from day one; public ask box not now.
 
 ## Later
 - Kicker, defense and IDP projections in start/sit and lineups.
