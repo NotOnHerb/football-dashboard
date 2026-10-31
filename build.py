@@ -939,6 +939,75 @@ try:
     print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| parlays',[(x['kind'],len(x['legs']),x['pr'],x['bk'],x['pc']) for x in PX],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex)
+# ---- college football: lines from several books (CollegeFootballData, free), our ratings as context, "best number" picks
+CFB=None
+try:
+    import statistics as _st2
+    _now=datetime.datetime.now(datetime.timezone.utc)
+    _start=lambda s:datetime.datetime.fromisoformat(s.replace('Z','+00:00'))
+    _dec=lambda a:(1+a/100) if a>0 else (1-100/a)
+    _prob=lambda a:100/(a+100) if a>0 else -a/(-a+100)
+    cg=[g for g in json.load(open('cfb/games_%d.json'%SEASON)) if g['homeClassification']=='fbs' and g['awayClassification']=='fbs']
+    cl={x['id']:x for x in json.load(open('cfb/lines_%d.json'%SEASON))}
+    lastg=[g for g in json.load(open('cfb/games_%d.json'%(SEASON-1))) if g['homeClassification']=='fbs' and g['awayClassification']=='fbs' and g['completed'] and g['homePoints'] is not None]
+    done=[g for g in cg if g['completed'] and g['homePoints'] is not None]
+    def _ridge(games,prior,lam):
+        teams=sorted({g['homeTeam'] for g in games}|{g['awayTeam'] for g in games}|set(prior)); ix={t:i for i,t in enumerate(teams)}; n=len(teams); X=[];y=[]
+        for g in games:
+            x=np.zeros(n+1);x[ix[g['homeTeam']]]=1;x[ix[g['awayTeam']]]=-1;x[n]=0 if g['neutralSite'] else 1
+            X.append(x);y.append(g['homePoints']-g['awayPoints']-(prior.get(g['homeTeam'],0)-prior.get(g['awayTeam'],0)))
+        X=np.array(X);y=np.array(y);bb=np.linalg.solve(X.T@X+np.diag(np.r_[np.full(n,lam),.01]),X.T@y)
+        return {t:bb[ix[t]]+prior.get(t,0) for t in teams},bb[n]
+    R0,_=_ridge(lastg,{},5.0); CR,CH=_ridge(done,{t:.6*v for t,v in R0.items()},8.0)
+    BKN={'DraftKings':'DraftKings','ESPN Bet':'ESPN BET','Bovada':'Bovada','William Hill (New Jersey)':'Caesars','Caesars Sportsbook (Colorado)':'Caesars'}
+    upcoming=[g for g in cg if not g['completed'] and g.get('startDate') and _start(g['startDate'])>_now-datetime.timedelta(hours=4)]
+    wks=sorted({g['week'] for g in upcoming})[:2]
+    CG=[];CP=[]
+    for g in sorted([g for g in upcoming if g['week'] in wks],key=lambda g:g['startDate']):
+        x=cl.get(g['id']) or {'lines':[]}; ls=[l for l in x['lines'] if l['provider'] in BKN]
+        books={}
+        for l in ls: books[BKN[l['provider']]]=[l.get('spread'),l.get('overUnder'),l.get('homeMoneyline'),l.get('awayMoneyline'),l.get('spreadOpen')]
+        sps=[v[0] for v in books.values() if v[0] is not None]; ous=[v[1] for v in books.values() if v[1] is not None]
+        ml=[(v[2],v[3]) for v in books.values() if v[2] is not None and v[3] is not None]
+        wp=_st2.median([_prob(a)/(_prob(a)+_prob(c)) for a,c in ml]) if ml else None
+        h,a=g['homeTeam'],g['awayTeam']; hf=0 if g['neutralSite'] else 1
+        mod=round(CR.get(h,0)-CR.get(a,0)+CH*hf,1) if (h in CR and a in CR) else None
+        row={'id':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'ac':g.get('awayConference'),'hc':g.get('homeConference'),'neutral':bool(g['neutralSite']),
+             'books':books,'sp':_st2.median(sps) if sps else None,'ou':_st2.median(ous) if ous else None,'wp':None if wp is None else round(wp,3),'mod':mod}
+        # best number: with 3+ books, the one book whose spread is 1.5 to 3 points off the others, one bet per game
+        # (backtested 2022-25, one bet per game: 150-115, 56.6%; 2023 54.0%, 2024 56.6%, 2025 64.0%)
+        if len(sps)>=3 and _start(g['startDate'])>_now:
+            best=None
+            for bn,v in books.items():
+                if v[0] is None: continue
+                d=v[0]-_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
+                if best is None or abs(d)>abs(best[0]): best=(d,bn,v[0])
+            d,bn,s0=best
+            if 1.5<=abs(d)<3:
+                sd='hs' if d>0 else 'as'; pt=s0 if sd=='hs' else -s0
+                oth=_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
+                CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':-110,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2})
+                row['pick']=CP[-1]['id']
+        CG.append(row)
+    # log and grade college picks (own record)
+    cpf='odds/cfb_picks.json'
+    try: CLOG=json.load(open(cpf))
+    except Exception: CLOG={}
+    for k_ in [k_ for k_,r_ in CLOG.items() if r_.get('res') is None and _start(r_['t'])>_now]: del CLOG[k_]
+    for x in CP: CLOG[x['id']]=dict(x,res=None)
+    fin={g['id']:(g['awayPoints'],g['homePoints']) for g in done}
+    for r_ in CLOG.values():
+        if r_.get('res') is not None or r_['gid'] not in fin: continue
+        ap,hp=fin[r_['gid']]; c_=((hp-ap) if r_['sd']=='hs' else (ap-hp))+r_['pt']
+        r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(_dec(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
+    if not os.environ.get('ODDS_OFFLINE'): json.dump(CLOG,open(cpf,'w'))
+    cd=[r for r in CLOG.values() if r.get('res')]
+    CFB={'G':CG,'PK':CP,'LG':sorted(CLOG.values(),key=lambda r:r['t'],reverse=True)[:200],
+         'REC':{'w':sum(r['res']=='W' for r in cd),'l':sum(r['res']=='L' for r in cd),'p':sum(r['res']=='P' for r in cd),'u':round(sum(r['u'] for r in cd),2)},
+         'BT':{'rule':'with 3+ books, one book 1.5 to 3 points off the others','record':[150,115],'seasons':'2023-25','by_season':{'2023':'75-64','2024':'43-33','2025':'32-18'},'model_vs_close':'about 50% (context only)'},
+         'at':open('cfb/fetch_log.txt').read().split('\n')[0]}
+    print('college ok: games',len(CG),'weeks',wks,'| picks',[(x['a'],x['h'],x['sd'],x['pt'],x['bk'],x['gap']) for x in CP],'| record',CFB['REC'])
+except Exception as ex: print('college skipped:',ex)
 META['built']=DATE
 PRI={}
 try:
@@ -946,7 +1015,7 @@ try:
     PRI={g:[v[_c.index('PPR')],v[_c.index('Std')]] for g,v in _m['priors'].items() if g in _ids}
     META['model']={'fit_at':_m['fit_at'],'w':_m['w'],'k0':_m['k0'],'blend':_m['blend']}
 except Exception as ex: print('no model priors:',ex)
-data=json.dumps(clean({'META':META,'PRI':PRI,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+data=json.dumps(clean({'META':META,'PRI':PRI,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'CFB':CFB,'G':G}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
 ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
 html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)
