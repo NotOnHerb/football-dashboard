@@ -46,8 +46,8 @@ def main(out):
     weeks = sorted({r['wk'] for r in graded if r.get('wk')})
     meta = {'at': now, 'built': D['META'].get('built'), 'season': D['META'].get('season'), 'model': D['META'].get('model'),
             'calibration': MC, 'blend': MB, 'rules': O.get('RU'), 'model_record_vs_close': O.get('MR'),
-            'record': {'all': summ(graded), 'game_lines': summ([r for r in graded if r['k'] == 'g']), 'props': summ([r for r in graded if r['k'] == 'p']),
-                       'by_week': {str(w): summ([r for r in graded if r.get('wk') == w]) for w in weeks}},
+            'record': {'all': summ([r for r in graded if r['k'] != 'x']), 'game_lines': summ([r for r in graded if r['k'] == 'g']), 'props': summ([r for r in graded if r['k'] == 'p']), 'parlays': summ([r for r in graded if r['k'] == 'x']),
+                       'by_week': {str(w): summ([r for r in graded if r.get('wk') == w and r['k'] != 'x']) for w in weeks}},
             'odds_credits_left': O.get('left'), 'lines_at': O.get('at'), 'props_at': O.get('pat'),
             'counts': {'games': len(O.get('G', [])), 'props': len(O.get('P', [])), 'picks_now': len(O.get('PK', [])), 'picks_logged': len(logs)}}
 
@@ -94,7 +94,7 @@ def main(out):
     def put(name, obj):
         json.dump(obj, open(os.path.join(out, 'snap', name + '.json'), 'w'), separators=(',', ':'))
     put('meta', meta)
-    put('picks', {'at': now, 'items': O.get('PK', [])})
+    put('picks', {'at': now, 'items': O.get('PK', []), 'parlays': O.get('PX', [])})
     put('log', {'at': now, 'items': logs[:300]})
     put('games', {'at': now, 'items': games})
     chunk, size, n = [], 0, 0

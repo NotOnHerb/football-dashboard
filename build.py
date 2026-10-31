@@ -723,7 +723,7 @@ try:
             im=prob(q['pr']); pf=p['fair'][1] if p['fair'] else None
             P=None if p['pj'] is None or pf is None else MB*p['pj']+(1-MB)*pf
             ls=ptier(P-im) if (P is not None and n>=4 and q['pr']<=RU['tdmax']) else 0
-            return {'sd':'y','q':q,'ls':ls,'vs':0,'v':None,'s':min(ls,2),'srt':(P-im) if P is not None else 0}
+            return {'sd':'y','q':q,'ls':ls,'vs':0,'v':None,'s':min(ls,2),'srt':(P-im) if P is not None else 0,'P':P}
         def side(q,dr):
             if not q: return None
             po=pover(p['mk'],p['pj'],q['pt'])
@@ -740,7 +740,8 @@ try:
             vs=valS(v)
             if v is not None and v>RU['stale']: vs=0
             if e is not None and e<0: vs=0   # never pick a side our own chance says loses at this price
-            return {'sd':'o' if dr>0 else 'u','q':q,'ls':ls,'vs':vs,'v':v,'s':min(ls,2)+vs,'srt':e or 0}
+            return {'sd':'o' if dr>0 else 'u','q':q,'ls':ls,'vs':vs,'v':v,'s':min(ls,2)+vs,'srt':e or 0,'P':P}
+        pa.side=side
         o,u=side(pq(p,'o'),1),side(pq(p,'u'),-1)
         if o and u: return u if u['s']>o['s'] or (u['s']==o['s'] and u['srt']>o['srt']) else o
         return o or u
@@ -752,33 +753,149 @@ try:
         for a1,a2,mk_ in (('hs','as','spread'),('ov','un','total'),('mh','ma','ml')):
             x1,x2=gside(g,a1),gside(g,a2); x=(x2 if x1 and x2 and x2['s']>x1['s'] else (x1 or x2)) if (x1 or x2) else None
             if x and x['s']>=RU['pick']:
-                q=x['q']; PK.append({'id':'g|%s|%s|%s'%(g['id'],mk_,x['k']),'k':'g','eid':g['id'],'wk':g['wk'],'t':g['t'],'a':g['a'],'h':g['h'],'mk':mk_,'sd':x['k'],'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'s':x['s'],'v':None if x['v'] is None else round(x['v'],4),'ms':x['ms'],'vs':x['vs'],'srt':x['s']+(x['v'] or 0)*5})
+                q=x['q']; PK.append({'id':'g|%s|%s|%s'%(g['id'],mk_,x['k']),'k':'g','eid':g['id'],'wk':g['wk'],'t':g['t'],'a':g['a'],'h':g['h'],'mk':mk_,'sd':x['k'],'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'s':x['s'],'v':None if x['v'] is None else round(x['v'],4),'ms':x['ms'],'vs':x['vs'],'pc':None if x['v'] is None else round((x['v']+1)/dec(q['pr']),4),'srt':x['s']+(x['v'] or 0)*5})
     WKOF={g['id']:g['wk'] for g in GL}
     for p in PR:
         if not p.get('ko') or started(p['ko']) or hurt(p['gid']): continue
         x=pa(p)
         if x and x['s']>=RU['pick']:
-            q=x['q']; PK.append({'id':'p|%s|%s|%s|%s'%(p['eid'],p['gid'],p['mk'],x['sd']),'k':'p','eid':p['eid'],'wk':WKOF.get(p['eid']),'t':p['ko'],'n':p['n'],'gid':p['gid'],'tm':p['t'],'opp':p['opp'],'mk':p['mk'],'sd':x['sd'],'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'s':x['s'],'v':None if x['v'] is None else round(x['v'],4),'ls':x['ls'],'vs':x['vs'],'pj':p['pj'],'srt':x['s']+x['srt']+(x['v'] or 0)*5})
+            q=x['q']; PK.append({'id':'p|%s|%s|%s|%s'%(p['eid'],p['gid'],p['mk'],x['sd']),'k':'p','eid':p['eid'],'wk':WKOF.get(p['eid']),'t':p['ko'],'n':p['n'],'gid':p['gid'],'tm':p['t'],'opp':p['opp'],'mk':p['mk'],'sd':x['sd'],'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'s':x['s'],'v':None if x['v'] is None else round(x['v'],4),'ls':x['ls'],'vs':x['vs'],'pj':p['pj'],'pc':None if x.get('P') is None else round(x['P'],4),'srt':x['s']+x['srt']+(x['v'] or 0)*5})
     PK.sort(key=lambda x:-x['srt'])
+    # ---- parlays (for fun, tracked as their own record): of the week, of the game (same-game combo), anytime TD
+    def prop_leg(p,sd):
+        """One prop side as a parlay leg: best price, our blended chance, edge vs the price."""
+        if sd=='y':
+            q=pq(p,'y')
+            if not q or p['pj'] is None or not p['fair']: return None
+            P=MB*p['pj']+(1-MB)*p['fair'][1]
+        else:
+            q=pq(p,sd)
+            if not q: return None
+            P=None
+            po=pover(p['mk'],p['pj'],q['pt'])
+            if p['fair'] and p['fair'][0]==q['pt']: fo=p['fair'][1]
+            else:
+                pr_=[x for x in p['b'].values() if x[0]==q['pt'] and x[2]==q['pt'] and x[1] is not None and x[3] is not None]
+                fo=prob(pr_[0][1])/(prob(pr_[0][1])+prob(pr_[0][3])) if pr_ else None
+            if po is None or fo is None: return None
+            P=MB*po+(1-MB)*fo; P=P if sd=='o' else 1-P
+        return {'id':'p|%s|%s|%s|%s'%(p['eid'],p['gid'],p['mk'],sd),'k':'p','eid':p['eid'],'wk':WKOF.get(p['eid']),'t':p['ko'],'n':p['n'],'gid':p['gid'],'tm':p['t'],'opp':p['opp'],'mk':p['mk'],'sd':sd,'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'pc':round(P,4),'e':round(P-prob(q['pr']),4),'_p':p}
+    def at_book(leg,bn):
+        """The leg's price at one book on the same line, or None."""
+        if leg['k']=='p':
+            x=leg['_p']['b'].get(bn)
+            if not x: return None
+            if leg['sd']=='u': return x[3] if x[2]==leg['pt'] else None
+            if leg['sd']=='y': return x[1]
+            return x[1] if x[0]==leg['pt'] else None
+        g=next((g for g in GL if g['id']==leg['eid']),None); x=g and g['b'].get(bn)
+        if not x: return None
+        m=GSD[leg['sd']]; y=x.get(m[0])
+        if not y: return None
+        if m[1] is not None and y[m[1]]!=leg['pt']: return None
+        return y[m[2]]
+    def price_parlay(legs):
+        best=None
+        for bn in BKS:
+            ps=[at_book(l,bn) for l in legs]
+            if any(p_ is None for p_ in ps): continue
+            d=1.0
+            for p_ in ps: d*=dec(p_)
+            if best is None or d>best[0]: best=(d,bn)
+        if best: return round(best[0],3),best[1]
+        d=1.0
+        for l in legs: d*=dec(l['pr'])
+        return round(d,3),'mixed'
+    def am_from_dec(d): return int(round((d-1)*100)) if d>=2 else int(round(-100/(d-1)))
+    def one_book(cands,want=3,need=2,distinct=True):
+        """Best set of legs that ONE sportsbook offers (a parlay is placed at one book): each leg at that book's own price and
+        still above break-even there; the book with the best expected return wins."""
+        top=None
+        for bn in BKS:
+            if bn=='Pinnacle': continue   # the sharp reference; not open to US bettors
+            legs=[];seen=set()
+            for c in cands:
+                if distinct and c['eid'] in seen: continue
+                pr_=at_book(c,bn)
+                if pr_ is None or c['pc']<=prob(pr_)-.02: continue
+                l=dict(c);l['pr']=pr_;l['bk']=bn;l['e']=round(c['pc']-prob(pr_),4);legs.append(l);seen.add(c['eid'])
+                if len(legs)==want: break
+            if len(legs)<need: continue
+            ch=1.0;d=1.0
+            for l in legs: ch*=l['pc'];d*=dec(l['pr'])
+            if top is None or ch*d>top[0]: top=(ch*d,legs)
+        return top[1] if top else None
+    def mk_parlay(kind,title,legs,note,joint=None):
+        d,bn=price_parlay(legs); ch=1.0
+        for l in legs: ch*=l['pc']
+        if joint is not None: ch=max(ch,min(joint,ch*1.25))   # teammates hit together a bit more often than independent legs would
+        clean_=[{k:v for k,v in l.items() if k not in ('_p','e')} for l in legs]
+        return {'id':'x|%s|wk%s'%(kind,legs[0]['wk']),'k':'x','kind':kind,'title':title,'wk':legs[0]['wk'],'t':min(l['t'] for l in legs),'legs':clean_,
+                'dec':d,'pr':am_from_dec(d),'bk':bn,'pc':round(ch,4),'be':round(1/d,4),'note':note,'joint':joint,'s':0}
+    PX=[]
+    try:
+        # parlay of the week: 2-3 of the strongest non-TD picks from different games, at one book
+        cands=[]
+        for x in PK:
+            if x['sd']=='y' or x.get('pc') is None or x['pc']<=prob(x['pr']) or x['pr']<-200: continue
+            l=dict(x);l.pop('srt',None)
+            if x['k']=='p': l['_p']=next(p for p in PR if p['gid']==x['gid'] and p['mk']==x['mk'] and p['eid']==x['eid'])
+            cands.append(l)
+        legs=one_book(cands[:10])
+        if legs: PX.append(mk_parlay('week','Parlay of the week',legs,'Our strongest picks from different games, all at one sportsbook.'))
+        # anytime TD parlay: the most likely scorers priced near or better than our chance, different games, at one book
+        tds=[]
+        for p in PR:
+            if p['mk']!='Anytime TD' or started(p.get('ko') or '2000-01-01T00:00:00Z') or hurt(p['gid']) or len(p['v'])<4: continue
+            l=prop_leg(p,'y')
+            if l and l['pc']>=.30 and l['e']>=-.02 and l['pr']<=300: tds.append(l)
+        tds.sort(key=lambda l:-(l['pc']+l['e']))
+        legs=one_book(tds[:10])
+        if legs: PX.append(mk_parlay('td','Anytime TD parlay of the week',legs,'The likeliest scorers on the board, from different games, all at one sportsbook.'))
+        # parlay of the game: QB over + his receiver over that have hit together most this season
+        best=None
+        byteam={}
+        for p in PR:
+            if started(p.get('ko') or '2000-01-01T00:00:00Z') or hurt(p['gid']) or len(p['v'])<4: continue
+            byteam.setdefault((p['eid'],p['t']),[]).append(p)
+        for (eid,tm),ps in byteam.items():
+            qbs=[p for p in ps if p['mk'] in ('Pass yds','Pass TDs')]; recs=[p for p in ps if p['mk'] in ('Rec yds','Receptions','Anytime TD') and p['pos'] in ('WR','TE')]
+            for a in qbs:
+                la=prop_leg(a,'o')
+                if not la or la['e']<-.02: continue
+                for r in recs:
+                    lr=prop_leg(r,'y' if r['mk']=='Anytime TD' else 'o')
+                    if not lr or lr['e']<-.02: continue
+                    wr={v[0]:v[2] for v in r['v']}
+                    both=[(v[2]>la['pt']) and ((wr[v[0]]>=1) if lr['sd']=='y' else (wr[v[0]]>lr['pt'])) for v in a['v'] if v[0] in wr]
+                    if len(both)<4: continue
+                    j=sum(both)/len(both)
+                    sc=j+la['e']+lr['e']
+                    if j>=.5:
+                        pair=one_book([la,lr],want=2,need=2,distinct=False)
+                        if pair and (best is None or sc>best[0]): best=(sc,pair,round(j,3),len(both))
+        if best:
+            px=mk_parlay('game','Parlay of the game',best[1],'A quarterback and his receiver who have cleared these lines together in %d of %d games this season. Same-game parlays usually pay less than this; check your book.'%(round(best[2]*best[3]),best[3]),joint=best[2])
+            PX.append(px)
+    except Exception as ex_: print('parlays skipped:',ex_)
     # ---- pick log: a pick counts if it was a pick at the last refresh before kickoff; graded from final scores and weekly stats
     pkf='odds/picks.json'
     try: PLOG=json.load(open(pkf))
     except Exception: PLOG={}
     FIRST={k_:r_.get('first') for k_,r_ in PLOG.items()}   # when and at what price each pick first appeared (for price movement)
     for k_ in [k_ for k_,r_ in PLOG.items() if r_.get('res') is None and not started(r_['t'])]: del PLOG[k_]
-    for x in PK:
+    for x in PK+PX:
         r_={k:v for k,v in x.items() if k!='srt'}; r_['res']=None; r_['at']=oinfo['lines_at'][:16]
-        r_['first']=FIRST.get(x['id']) or {'pr':x['pr'],'pt':x['pt'],'bk':x['bk'],'at':oinfo['lines_at'][:16]}
+        r_['first']=FIRST.get(x['id']) or {'pr':x['pr'],'pt':x.get('pt'),'bk':x['bk'],'at':oinfo['lines_at'][:16]}
         PLOG[x['id']]=r_
     SI={'Pass yds':7,'Rush yds':8,'Rec yds':9,'Receptions':6,'Pass TDs':10,'Anytime TD':11}
     logmax=max((r[0] for L_ in LOG.values() for r in L_),default=0)
     fin={}
     for r in cur.itertuples(): fin[(int(r.week),r.away_team,r.home_team)]=(r.away_score,r.home_score); fin[(int(r.week),r.home_team)]=fin[(int(r.week),r.away_team)]=(r.away_team,r.home_team,r.away_score,r.home_score)
-    for r_ in PLOG.values():
-        if r_.get('res') is not None or not started(r_['t']) or r_.get('wk') is None: continue
+    def grade_one(r_):
         if r_['k']=='g':
             sc=fin.get((r_['wk'],r_['a'],r_['h']))
-            if not sc: continue
+            if not sc: return
             asc,hsc=sc
             if r_['mk']=='spread': c_=((hsc-asc) if r_['sd']=='hs' else (asc-hsc))+r_['pt']
             elif r_['mk']=='total': c_=((asc+hsc)-r_['pt'])*(1 if r_['sd']=='ov' else -1)
@@ -786,25 +903,40 @@ try:
             r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[asc,hsc]
         else:
             gm=fin.get((r_['wk'],r_.get('tm')))
-            if not gm or logmax<r_['wk']: continue
+            if not gm or logmax<r_['wk']: return
             row=[x for x in LOG.get(r_['gid'],[]) if x[0]==r_['wk']]
-            if not row: r_['res']='V'; continue
+            if not row: r_['res']='V'; return
             val=row[0][SI[r_['mk']]]; r_['val']=val
             if r_['sd']=='y': r_['res']='W' if val>=1 else 'L'
             else:
                 c_=(val-r_['pt'])*(1 if r_['sd']=='o' else -1); r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'
-        r_['u']=round(dec(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
+    for r_ in PLOG.values():
+        if r_.get('res') is not None or not started(r_['t']) or r_.get('wk') is None: continue
+        if r_['k']=='x':
+            for l in r_['legs']:
+                if l.get('res') is None and started(l['t']): grade_one(l)
+            rs=[l.get('res') for l in r_['legs']]
+            if 'L' in rs: r_['res']='L'; r_['u']=-1
+            elif None not in rs:
+                d=1.0
+                for l in r_['legs']:
+                    if l['res']=='W': d*=dec(l['pr'])
+                if r_['bk']!='mixed' and all(x=='W' for x in rs): d=r_['dec']   # every leg won: the parlay's own price
+                r_['res']='W' if any(x=='W' for x in rs) else 'P'; r_['u']=round(d-1,3) if r_['res']=='W' else 0
+            continue
+        grade_one(r_)
+        if r_.get('res'): r_['u']=round(dec(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
     if not os.environ.get('ODDS_OFFLINE'): json.dump(PLOG,open(pkf,'w'))
     def summ(rs):
         return {'w':sum(1 for r in rs if r.get('res')=='W'),'l':sum(1 for r in rs if r.get('res')=='L'),'p':sum(1 for r in rs if r.get('res') in('P','V')),'u':round(sum(r.get('u',0) or 0 for r in rs),2)}
-    done=[r for r in PLOG.values() if r.get('res')]
-    REC2={'all':summ(done),'g':summ([r for r in done if r['k']=='g']),'p':summ([r for r in done if r['k']=='p']),'s3':summ([r for r in done if r['s']>=3])}
+    done=[r for r in PLOG.values() if r.get('res') and r['k']!='x']
+    REC2={'x':summ([r for r in PLOG.values() if r.get('res') and r['k']=='x']),'all':summ(done),'g':summ([r for r in done if r['k']=='g']),'p':summ([r for r in done if r['k']=='p']),'s3':summ([r for r in done if r['s']>=3])}
     LGL=sorted(PLOG.values(),key=lambda r:r['t'],reverse=True)
     FIN=[[int(r.week),r.away_team,r.home_team,int(r.away_score),int(r.home_score)] for r in cur.itertuples()]
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
     books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
-    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
-    print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
+    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| parlays',[(x['kind'],len(x['legs']),x['pr'],x['bk'],x['pc']) for x in PX],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex)
 META['built']=DATE
