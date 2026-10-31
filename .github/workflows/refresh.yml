@@ -23,6 +23,10 @@ jobs:
       - run: pip install pandas numpy
       - name: Refit the projection model (weekly; skips itself if fresh)
         run: python model_fit.py || echo 'model fit failed, keeping the saved model'
+      - name: College games and lines (CollegeFootballData)
+        run: python cfb_fetch.py || echo 'college fetch failed'
+        env:
+          CFBD_KEY: ${{ secrets.CFBD_KEY }}
       - run: python build.py
         env:
           CFBD_KEY: ${{ secrets.CFBD_KEY }}
@@ -35,6 +39,7 @@ jobs:
           git config user.email "actions@github.com"
           git add index.html data.json
           if [ -f model.json ]; then git add model.json; fi
+          if [ -d cfb ]; then git add cfb; fi
           if [ -d odds ]; then git add odds; fi
           git diff --staged --quiet || git commit -m "Refresh data"
           git push
