@@ -1,0 +1,6 @@
+2026-10-31T17:07
+2022: 854 games, 1413 with lines, providers {'consensus': 1201, 'teamrankings': 724, 'Bovada': 814, 'William Hill (New Jersey)': 1363, 'Caesars Sportsbook (Colorado)': 32}
+2023: 868 games, 1347 with lines, providers {'teamrankings': 52, 'Bovada': 806, 'DraftKings': 733, 'Caesars Sportsbook (Colorado)': 76, 'ESPN Bet': 403, 'William Hill (New Jersey)': 835, 'consensus': 29}
+2024: 874 games, 1507 with lines, providers {'DraftKings': 772, 'Bovada': 757, 'ESPN Bet': 1501}
+2025: 888 games, 1547 with lines, providers {'Bovada': 887, 'DraftKings': 763, 'ESPN Bet': 1542}
+2026: 888 games, 1127 with lines, providers {'DraftKings': 1127, 'Bovada': 614}
