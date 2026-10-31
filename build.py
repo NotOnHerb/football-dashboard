@@ -1006,8 +1006,8 @@ try:
         mod=round(CR.get(h,0)-CR.get(a,0)+CH*hf,1) if (h in CR and a in CR) else None
         row={'id':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'ac':g.get('awayConference'),'hc':g.get('homeConference'),'neutral':bool(g['neutralSite']),
              'books':books,'sp':_st2.median(sps) if sps else None,'ou':_st2.median(ous) if ous else None,'wp':None if wp is None else round(wp,3),'mod':mod}
-        # best number: with 3+ books, the one book whose spread is 1.5 to 3 points off the others, one bet per game
-        # (backtested 2022-25, one bet per game: 150-115, 56.6%; 2023 54.0%, 2024 56.6%, 2025 64.0%)
+        # best number: with 3+ books, the one book whose spread is 1 to 3 points off the others, one bet per game
+        # (backtested 2023-25, one bet per game: gap 1.5-3 150-115, 56.6% = level II; gap 1-1.5 164-134, 55.0% = level I)
         if len(sps)>=3 and _start(g['startDate'])>_now:
             best=None
             for bn,v in books.items():
@@ -1015,12 +1015,13 @@ try:
                 d=v[0]-_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
                 if best is None or abs(d)>abs(best[0]): best=(d,bn,v[0])
             d,bn,s0=best
-            if 1.5<=abs(d)<3:
+            if 1<=abs(d)<3:
                 sd='hs' if d>0 else 'as'; pt=s0 if sd=='hs' else -s0
                 vv=books[bn]; prc=(vv[5] if sd=='hs' else vv[6]) if len(vv)>6 else None; prc=prc if prc is not None else -110
+                ok_price=prc>=-118   # a better number at a worse price gives the edge back (the backtest assumed about -110)
                 oth=_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
-                CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2})
-                row['pick']=CP[-1]['id']
+                if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2 if abs(d)>=1.5 else 1,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
+                if ok_price: row['pick']=CP[-1]['id']
         CG.append(row)
     # log and grade college picks (own record)
     cpf='odds/cfb_picks.json'
@@ -1037,7 +1038,7 @@ try:
     cd=[r for r in CLOG.values() if r.get('res')]
     CFB={'G':CG,'PK':CP,'LG':sorted(CLOG.values(),key=lambda r:r['t'],reverse=True)[:200],
          'REC':{'w':sum(r['res']=='W' for r in cd),'l':sum(r['res']=='L' for r in cd),'p':sum(r['res']=='P' for r in cd),'u':round(sum(r['u'] for r in cd),2)},
-         'BT':{'rule':'with 3+ books, one book 1.5 to 3 points off the others','record':[150,115],'seasons':'2023-25','by_season':{'2023':'75-64','2024':'43-33','2025':'32-18'},'model_vs_close':'about 50% (context only)'},
+         'BT':{'rule':'with 3+ books, one book 1 to 3 points off the others','record':[314,249],'l2':[150,115],'l1':[164,134],'seasons':'2023-25','by_season':{'2023':'75-64','2024':'43-33','2025':'32-18'},'model_vs_close':'about 50% (context only)'},
          'at':open('cfb/fetch_log.txt').read().split('\n')[0]}
     print('college ok: games',len(CG),'weeks',wks,'| picks',[(x['a'],x['h'],x['sd'],x['pt'],x['bk'],x['gap']) for x in CP],'| record',CFB['REC'])
 except Exception as ex: print('college skipped:',ex)
