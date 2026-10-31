@@ -961,12 +961,44 @@ try:
     R0,_=_ridge(lastg,{},5.0); CR,CH=_ridge(done,{t:.6*v for t,v in R0.items()},8.0)
     BKN={'DraftKings':'DraftKings','ESPN Bet':'ESPN BET','Bovada':'Bovada','William Hill (New Jersey)':'Caesars','Caesars Sportsbook (Colorado)':'Caesars'}
     upcoming=[g for g in cg if not g['completed'] and g.get('startDate') and _start(g['startDate'])>_now-datetime.timedelta(hours=4)]
+    try: _left=int(float(oinfo['credits_left'])) if oinfo.get('credits_left') is not None else None
+    except Exception: _left=None
+    OAE,ncinfo=sources.odds_ncaaf(_left); META['sources']['odds_college']=ncinfo
+    _BKO={'pinnacle':'Pinnacle','draftkings':'DraftKings','fanduel':'FanDuel','betmgm':'BetMGM','williamhill_us':'Caesars','espnbet':'ESPN BET','fanatics':'Fanatics','betrivers':'BetRivers','bovada':'Bovada','betonlineag':'BetOnline'}
+    _alias={'UConn':'Connecticut','Ole Miss':'Ole Miss','Miami':'Miami Hurricanes','Miami (OH)':'Miami (OH)','UTSA':'UTSA','UAB':'UAB','UCF':'UCF','SMU':'SMU','USC':'USC','TCU':'TCU','BYU':'BYU','LSU':'LSU','UNLV':'UNLV','UTEP':'UTEP','FIU':'Florida International','Hawai\u02bbi':'Hawaii','San José State':'San Jose State','Southern Miss':'Southern Mississippi','App State':'Appalachian State','UL Monroe':'UL Monroe','Louisiana':'Louisiana Ragin','Sam Houston':'Sam Houston','Massachusetts':'UMass'}
+    import re as _re3
+    def _nm(s): return _re3.sub(r'[^a-z0-9 ]','',str(s).lower().replace('&','and')).strip()
+    def _match(cfbd,odds):
+        a=_nm(_alias.get(cfbd,cfbd)); o=_nm(odds)
+        return o==a or o.startswith(a+' ')
+    def _oa_for(g):
+        d0=_start(g['startDate'])
+        for e in OAE:
+            try:
+                if abs((_start(e['commence_time'])-d0).total_seconds())>36*3600: continue
+            except Exception: continue
+            if _match(g['homeTeam'],e['home_team']) and _match(g['awayTeam'],e['away_team']): return e,False
+            if _match(g['homeTeam'],e['away_team']) and _match(g['awayTeam'],e['home_team']): return e,True
+        return None,False
     wks=sorted({g['week'] for g in upcoming})[:2]
     CG=[];CP=[]
     for g in sorted([g for g in upcoming if g['week'] in wks],key=lambda g:g['startDate']):
         x=cl.get(g['id']) or {'lines':[]}; ls=[l for l in x['lines'] if l['provider'] in BKN]
         books={}
         for l in ls: books[BKN[l['provider']]]=[l.get('spread'),l.get('overUnder'),l.get('homeMoneyline'),l.get('awayMoneyline'),l.get('spreadOpen')]
+        oe,flip=_oa_for(g) if OAE else (None,False)
+        if oe:
+            for B in oe.get('bookmakers',[]):
+                nm_=_BKO.get(B['key']);
+                if not nm_: continue
+                v=[None,None,None,None,None,None,None]   # home spread, total, home ML, away ML, open, home spread price, away spread price
+                for M in B.get('markets',[]):
+                    oc={o.get('name'):o for o in M.get('outcomes',[])}
+                    H,A_=(oe['away_team'],oe['home_team']) if flip else (oe['home_team'],oe['away_team'])
+                    if M['key']=='spreads' and H in oc and A_ in oc: v[0]=oc[H].get('point'); v[5]=oc[H].get('price'); v[6]=oc[A_].get('price')
+                    elif M['key']=='totals' and 'Over' in oc: v[1]=oc['Over'].get('point')
+                    elif M['key']=='h2h' and H in oc and A_ in oc: v[2]=oc[H]['price']; v[3]=oc[A_]['price']
+                books[nm_]=v
         sps=[v[0] for v in books.values() if v[0] is not None]; ous=[v[1] for v in books.values() if v[1] is not None]
         ml=[(v[2],v[3]) for v in books.values() if v[2] is not None and v[3] is not None]
         wp=_st2.median([_prob(a)/(_prob(a)+_prob(c)) for a,c in ml]) if ml else None
@@ -979,14 +1011,15 @@ try:
         if len(sps)>=3 and _start(g['startDate'])>_now:
             best=None
             for bn,v in books.items():
-                if v[0] is None: continue
+                if v[0] is None or bn=='Pinnacle': continue
                 d=v[0]-_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
                 if best is None or abs(d)>abs(best[0]): best=(d,bn,v[0])
             d,bn,s0=best
             if 1.5<=abs(d)<3:
                 sd='hs' if d>0 else 'as'; pt=s0 if sd=='hs' else -s0
+                vv=books[bn]; prc=(vv[5] if sd=='hs' else vv[6]) if len(vv)>6 else None; prc=prc if prc is not None else -110
                 oth=_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
-                CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':-110,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2})
+                CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2})
                 row['pick']=CP[-1]['id']
         CG.append(row)
     # log and grade college picks (own record)

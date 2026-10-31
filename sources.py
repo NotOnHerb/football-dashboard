@@ -284,3 +284,44 @@ def weather_at(team, kickoff_iso):
     i = min(range(len(h['time'])), key=lambda j: abs((dt.datetime.fromisoformat(h['time'][j] + '+00:00') - k).total_seconds()))
     g = lambda c: (None if h[c][i] is None else round(h[c][i]))
     return {'t': g('temperature_2m'), 'w': g('wind_speed_10m'), 'g': g('wind_gusts_10m'), 'pp': g('precipitation_probability')}
+
+
+# ---------------------------------------------------------------- college lines from The Odds API (Fri/Sat, budget-aware)
+ODDS_NCAAF = 'https://api.the-odds-api.com/v4/sports/americanfootball_ncaaf/'
+
+
+def odds_ncaaf(credits_left, cache='odds/ncaaf.json'):
+    """College game lines on Friday and Saturday mornings (US Central), at most once per 20 hours.
+    One request covers every game; cost is per bet type: spreads+totals+moneylines = 3 credits, spreads only = 1.
+    Budget: keep enough credits for the rest of the month's NFL pulls (about 3 a day for lines plus about 85 per
+    remaining NFL weekend for props) plus the 40-credit reserve. If 3 credits don't fit, take spreads only; if 1
+    doesn't fit, skip and keep the cached lines. Returns (events or [], info)."""
+    import json, datetime as dt, calendar
+    now = dt.datetime.now(dt.timezone.utc); local = now.astimezone(dt.timezone(dt.timedelta(hours=-5)))
+    try: cached = json.load(open(cache))
+    except Exception: cached = None
+    info = {'fetched_now': False, 'markets': cached and cached.get('markets'), 'at': cached and cached.get('fetched'), 'why': ''}
+    key = os.environ.get('ODDS_API_KEY')
+    if os.environ.get('ODDS_OFFLINE') or not key:
+        info['why'] = 'offline'; return (cached or {}).get('data', []), info
+    age_h = (now - dt.datetime.fromisoformat(cached['fetched'])).total_seconds() / 3600 if cached else None
+    if local.weekday() not in (4, 5) or (age_h is not None and age_h < 20):
+        info['why'] = 'not a college pull day' if local.weekday() not in (4, 5) else 'pulled recently'
+        return (cached or {}).get('data', []), info
+    days_left = calendar.monthrange(local.year, local.month)[1] - local.day
+    fridays_left = sum(1 for d in range(1, days_left + 1) if (local + dt.timedelta(days=d)).weekday() == 4)
+    nfl_need = 3 * days_left + 85 * fridays_left
+    room = (credits_left if credits_left is not None else 0) - ODDS_RESERVE - nfl_need
+    markets = 'h2h,spreads,totals' if room >= 3 else 'spreads' if room >= 1 else None
+    if credits_left is None: markets = 'spreads'
+    if not markets:
+        info['why'] = 'skipped to protect NFL credits (left %s, NFL needs about %d)' % (credits_left, nfl_need)
+        return (cached or {}).get('data', []), info
+    req = urllib.request.Request(ODDS_NCAAF + 'odds?bookmakers=%s&markets=%s&oddsFormat=american&apiKey=%s' % (ODDS_BOOKS, markets, key),
+                                 headers={'User-Agent': 'football-dashboard'})
+    r = urllib.request.urlopen(req, timeout=60); data = json.load(r)
+    out = {'fetched': now.isoformat(), 'markets': markets, 'data': data,
+           'credits_left': r.headers.get('x-requests-remaining'), 'used': r.headers.get('x-requests-last')}
+    json.dump(out, open(cache, 'w'), separators=(',', ':'))
+    info.update(fetched_now=True, markets=markets, at=out['fetched'], why='pulled (%s credits)' % out['used'])
+    return data, info
