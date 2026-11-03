@@ -2,10 +2,10 @@ import pandas as pd, numpy as np, json, gzip, base64
 import os, datetime
 import sources
 from engine.odds import implied, decimal, no_vig_shin, no_vig_proportional, consensus_line, median, normal_cdf
-from engine.rules import RULES
+from engine.rules import RULES, COLLEGE_EXCLUDED_BOOKS, COLLEGE_GAP_MAX, COLLEGE_GAP_MIN, COLLEGE_GAP_STRONG, COLLEGE_MIN_BOOKS, COLLEGE_MIN_PRICE, COLLEGE_MIN_SCORE, COLLEGE_STRONG_SCORE
 from engine.projections import base_projection, matchup_factor, td_chance
 from engine.team_model import fit_nfl, project, fit_ridge_margins
-from engine.picks import game_picks, prop_picks, started as kicked_off
+from engine.picks import official_picks, picks_by_book, started as kicked_off
 from engine.parlays import build_parlays
 from engine.grading import grade_log, summarize
 SEASON=sources.SEASON
@@ -529,12 +529,12 @@ try:
         if not a_ or not h_: continue
         bb={}
         for B in ev.get('bookmakers',[]):
-            nm_=bk(B['key']); x={}
+            nm_=bk(B['key']); x={}   # a spread or total posted without a line can't be priced, so it is left out
             for M in B.get('markets',[]):
                 oc={(o.get('name')):o for o in M.get('outcomes',[])}
                 if M['key']=='h2h' and ev['home_team'] in oc and ev['away_team'] in oc: x['m']=[oc[ev['home_team']]['price'],oc[ev['away_team']]['price']]
-                elif M['key']=='spreads' and ev['home_team'] in oc and ev['away_team'] in oc: x['s']=[oc[ev['home_team']].get('point'),oc[ev['home_team']]['price'],oc[ev['away_team']].get('point'),oc[ev['away_team']]['price']]
-                elif M['key']=='totals' and 'Over' in oc and 'Under' in oc: x['o']=[oc['Over'].get('point'),oc['Over']['price'],oc['Under']['price']]
+                elif M['key']=='spreads' and ev['home_team'] in oc and ev['away_team'] in oc and oc[ev['home_team']].get('point') is not None and oc[ev['away_team']].get('point') is not None: x['s']=[oc[ev['home_team']].get('point'),oc[ev['home_team']]['price'],oc[ev['away_team']].get('point'),oc[ev['away_team']]['price']]
+                elif M['key']=='totals' and 'Over' in oc and 'Under' in oc and oc['Over'].get('point') is not None: x['o']=[oc['Over'].get('point'),oc['Over']['price'],oc['Under']['price']]
             if x: bb[nm_]=x; BKS[nm_]=BKS.get(nm_,0)+1
         # fair odds: Pinnacle (the sharpest book) with its cut removed when it has the market, otherwise the middle of the other books
         fair={'ref':{}}; pin=bb.get('Pinnacle',{})
@@ -632,8 +632,7 @@ try:
     nowu=datetime.datetime.now(datetime.timezone.utc)
     started=lambda iso:kicked_off(iso,nowu)
     WKOF={g['id']:g['wk'] for g in GL}
-    PK=game_picks(GL,nowu)+prop_picks(PR,MODEL,MB,nowu,INJ,weeks=WKOF)
-    PK.sort(key=lambda x:-x['srt'])
+    PK=official_picks(GL,PR,MODEL,MB,nowu,INJ,weeks=WKOF)
     # ---- parlays (for fun, tracked as their own record): of the week, of the game (same-game combo), anytime TD
     PX=build_parlays(PK,PR,GL,BKS,MODEL,MB,nowu,INJ)
     # ---- pick log: a pick counts if it was a pick at the last refresh before kickoff; graded from final scores and weekly stats
@@ -657,7 +656,8 @@ try:
     FIN=[[int(r.week),r.away_team,r.home_team,int(r.away_score),int(r.home_score)] for r in cur.itertuples()]
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
     books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
-    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    PKB=picks_by_book(books,GL,PR,MODEL,MB,nowu,INJ,weeks=WKOF)   # PK again for each sportsbook, using only that book's quotes (ODD.PKB)
+    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'PKB':PKB,'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
     ok('odds'); print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| parlays',[(x['kind'],len(x['legs']),x['pr'],x['bk'],x['pc']) for x in PX],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex); bad('odds',ex,'ODDS_API_KEY')
@@ -721,19 +721,19 @@ try:
              'books':books,'sp':_st2.median(sps) if sps else None,'ou':_st2.median(ous) if ous else None,'wp':None if wp is None else round(wp,3),'mod':mod}
         # best number: with 3+ books, the one book whose spread is 1 to 3 points off the others, one bet per game
         # (backtested 2023-25, one bet per game: gap 1.5-3 150-115, 56.6% = level II; gap 1-1.5 164-134, 55.0% = level I)
-        if len(sps)>=3 and _start(g['startDate'])>_now:
+        if len(sps)>=COLLEGE_MIN_BOOKS and _start(g['startDate'])>_now:
             best=None
             for bn,v in books.items():
-                if v[0] is None or bn=='Pinnacle': continue
+                if v[0] is None or bn in COLLEGE_EXCLUDED_BOOKS: continue
                 d=v[0]-_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
                 if best is None or abs(d)>abs(best[0]): best=(d,bn,v[0])
             d,bn,s0=best
-            if 1<=abs(d)<3:
+            if COLLEGE_GAP_MIN<=abs(d)<COLLEGE_GAP_MAX:
                 sd='hs' if d>0 else 'as'; pt=s0 if sd=='hs' else -s0
                 vv=books[bn]; prc=(vv[5] if sd=='hs' else vv[6]) if len(vv)>6 else None; prc=prc if prc is not None else -110
-                ok_price=prc>=-118   # a better number at a worse price gives the edge back (the backtest assumed about -110)
+                ok_price=prc>=COLLEGE_MIN_PRICE   # a better number at a worse price gives the edge back (the backtest assumed about -110)
                 oth=_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
-                if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2 if abs(d)>=1.5 else 1,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
+                if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':COLLEGE_STRONG_SCORE if abs(d)>=COLLEGE_GAP_STRONG else COLLEGE_MIN_SCORE,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
                 if ok_price: row['pick']=CP[-1]['id']
         CG.append(row)
     # log and grade college picks (own record)

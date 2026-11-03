@@ -148,3 +148,82 @@ def test_parlay_of_the_week_at_one_book():
 
 def test_no_parlays_without_picks():
     assert parlays.build_parlays([], [], [], {}, None, 1.0, NOW, {}) == []
+
+
+# ---- per-book picks (data.json ODD.PKB)
+
+GOLDEN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'golden')
+SHOWN_GAMES, SHOWN_PROPS = 6, 9   # picks the Picks page lists beyond the pick of the week before "Show all"
+
+
+def js(x):
+    """A number the way JavaScript prints it: 3.0 is '3', 44.5 is '44.5'."""
+    return str(int(x)) if isinstance(x, float) and x == int(x) else str(x)
+
+
+def am(x): return '–' if x is None else ('+' if x > 0 else '') + js(x)
+
+
+def card_text(x):
+    """The title and price line of a pick's card on the Picks page (minus the kickoff time), from the pick."""
+    if x['k'] == 'g':
+        team = x['h'] if x['sd'] in ('hs', 'mh') else x['a']
+        title = ('Over %s' % js(x['pt'])) if x['sd'] == 'ov' else ('Under %s' % js(x['pt'])) if x['sd'] == 'un' else \
+            '%s to win' % team if x['mk'] == 'ml' else '%s %s' % (team, 'PK' if x['pt'] == 0 else am(x['pt']))
+        return '%s %s %s %s · %s at %s' % (['', 'I', 'II', 'III'][min(3, max(1, x['s']))], title, am(x['pr']), x['bk'], x['a'], x['h'])
+    title = 'Anytime TD' if x['sd'] == 'y' else '%s %s %s' % ('Over' if x['sd'] == 'o' else 'Under', js(x['pt']), x['mk'])
+    return '%s %s %s %s %s · %s vs %s' % (['', 'I', 'II', 'III'][min(3, max(1, x['s']))], x['n'], title, am(x['pr']), x['bk'], x['tm'], x['opp'])
+
+
+def test_pkb_matches_page():
+    """Every sportsbook's Picks view on the page shows the picks in ODD.PKB for that book: the pick of the week, then
+    up to 6 game picks and 9 prop picks, each with the same player or team, market, side, line, book and price."""
+    import gzip, json
+    data = json.load(gzip.open(os.path.join(GOLDEN, 'expected_data.json.gz'), 'rt', encoding='utf-8'))
+    page = json.load(gzip.open(os.path.join(GOLDEN, 'expected_page.json.gz'), 'rt', encoding='utf-8'))
+    O = data['ODD']
+    assert list(O['PKB']) == O['books']
+    checked, seen = 0, set()
+    for view, text in page.items():
+        if not view.startswith('betting/nfl/picks/') or view.endswith('player-card'): continue
+        name = view.split('betting/nfl/picks/', 1)[1]; seen.add(name)
+        pk = O['PK'] if name == 'best-available' else O['PKB'][name]
+        top, rest = (pk[0], pk[1:]) if pk else (None, [])
+        shown = ([top] if top else []) + [x for x in rest if x['k'] == 'g'][:SHOWN_GAMES] + [x for x in rest if x['k'] == 'p'][:SHOWN_PROPS]
+        assert text.count('What you need:') == len(shown), view
+        assert text.count('PICK OF THE WEEK') == (1 if top else 0), view
+        if not shown: assert 'No picks clear the bar right now' in text, view
+        at = text.index('PICK OF THE WEEK') if top else 0
+        for x in shown:
+            label = card_text(x)
+            i = text.find(label, at)
+            assert i >= 0, '%s: %r not shown after position %d' % (view, label, at)
+            at = i + len(label)
+        checked += len(shown)
+    assert seen == set(O['books']) | {'best-available'}   # the snapshot has a Picks view for every book
+    assert checked   # the golden clock leaves at least one pick to compare
+
+
+def test_card_text_prints_numbers_like_the_page():
+    g = {'k': 'g', 'sd': 'hs', 'mk': 'spread', 'pt': 3.0, 'pr': 105, 'bk': 'X', 's': 2, 'a': 'AW', 'h': 'HM'}
+    assert card_text(g) == 'II HM +3 +105 X · AW at HM'
+    assert card_text(dict(g, sd='ov', mk='total', pt=44.0, pr=-110)) == 'II Over 44 -110 X · AW at HM'
+    assert card_text(dict(g, pt=0.0)).startswith('II HM PK ')
+    p = {'k': 'p', 'sd': 'u', 'mk': 'Rec yds', 'pt': 44.5, 'pr': -117, 'bk': 'X', 's': 2, 'n': 'A B', 'tm': 'HM', 'opp': 'AW'}
+    assert card_text(p) == 'II A B Under 44.5 Rec yds -117 X · HM vs AW'
+
+
+def test_picks_by_book_looks_at_one_book_at_a_time():
+    gs, ps = [game('E1')], [td_prop('P1', price=150), yds_prop('P2')]
+    by = picks.picks_by_book(['X', 'Y'], gs, ps, None, 1.0, NOW, {}, weeks={'E1': 9})
+    assert list(by) == ['X', 'Y']
+    assert [x['id'] for x in by['X']] == [x['id'] for x in picks.official_picks(gs, ps, None, 1.0, NOW, {}, {'X'}, {'E1': 9})]
+    assert {x['bk'] for x in by['X']} == {'X'} and 'g|E1|spread|hs' in [x['id'] for x in by['X']]
+    assert by['Y'] == []
+
+
+def test_official_picks_sorts_games_and_props_together():
+    gs, ps = [game('E1')], [td_prop('P1')]
+    pk = picks.official_picks(gs, ps, None, 1.0, NOW, {})
+    assert len(pk) == 2 and [x['srt'] for x in pk] == sorted((x['srt'] for x in pk), reverse=True)
+    assert pk == picks.official_picks(gs, ps, None, 1.0, NOW, {}, None)

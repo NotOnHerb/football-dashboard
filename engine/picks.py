@@ -12,7 +12,7 @@ import datetime
 
 from engine.odds import decimal, implied, no_vig_proportional
 from engine.projections import p_over
-from engine.rules import RULES, lean_tier, value_score
+from engine.rules import LEAN_MAX_SCORE, LEAN_MIN_GAMES, RULES, lean_tier, value_score
 
 # game side -> (market, index of the line, index of the price) in a book's market list
 GAME_SIDES = {'hs': ('s', 0, 1), 'as': ('s', 2, 3), 'ov': ('o', 0, 1), 'un': ('o', 0, 2), 'mh': ('m', None, 0), 'ma': ('m', None, 1)}
@@ -124,8 +124,8 @@ def prop_side(prop, model, blend, books=None):
         if not q: return None
         im = implied(q['pr']); pf = p['fair'][1] if p['fair'] else None
         P = None if p['pj'] is None or pf is None else MB * p['pj'] + (1 - MB) * pf
-        ls = lean_tier(P - im) if (P is not None and n >= 4 and q['pr'] <= RULES['tdmax']) else 0
-        return {'sd': 'y', 'q': q, 'ls': ls, 'vs': 0, 'v': None, 's': min(ls, 2), 'srt': (P - im) if P is not None else 0, 'P': P}
+        ls = lean_tier(P - im) if (P is not None and n >= LEAN_MIN_GAMES and q['pr'] <= RULES['tdmax']) else 0
+        return {'sd': 'y', 'q': q, 'ls': ls, 'vs': 0, 'v': None, 's': min(ls, LEAN_MAX_SCORE), 'srt': (P - im) if P is not None else 0, 'P': P}
 
     def side(q, dr):
         if not q: return None
@@ -134,13 +134,13 @@ def prop_side(prop, model, blend, books=None):
         P = None
         if po is not None and fo is not None: P = MB * po + (1 - MB) * fo; P = P if dr > 0 else 1 - P
         e = None if P is None else P - implied(q['pr'])
-        ls = lean_tier(e) if (e is not None and n >= 4 and q['pt'] >= RULES['minl'].get(p['mk'], 0)) else 0
+        ls = lean_tier(e) if (e is not None and n >= LEAN_MIN_GAMES and q['pt'] >= RULES['minl'].get(p['mk'], 0)) else 0
         v = None
         if p['fair'] and p['fair'][0] == q['pt']: v = (p['fair'][1] if dr > 0 else 1 - p['fair'][1]) * decimal(q['pr']) - 1
         vs = value_score(v)
         if v is not None and v > RULES['stale']: vs = 0
         if e is not None and e < 0: vs = 0   # never pick a side our own chance says loses at this price
-        return {'sd': 'o' if dr > 0 else 'u', 'q': q, 'ls': ls, 'vs': vs, 'v': v, 's': min(ls, 2) + vs, 'srt': e or 0, 'P': P}
+        return {'sd': 'o' if dr > 0 else 'u', 'q': q, 'ls': ls, 'vs': vs, 'v': v, 's': min(ls, LEAN_MAX_SCORE) + vs, 'srt': e or 0, 'P': P}
     o, u = side(best_prop_quote(p, 'o', books), 1), side(best_prop_quote(p, 'u', books), -1)
     if o and u: return u if u['s'] > o['s'] or (u['s'] == o['s'] and u['srt'] > o['srt']) else o
     return o or u
@@ -164,6 +164,8 @@ def prop_picks(props, model, blend, now, injured, books=None, weeks=None):
     """Official prop picks for props whose game hasn't started by NOW and whose player isn't hurt (INJURED: gsis id ->
     report status), strongest first. WEEKS (event id -> week) labels each pick's week; the build passes the games'."""
     weeks = weeks or {}; PK = []
+    # a prop with no kickoff time is skipped here, while the page's past() check would still list it; the Odds API always
+    # sends commence_time, so the two never disagree on real data
     for p in props:
         if not p.get('ko') or started(p['ko'], now) or is_hurt(injured, p['gid']): continue
         x = prop_side(p, model, blend, books)
@@ -171,3 +173,17 @@ def prop_picks(props, model, blend, now, injured, books=None, weeks=None):
             q = x['q']; PK.append({'id': 'p|%s|%s|%s|%s' % (p['eid'], p['gid'], p['mk'], x['sd']), 'k': 'p', 'eid': p['eid'], 'wk': weeks.get(p['eid']), 't': p['ko'], 'n': p['n'], 'gid': p['gid'], 'tm': p['t'], 'opp': p['opp'], 'mk': p['mk'], 'sd': x['sd'], 'pt': q['pt'], 'pr': q['pr'], 'bk': q['bk'], 's': x['s'], 'v': None if x['v'] is None else round(x['v'], 4), 'ls': x['ls'], 'vs': x['vs'], 'pj': p['pj'], 'pc': None if x.get('P') is None else round(x['P'], 4), 'srt': x['s'] + x['srt'] + (x['v'] or 0) * 5})
     PK.sort(key=lambda x: -x['srt'])
     return PK
+
+
+def official_picks(games, props, model, blend, now, injured, books=None, weeks=None):
+    """Every official pick, games and props together, strongest first (ODD.PK). BOOKS=None prices each side at the best
+    quote across all books; a set of book names only looks at those books."""
+    pk = game_picks(games, now, books) + prop_picks(props, model, blend, now, injured, books, weeks)
+    pk.sort(key=lambda x: -x['srt'])
+    return pk
+
+
+def picks_by_book(book_names, games, props, model, blend, now, injured, weeks=None):
+    """{book: official picks when only that book's quotes are available} for each name in BOOK_NAMES (ODD.PKB). The page's
+    sportsbook selector shows these lists."""
+    return {b: official_picks(games, props, model, blend, now, injured, {b}, weeks) for b in book_names}

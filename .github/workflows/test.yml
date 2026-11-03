@@ -13,6 +13,8 @@ on:
       - model_fit.py
       - cfb_fetch.py
       - check_health.py
+      - api_export.py
+      - 'mcp_server/**'
       - 'analyst/**'
       - 'schema/**'
       - 'engine/**'
