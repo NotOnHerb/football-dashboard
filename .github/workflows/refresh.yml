@@ -12,6 +12,11 @@ on:
 permissions:
   contents: write
 
+# One refresh at a time, so two runs never push at once. A second run waits its turn.
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -20,11 +25,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pandas numpy
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      # The next two steps can fail without stopping the run; a failure shows as a warning on the run page.
       - name: Refit the projection model (weekly; skips itself if fresh)
-        run: python model_fit.py || echo 'model fit failed, keeping the saved model'
+        run: python model_fit.py || echo "::warning::Model fit failed, keeping the saved model"
       - name: College games and lines (CollegeFootballData)
-        run: python cfb_fetch.py || echo 'college fetch failed'
+        run: python cfb_fetch.py || echo "::warning::College fetch failed, keeping the saved college data"
         env:
           CFBD_KEY: ${{ secrets.CFBD_KEY }}
       - run: python build.py
@@ -43,3 +51,7 @@ jobs:
           if [ -d odds ]; then git add odds; fi
           git diff --staged --quiet || git commit -m "Refresh data"
           git push
+      # Runs after the save, so the site and pick ledgers are kept even when a section failed.
+      # A failure here fails the run, which notifies the owner.
+      - name: Check every section built
+        run: python check_health.py

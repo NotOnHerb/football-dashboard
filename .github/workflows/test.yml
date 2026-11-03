@@ -1,0 +1,38 @@
+name: Test
+
+# Runs the golden test on code changes. The daily data-only commits don't trigger it.
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - build.py
+      - sources.py
+      - template.html
+      - model_fit.py
+      - cfb_fetch.py
+      - check_health.py
+      - 'analyst/**'
+      - 'tests/**'
+      - 'requirements*.txt'
+      - .github/workflows/test.yml
+
+permissions:
+  contents: read
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Golden test
+        run: python -m pytest -q
