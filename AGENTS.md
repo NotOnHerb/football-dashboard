@@ -4,7 +4,7 @@ Instructions for AI agents (and new humans) working in this repo.
 
 ## What this repo is
 
-A static NFL and college football betting dashboard, published on GitHub Pages
+A static NFL and college football dashboard for stats, fantasy and betting, published on GitHub Pages
 (https://notonherb.github.io/football-dashboard/). There is no server and no build step for the page.
 
 - `sources.py` is the only file that downloads data. `build.py` turns it into `data.json` (also split by top-level
@@ -27,7 +27,9 @@ Useful pages: `03-data-contract.md` (every key and row of `data.json`), `05-fron
 
 ## Running things
 
-Run Python through uv (the bare `py` launcher is broken on the owner's machine), from the repo root:
+Run Python from the repo root with the pinned packages, for example through uv. (The bare `py` launcher is broken on
+Thomas's Windows machine, so use uv or `py -3.12` there. The owner works in Claude cloud sessions, which can't always
+install the test packages; there the Test check on the PR runs the suite.)
 
     PYTHONHASHSEED=0 PYTHONUTF8=1 uv run --no-project --python 3.12 --with-requirements requirements-dev.txt python -m pytest -q
 
