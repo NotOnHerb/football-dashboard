@@ -21,11 +21,8 @@ A static NFL and college football betting dashboard, published on GitHub Pages
 
 ## Knowledgebase
 
-The architecture notes live on the branch `repo-knowledgebase` (PR #1), in `docs/knowledgebase/`, not in the main
-checkout. Read a page without switching branches:
-
-    git show repo-knowledgebase:docs/knowledgebase/03-data-contract.md
-
+The architecture notes live in `docs/knowledgebase/`. They describe the code before the refactor (commit `74fbe2d`),
+so their line numbers in `03`, `05` and `06` no longer match; when a page disagrees with the code, the code wins.
 Useful pages: `03-data-contract.md` (every key and row of `data.json`), `05-frontend.md`, `09-refactor-roadmap.md`.
 
 ## Running things
