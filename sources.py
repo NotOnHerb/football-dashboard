@@ -9,9 +9,11 @@ Each loader returns (dataframe, info) where info is a small dict describing fres
 for example {'provider': 'nflverse', 'asof': '2026-10-26'}. The site shows it.
 """
 import io, os, urllib.request
+from zoneinfo import ZoneInfo
 import pandas as pd
 
 SEASON = int(os.environ.get('SEASON', 2026))
+CENTRAL = ZoneInfo('America/Chicago')   # the owner's time zone; odds pulls are scheduled by its days (handles daylight time)
 NFLVERSE = 'https://github.com/nflverse/nflverse-data/releases/download/'
 
 
@@ -186,7 +188,7 @@ def odds_update(week_pairs, team_of_name, cache_dir='odds'):
     lines = call('odds?bookmakers=%s&markets=h2h,spreads,totals&oddsFormat=american' % ODDS_BOOKS)
     json.dump({'fetched': now.isoformat(), 'data': lines}, open(os.path.join(cache_dir, 'lines.json'), 'w'))
     plan, mode = os.environ.get('ODDS_PLAN', 'free'), os.environ.get('ODDS_PROPS', 'auto')
-    local = now.astimezone(dt.timezone(dt.timedelta(hours=-5)))  # US Central (close enough for scheduling)
+    local = now.astimezone(CENTRAL)
     events = []
     for ev in lines:
         pair = (team_of_name.get(ev['away_team']), team_of_name.get(ev['home_team']))
@@ -202,7 +204,7 @@ def odds_update(week_pairs, team_of_name, cache_dir='odds'):
             continue
         age_h = (now - dt.datetime.fromisoformat(cached['fetched'])).total_seconds() / 3600 if cached else None
         days_out = (start - now).total_seconds() / 86400
-        start_local = start.astimezone(dt.timezone(dt.timedelta(hours=-5)))
+        start_local = start.astimezone(CENTRAL)
         if mode == 'off':
             want = False
         elif mode == 'all':
@@ -297,7 +299,7 @@ def odds_ncaaf(credits_left, cache='odds/ncaaf.json'):
     remaining NFL weekend for props) plus the 40-credit reserve. If 3 credits don't fit, take spreads only; if 1
     doesn't fit, skip and keep the cached lines. Returns (events or [], info)."""
     import json, datetime as dt, calendar
-    now = dt.datetime.now(dt.timezone.utc); local = now.astimezone(dt.timezone(dt.timedelta(hours=-5)))
+    now = dt.datetime.now(dt.timezone.utc); local = now.astimezone(CENTRAL)
     try: cached = json.load(open(cache))
     except Exception: cached = None
     info = {'fetched_now': False, 'markets': cached and cached.get('markets'), 'at': cached and cached.get('fetched'), 'why': ''}

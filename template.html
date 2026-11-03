@@ -870,7 +870,7 @@ function pct(x,d){return x==null?'–':(x*100).toFixed(d||0)+'%'}
 function ago(iso){if(!iso)return 'not yet';var m=Math.round((Date.now()-new Date(iso))/60000);return m<2?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' hr ago':Math.round(m/1440)+' days ago'}
 function kick(iso){return new Date(iso).toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'})}
 function bkn(b,short){return BS.book==='best'?' <small class="pcm">'+(short?(BK[b]||b):b)+'</small>':''}
-function RU(){return (D.ODD&&D.ODD.RU)||{val:[.025,.045,.07],stale:.1,mlmax:250,mlmin:-300,model:2.5,pick:2,minl:MINL}}
+function RU(){return (D.ODD&&D.ODD.RU)||{val:[.025,.045,.07],stale:.1,mlmax:250,mlmin:-300,model:2.5,pick:2,minl:MINL,tdmax:300}}
 function valS(v){var r=RU().val;return v==null?0:v>=r[2]?3:v>=r[1]?2:v>=r[0]?1:0}
 function past(iso){return iso&&new Date(iso)<=new Date()}
 function heat(x,full){if(!COLORS||x==null||!isFinite(x))return '';var a=Math.min(1,Math.abs(x)/full);if(a<.15)return '';return ' style="background:color-mix(in srgb,'+(x>0?'#2e9e5b':'#d9534f')+' '+Math.round(8+a*30)+'%,var(--panel))"'}
