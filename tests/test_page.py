@@ -16,7 +16,7 @@ and images get empty answers.
 A change that is meant to change what the page shows is accepted by re-blessing and committing the new file:
     python tests/test_page.py --bless
 """
-import copy, functools, gzip, hashlib, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading, time
+import copy, functools, gzip, hashlib, http.server, json, os, re, shutil, statistics, subprocess, sys, tempfile, threading, time
 from urllib.parse import urlparse
 
 import pytest
@@ -83,8 +83,10 @@ def site_data(directory):
 
 # ---------------------------------------------------------------- made-up data on top of the golden data
 
-def prospect(name, pos, school, conf, cls, stars, hs, elig, grade, score, rank, cons, **stats):
-    """One CF.P row, in the order of schema.fields.FIELDS['CF.P'], computed like build.py (fantasy points, consensus)."""
+def prospect(name, pos, school, conf, cls, stars, hs, elig, grade, score, rank, board, **stats):
+    """One CF.P row, in the order of schema.fields.FIELDS['CF.P'], computed like build.py: fantasy points from the stats;
+    for a player on the consensus board (board = his CF.CB.P row) the consensus fields come from that row and the grade
+    follows his rank (build.py: <=10 A+, <=25 A, <=50 A-, <=75 B+, else B)."""
     s = dict(pass_att=None, pass_pct=None, pass_yds=None, pass_td=None, pass_int=None, pass_ypa=None, rush_car=None, rush_yds=None,
              rush_td=None, rush_ypc=None, rec_rec=None, rec_yds=None, rec_td=None, rec_ypr=None, rec_yds_share=None, rush_yds_share=None)
     s.update(stats)
@@ -94,7 +96,10 @@ def prospect(name, pos, school, conf, cls, stars, hs, elig, grade, score, rank, 
              usage_pct=18, avg_ppa=.21, total_ppa=33.2, draft_eligible=elig, height=75 if pos in ('WR', 'TE', 'QB') else 71,
              weight=215 if pos != 'RB' else 205, dynasty_score=score, letter_grade=grade, ppr_total=round(ppr + z('rec_rec'), 1),
              std_total=round(ppr, 1), team_games=9, consensus_rank=None, avg_rank=None, boards=None, best_rank=None, worst_rank=None, **s)
-    if cons: v.update(consensus_rank=cons, avg_rank=cons + .5, boards=3, best_rank=cons - 1, worst_rank=cons + 4)
+    if board:
+        r = board[0]
+        v.update(consensus_rank=r, avg_rank=board[4], boards=board[5], best_rank=board[6], worst_rank=board[7],
+                 letter_grade='A+' if r <= 10 else 'A' if r <= 25 else 'A-' if r <= 50 else 'B+' if r <= 75 else 'B')
     fields = FIELDS['CF.P']
     assert set(v) == set(fields), set(v) ^ set(fields)
     return [v[f] for f in fields]
@@ -104,15 +109,16 @@ def with_college(data):
     """The golden build has no CFBD key, so D.CF is null. Adds a few made-up prospects so Fantasy -> College has
     something to show (and a name that can be injected into). Rows have the 40 fields build.py writes."""
     assert len(FIELDS['CF.P']) == 40
+    bp = [[4, 'Sample Prospect A', 'WR', 'Ohio State', 4.5, 3, 3, 8, 3, 4, 8],
+          [9, 'Sample Prospect B', 'QB', 'Texas', 9.5, 3, 8, 12, 8, 9, 12]]  # CF.CB.P rows: ... best, worst, then one rank per board
     data['CF'] = {
-        'P': [prospect('Sample Prospect A', 'WR', 'Ohio State', 'Big Ten', 3, 5, 2024, True, 'A+', 78.2, 4, 4, rec_rec=58, rec_yds=912, rec_td=8, rec_ypr=15.7, rec_yds_share=31),
-              prospect('Sample Prospect B', 'QB', 'Texas', 'SEC', 4, 4, 2023, True, 'A', 74.9, 9, 9, pass_att=262, pass_pct=66.4, pass_yds=2310, pass_td=19, pass_int=4, pass_ypa=8.8, rush_car=48, rush_yds=190, rush_td=3, rush_ypc=4.0),
+        'P': [prospect('Sample Prospect A', 'WR', 'Ohio State', 'Big Ten', 3, 5, 2024, True, 'A+', 78.2, 4, bp[0], rec_rec=58, rec_yds=912, rec_td=8, rec_ypr=15.7, rec_yds_share=31),
+              prospect('Sample Prospect B', 'QB', 'Texas', 'SEC', 4, 4, 2023, True, 'A+', 74.9, 9, bp[1], pass_att=262, pass_pct=66.4, pass_yds=2310, pass_td=19, pass_int=4, pass_ypa=8.8, rush_car=48, rush_yds=190, rush_td=3, rush_ypc=4.0),
               prospect('Sample Prospect C', 'RB', 'Tulane', 'American Athletic', 4, 3, 2023, True, 'B', 61.0, 120, None, rush_car=151, rush_yds=801, rush_td=9, rush_ypc=5.3, rec_rec=21, rec_yds=160, rec_td=1, rec_ypr=7.6, rush_yds_share=44),
               prospect('Sample Underclassman D', 'WR', 'Alabama', 'SEC', 2, 4, 2025, False, 'A-', 70.3, 31, None, rec_rec=41, rec_yds=588, rec_td=5, rec_ypr=14.3, rec_yds_share=24),
               prospect('Sample Underclassman E', 'TE', 'Oregon', 'Big Ten', 1, 3, 2026, False, 'B+', 64.4, 210, None, rec_rec=24, rec_yds=301, rec_td=3, rec_ypr=12.5, rec_yds_share=17)],
         'draft': 2027, 'tg': True,
-        'CB': {'P': [[4, 'Sample Prospect A', 'WR', 'Ohio State', 4.5, 3, 3, 8, 3, 4, 8],
-                     [9, 'Sample Prospect B', 'QB', 'Texas', 9.5, 3, 8, 12, 8, 9, 12]],
+        'CB': {'P': bp,
                'S': [['Sample Board 1', 'https://example.invalid/b1', '2026-10-01', 32],
                      ['Sample Board 2', 'https://example.invalid/b2', '2026-10-15', 50],
                      ['Sample Board 3', 'https://example.invalid/b3', '2026-10-20', 40]]}}
@@ -120,7 +126,9 @@ def with_college(data):
 
 def with_rich_week(data):
     """Two more NFL games (copies of the real CHI-SEA row with other teams and kickoffs), ten more prop picks, a few more
-    props in the new games, and two college picks (shaped like build.py's CFB.PK rows). For the "rich/" views."""
+    props in the new games, and two college picks (shaped like build.py's CFB.PK rows). For the "rich/" views.
+    Cloned props keep the source player's gid and stats (only name, team, opponent and kickoff change), so they share
+    his game log, injury status and hit rates."""
     O, base = data['ODD'], data['ODD']['G'][0]
     new = [('BUF', 'KC', '2026-11-08T18:00:00Z', 'Wk 8, Sun Nov 08, 1:00 PM ET', -1.0, 2.0),
            ('DAL', 'PHI', '2026-11-08T21:25:00Z', 'Wk 8, Sun Nov 08, 4:25 PM ET', 1.5, -3.0)]
@@ -141,15 +149,28 @@ def with_rich_week(data):
     for i in range(10): put(lov, 'Sample Receiver %d' % (i + 1), i)
     for i, src in enumerate(O['P'][:6]): put(src, 'Sample Prop %d' % (i + 1), i)
     O['P'].extend(extra)
+    # College picks the way build.py writes them (1008-1028): a game with 3+ spreads; the picked book (not Pinnacle) is
+    # 1 to 3 points off the median of the others; sd 'hs' when its home spread is above that median (the better number
+    # for the home side), 'as' when below; price from the book's own home (hs) or away (as) price.
     C = data['CFB']
     picks = []
-    for g in [g for g in C['G'] if sum(w[0] is not None for w in g['books'].values()) >= 2][:2]:
-        lines = {b: w[0] for b, w in g['books'].items() if w[0] is not None}
-        bk = next(iter(lines)); others = [v for b, v in lines.items() if b != bk]
-        mid = round(sum(others) / len(others) * 2) / 2
-        g['books'][bk][0] = lines[bk] = mid - 2.0
-        picks.append({'id': 'c|%s|hs' % g['id'], 'k': 'c', 'gid': g['id'], 'wk': g['wk'], 't': g['t'], 'a': g['a'], 'h': g['h'], 'sd': 'hs',
-                      'pt': lines[bk], 'pr': -110, 'bk': bk, 'gap': 2.0, 'others': mid, 's': 2, 'lines': lines})
+    games = [g for g in C['G'] if sum(w[0] is not None for w in g['books'].values()) >= 2][:2]
+    for g, (bk, off) in zip(games, (('BetMGM', 2.0), ('Caesars', -1.5))):
+        first = next(w for w in g['books'].values() if w[0] is not None)
+        for extra_bk in ('BetMGM', 'Caesars'):  # the golden college games have 2 books; add copies of the first so the rule has 3
+            if sum(w[0] is not None for w in g['books'].values()) < 3 and extra_bk not in g['books']:
+                g['books'][extra_bk] = (first + [None] * 7)[:5] + [-110, -110]
+        g['books'].setdefault(bk, (first + [None] * 7)[:5] + [-110, -110])
+        others = [w[0] for b, w in g['books'].items() if b != bk and w[0] is not None]
+        med = statistics.median(others)
+        g['books'][bk][0] = med + off
+        g['sp'] = statistics.median(w[0] for w in g['books'].values() if w[0] is not None)
+        sd = 'hs' if off > 0 else 'as'
+        s0 = g['books'][bk][0]
+        picks.append({'id': 'c|%s|%s' % (g['id'], sd), 'k': 'c', 'gid': g['id'], 'wk': g['wk'], 't': g['t'], 'a': g['a'], 'h': g['h'], 'sd': sd,
+                      'pt': s0 if sd == 'hs' else -s0, 'pr': g['books'][bk][5 if sd == 'hs' else 6], 'bk': bk, 'gap': round(abs(off), 1),
+                      'others': round(med if sd == 'hs' else -med, 1), 's': 2 if abs(off) >= 1.5 else 1,
+                      'lines': {b: (w[0] if sd == 'hs' else -w[0]) for b, w in g['books'].items() if w[0] is not None}})
     assert len(picks) == 2
     C['PK'] = picks
 
@@ -204,7 +225,7 @@ def espn_mock(data, inject=False):
                     'playerPoolEntry': {'player': {'fullName': L[k][0], 'defaultPositionId': pid[L[k][1]]}}} for j, k in enumerate(r)]
         if i == 1:
             entries.append({'playerId': 999999999, 'lineupSlotId': 20, 'playerPoolEntry': {'player': {
-                'fullName': attr('espn-player') if inject else 'Unmatched Test Player', 'defaultPositionId': 3}}})
+                'fullName': IMG if inject else 'Unmatched Test Player', 'defaultPositionId': 3}}})
         teams.append({'id': i + 1, 'name': names[i], 'owners': ['m%d' % (i + 1)], 'record': {'overall': {'wins': 5 - i, 'losses': 2 + i, 'pointsFor': 900.5 - 30 * i}},
                       'roster': {'entries': entries}})
     return {'settings': {'name': league_name, 'rosterSettings': {'lineupSlotCounts': {'0': 1, '2': 2, '4': 2, '6': 1, '23': 1, '20': 6}},
@@ -302,7 +323,8 @@ def describe_errors(errors):
 
 # Text the page shows when something went wrong or a section is empty (curly apostrophes as in template.html).
 BAD_TEXT = ['Couldn’t', 'aren’t loaded', 'isn’t available', 'aren’t available', 'Odds aren’t', 'Loading', 'No players match',
-            'No linemen match', 'No starters match', 'No big boards loaded', 'No upcoming games', 'No games match', 'No props match']
+            'No linemen match', 'No starters match', 'No big boards loaded', 'No upcoming games', 'No games match', 'No props match',
+            'undefined', '[object']
 # (view name regex, strings that view is meant to show even though they are in BAD_TEXT)
 ALLOWED_BAD = [(r'^betting/college/games/picks-only$', ['No games match'])]  # golden clock: no college picks
 # Views that are short on purpose (the league forms before anything is loaded).
@@ -345,6 +367,18 @@ def check_content(texts):
     for n, t in picks.items():
         if not any(t != u for m, u in picks.items() if m != n): bad.append('%s: identical to every other picks view' % n)
     return bad
+
+
+def test_content_guard_fires():
+    """check_content must flag a view that shows an error, is empty, or leaks a JavaScript value."""
+    text = lambda body: 'Football dashboard NFL Fantasy Betting ' + body + ' Real stats from nflverse footnote'
+    fine = 'Teams Players ' * 40
+    assert not check_content({'a/b': text(fine)})
+    assert check_content({'a/b': text('Couldn’t reach Sleeper (x). ' + fine)})
+    assert check_content({'a/b': text('')})
+    assert check_content({'a/b': text(fine + ' undefined')})
+    assert check_content({'a/b': text(fine + ' [object Object]')})
+    assert not check_content({'betting/college/games/picks-only': text(fine + ' No games match.')})  # allowed there
 
 
 # ---------------------------------------------------------------- fixtures
@@ -428,7 +462,7 @@ SCAN = """() => {
 }"""
 
 
-@pytest.mark.xfail(strict=True, reason='Task 5')
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason='Task 5')
 def test_feed_names_are_escaped(built, browser):
     """Feed text must reach the page as text. The first three injections (an odds-feed player, a dynasty-list player,
     a college prospect) use an <img onerror>; the rest are attribute and URL break-outs in the fields the knowledgebase
