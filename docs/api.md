@@ -53,10 +53,11 @@ The mapping is `PICK_KEYS` and `COLLEGE_PICK_KEYS` in `api_export.py`.
 
 ### Per-book picks (`ODD.PKB`)
 
-`get_picks(book)` and `picks_by_book.json` depend on `data.json` carrying `ODD.PKB`, `{book name: [picks in ODD.PK's
-shape]}` (added by the build separately from this API). Until the build writes it there is no `picks_by_book.json`, and
-`get_picks(book)` falls back to the subset of current picks whose best price is at that book (not what that book alone would
-pick). The tool result says which one you got (`source`). An unknown book name is an error that lists the known books. The export assumes the `{book: [picks]}` shape; if `PKB` is shaped differently, adjust `picks_by_book` in `api_export.py`.
+`build.py` writes `ODD.PKB`, `{book name: [picks in ODD.PK's shape]}` for every book in `ODD.books`: the official picks when only
+that book's quotes are available. `picks_by_book.json` and `get_picks(book)` use it. For data built before PKB existed (no
+`picks_by_book.json`), `get_picks(book)` falls back to the subset of current picks whose best price is at that book (not what
+that book alone would pick). The tool result says which one you got (`source`). An unknown book name is an error that lists
+the known books.
 
 ## The MCP server
 

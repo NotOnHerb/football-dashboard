@@ -28,10 +28,19 @@ def load(out_dir, name):
     with open(out_dir / (name + '.json'), encoding='utf-8') as f: return json.load(f)
 
 
-def test_export_writes_every_file(out):
+def without_pkb(data):
+    """A copy of the data as an older build wrote it, with no ODD.PKB."""
+    return dict(data, ODD={k: v for k, v in data['ODD'].items() if k != 'PKB'})
+
+
+def test_export_writes_every_file(out, data, tmp_path):
     d, written = out
-    for name in FILES + ['data.schema']: assert (d / (name + '.json')).exists(), name
-    assert sorted(os.path.basename(p) for p in written) == sorted(n + '.json' for n in FILES + ['data.schema'])
+    assert 'PKB' in data['ODD']   # the build now writes per-book picks, so picks_by_book.json is part of the set
+    everything = FILES + ['picks_by_book', 'data.schema']
+    for name in everything: assert (d / (name + '.json')).exists(), name
+    assert sorted(os.path.basename(p) for p in written) == sorted(n + '.json' for n in everything)
+    older = api_export.export(without_pkb(data), str(tmp_path))   # no PKB: the same set without picks_by_book.json
+    assert sorted(os.path.basename(p) for p in older) == sorted(n + '.json' for n in FILES + ['data.schema'])
     assert (d / 'data.schema.json').read_bytes() == open(os.path.join(ROOT, 'schema', 'data.schema.json'), 'rb').read()
 
 
@@ -100,7 +109,7 @@ def test_export_removes_files_this_build_did_not_write(data, tmp_path):
     api_export.export(with_pkb, str(tmp_path))
     assert (tmp_path / 'picks_by_book.json').exists()
     (tmp_path / 'notes.txt').write_text('keep'); (tmp_path / 'other.json').write_text('{}')
-    api_export.export(data, str(tmp_path))   # the next build has no PKB
+    api_export.export(without_pkb(data), str(tmp_path))   # the next build has no PKB
     assert not (tmp_path / 'picks_by_book.json').exists() and (tmp_path / 'picks.json').exists()
     assert (tmp_path / 'notes.txt').exists() and (tmp_path / 'other.json').exists()   # only the API's own files are ever removed
     assert set(api_export.API_FILES) >= {os.path.basename(p)[:-5] for p in api_export.export(with_pkb, str(tmp_path / 'x'))}
@@ -134,13 +143,21 @@ def test_export_games_props_and_health(out, data):
 
 
 def test_picks_by_book_only_when_the_build_wrote_it(data, tmp_path):
-    assert not os.path.exists(tmp_path / 'a' / 'picks_by_book.json')
-    api_export.export(data, str(tmp_path / 'a'))
+    api_export.export(without_pkb(data), str(tmp_path / 'a'))
     assert not os.path.exists(tmp_path / 'a' / 'picks_by_book.json')
     with_pkb = dict(data, ODD=dict(data['ODD'], PKB={'BetRivers': data['ODD']['PK'], 'DraftKings': []}))
     api_export.export(with_pkb, str(tmp_path / 'b'))
     pbb = json.load(open(tmp_path / 'b' / 'picks_by_book.json', encoding='utf-8'))
     assert [p['id'] for p in pbb['BetRivers']] == [p['id'] for p in data['ODD']['PK']] and pbb['DraftKings'] == []
+
+
+def test_picks_by_book_is_lossless_for_the_builds_pkb(out, data):
+    d, _ = out
+    pbb = load(d, 'picks_by_book')
+    assert list(pbb) == list(data['ODD']['PKB']) == data['ODD']['books']
+    for bk, picks in pbb.items():
+        assert all(p['sport'] == 'nfl' for p in picks)
+        assert [unname(p, api_export.PICK_KEYS) for p in picks] == data['ODD']['PKB'][bk]
 
 
 def test_runs_as_a_script_with_only_the_standard_library(data, tmp_path):

@@ -46,6 +46,11 @@ def data(work):
     return json.load(open(work / 'data.json', encoding='utf-8'))
 
 
+def without_pkb(data):
+    """A copy of the data as an older build wrote it, with no ODD.PKB."""
+    return dict(data, ODD={k: v for k, v in data['ODD'].items() if k != 'PKB'})
+
+
 def call(server, name, **args):
     """One tool call through an in-memory client; returns the tool's structured result."""
     async def go():
@@ -77,12 +82,39 @@ def test_get_picks_matches_data(server, data):
     pk = data['ODD']['PK'][0]
     got = r['picks'][0]
     assert (got['player'], got['market'], got['side'], got['line'], got['price'], got['book']) == (pk['n'], pk['mk'], pk['sd'], pk['pt'], pk['pr'], pk['bk'])
-    # per book without ODD.PKB: the current picks whose best price is at that book
-    mine = call(server, 'get_picks', book=pk['bk'].lower())
-    assert [p['id'] for p in mine['picks']] == [pk['id']] and 'no per-book picks' in mine['source']
-    assert pk['bk'] != 'Pinnacle' and call(server, 'get_picks', book='Pinnacle')['picks'] == [] and 'SUBSET' in mine['source']
     bad = call(server, 'get_picks', book='DraftKngs')   # a typo is an error that lists the books, not an empty list
     assert bad['error'] == 'no such book' and 'DraftKings' in bad['books']
+
+
+def test_get_picks_per_book_matches_pkb(server, data):
+    """The data has ODD.PKB (the build writes it for every book): each book's picks are exactly its PKB list."""
+    assert set(data['ODD']['PKB']) == set(data['ODD']['books'])
+    for bk, want in data['ODD']['PKB'].items():
+        r = call(server, 'get_picks', book=bk.lower())
+        assert r['book'] == bk and 'picks_by_book' in r['source'] and 'SUBSET' not in r['source']
+        assert [p['id'] for p in r['picks']] == [p['id'] for p in want] and r['count'] == len(want)
+        for got, pk in zip(r['picks'], want):
+            assert (got['player'], got['side'], got['line'], got['price'], got['book']) == (pk['n'], pk['sd'], pk['pt'], pk['pr'], pk['bk'])
+    assert any(data['ODD']['PKB'].values())
+
+
+def test_get_picks_per_book_keeps_the_kickoff_filter(work, data, tmp_path):
+    ko = datetime.datetime.fromisoformat(data['ODD']['G'][0]['t'].replace('Z', '+00:00'))
+    s = create_server(Source(root=str(work)), tmp_path / 'i.jsonl', now=ko + datetime.timedelta(minutes=1))
+    assert all(call(s, 'get_picks', book=bk)['picks'] == [] for bk in data['ODD']['PKB'])
+
+
+def test_get_picks_without_pkb_falls_back_to_a_subset(data, tmp_path):
+    """Older data (or a build without ODD.PKB): the current picks whose best price is at that book, said plainly."""
+    d = tmp_path / 'root'; (d / 'api').mkdir(parents=True)
+    api_export.export(without_pkb(data), str(d / 'api' / 'v1'))
+    assert not (d / 'api' / 'v1' / 'picks_by_book.json').exists()
+    s = create_server(Source(root=str(d)), tmp_path / 'i.jsonl')
+    pk = data['ODD']['PK'][0]
+    mine = call(s, 'get_picks', book=pk['bk'].lower())
+    assert [p['id'] for p in mine['picks']] == [pk['id']] and 'no per-book picks' in mine['source'] and 'SUBSET' in mine['source']
+    assert pk['bk'] != 'Pinnacle' and call(s, 'get_picks', book='Pinnacle')['picks'] == []
+    assert call(s, 'get_picks', book='DraftKngs')['error'] == 'no such book'
 
 
 def test_get_picks_uses_picks_by_book_when_present(work, data, tmp_path):
