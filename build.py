@@ -1,6 +1,13 @@
 import pandas as pd, numpy as np, json, gzip, base64
 import os, datetime
 import sources
+from engine.odds import implied, decimal, no_vig_shin, no_vig_proportional, consensus_line, median, normal_cdf
+from engine.rules import RULES
+from engine.projections import base_projection, matchup_factor, td_chance
+from engine.team_model import fit_nfl, project, fit_ridge_margins
+from engine.picks import game_picks, prop_picks, started as kicked_off
+from engine.parlays import build_parlays
+from engine.grading import grade_log, summarize
 SEASON=sources.SEASON
 META={'schema':2,'season':SEASON,'sources':{},'health':{}}
 # section health: 'ok', 'skipped: ...' (a secret simply isn't set) or 'failed: ...'; check_health.py reads it
@@ -462,17 +469,12 @@ print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for
 # ---- betting: lines and props (The Odds API, needs the ODDS_API_KEY secret)
 ODD=None
 try:
-    import re as _re2, statistics as _st
+    import re as _re2
     try: MODEL=json.load(open('model.json'))
     except Exception as ex_: MODEL=None; print('model.json missing, using simple projections:',ex_)
     MW,MK0,MB=(MODEL['w'],MODEL['k0'],MODEL['blend']) if MODEL else (.6,0,1.0)
     PRIC={c:i for i,c in enumerate(MODEL['prior_cols'])} if MODEL else {}
     USE={r.player_id:(float(r.carries)/r.games,float(r.targets)/r.games,int(r.games)) for r in df.itertuples() if r.games}
-    def td_model(gid,pos):
-        u=USE.get(gid)
-        if not MODEL or not u or u[2]<4 or u[0]+u[1]<5 or pos not in ('RB','WR','TE'): return None
-        t=MODEL['td']; x=[u[0],u[1],1.0 if pos=='RB' else 0.0,1.0 if pos=='TE' else 0.0]
-        z=t['w'][0]+sum(t['w'][i+1]*(x[i]-t['mu'][i])/t['sd'][i] for i in range(4)); return 1/(1+np.exp(-z))
     tset={t[0] for t in T}
     class _TeamMap(dict):
         def get(self,name,default=None):
@@ -485,60 +487,26 @@ try:
     META['sources']['odds']=oinfo
     BOOK={'pinnacle':'Pinnacle','draftkings':'DraftKings','fanduel':'FanDuel','betmgm':'BetMGM','betrivers':'BetRivers','bovada':'Bovada','betonlineag':'BetOnline','mybookieag':'MyBookie','lowvig':'LowVig','betus':'BetUS','williamhill_us':'Caesars','espnbet':'ESPN BET','fanatics':'Fanatics','ballybet':'Bally Bet','hardrockbet':'Hard Rock'}
     bk=lambda k:BOOK.get(k,k)
-    def prob(a):
-        a=float(a); return 100/(a+100) if a>0 else -a/(-a+100)
-    dec=lambda a:(1+a/100) if a>0 else (1-100/a)
-    def novig(p1,p2):
-        """Chance of side 1 with the bookmaker's cut removed, Shin's method (it doesn't over-credit long shots the way a plain proportional split does)."""
-        q=[prob(p1),prob(p2)]; S=sum(q)
-        if S<=1: return q[0]/S
-        pr_=lambda z:[((z*z+4*(1-z)*x*x/S)**.5-z)/(2*(1-z)) for x in q]
-        lo,hi=0.0,0.4
-        for _ in range(60):
-            mid=(lo+hi)/2
-            if sum(pr_(mid))>1: lo=mid
-            else: hi=mid
-        r=pr_((lo+hi)/2); return r[0]/sum(r)
-    def mode(xs):
-        xs=[x for x in xs if x is not None]
-        return max(set(xs),key=lambda x:(xs.count(x),-abs(x-_st.median(xs)))) if xs else None
-    med=lambda xs:(_st.median(xs) if xs else None)
-    from math import erf,sqrt
-    Phi=lambda x:.5*(1+erf(x/sqrt(2)))
     # ---- team model from game scores (nflverse schedule): ridge-regressed ratings, with half of last season as a prior
     sch=sources.load('schedule')[0]; sch=sch[sch.game_type=='REG'].copy()
     fx=lambda t:t if t in tset else ALIAS.get(t,t)
     sch['home_team']=sch.home_team.map(fx); sch['away_team']=sch.away_team.map(fx)
-    def fit(g,prior=None,lam=8.0):
-        tl=sorted(tset); ix={t:i for i,t in enumerate(tl)}; n=len(tl); Xm=[];ym=[];Xp=[];yp=[]
-        for r in g.itertuples():
-            if r.home_team not in ix or r.away_team not in ix: continue
-            h,a=ix[r.home_team],ix[r.away_team]
-            x=np.zeros(n+1);x[h]=1;x[a]=-1;x[n]=1;Xm.append(x);ym.append(r.home_score-r.away_score-((prior[r.home_team]-prior[r.away_team]) if prior else 0))
-            for sc,o,dd,hm in ((r.home_score,h,a,1),(r.away_score,a,h,-1)):
-                x=np.zeros(2*n+2);x[o]=1;x[n+dd]=-1;x[2*n]=1;x[2*n+1]=hm/2;Xp.append(x);yp.append(sc)
-        rid=lambda X,y,pen:np.linalg.solve(np.array(X).T@np.array(X)+np.diag(pen),np.array(X).T@np.array(y))
-        bm=rid(Xm,ym,np.r_[np.full(n,lam),.01]); bp_=rid(Xp,yp,np.r_[np.full(2*n,lam),.01,.01])
-        R={t:bm[ix[t]]+(prior[t] if prior else 0) for t in tl}
-        return R,bm[n],{t:bp_[ix[t]] for t in tl},{t:bp_[n+ix[t]] for t in tl},bp_[2*n]
     last=sch[(sch.season==SEASON-1)&sch.home_score.notna()]
-    PRI={t:.5*v for t,v in fit(last)[0].items()} if len(last) else None
+    PRI={t:.5*v for t,v in fit_nfl(last,tset)[0].items()} if len(last) else None
     cur=sch[(sch.season==SEASON)&sch.home_score.notna()]
-    def proj(R,hfa,O,D_,mu,h,a):
-        m=R[h]-R[a]+hfa; t=2*mu+O[h]+O[a]-D_[h]-D_[a]; return m,t
     # walk-forward record vs closing lines: weeks 4+, only when the model and the line differ by 2.5+ points
     MR={'w':0,'l':0,'p':0,'tw':0,'tl':0,'tp':0}
     for wk in sorted(cur.week.unique()):
         if wk<4: continue
-        fm=fit(cur[cur.week<wk],PRI)
+        fm=fit_nfl(cur[cur.week<wk],tset,PRI)
         for r in cur[cur.week==wk].itertuples():
             if r.home_team not in fm[0] or r.away_team not in fm[0] or pd.isna(r.spread_line): continue
-            m,t=proj(*fm,r.home_team,r.away_team)
+            m,t=project(fm,r.home_team,r.away_team)
             if abs(m-r.spread_line)>=2.5:
                 cv=(r.result-r.spread_line)*np.sign(m-r.spread_line); MR['w' if cv>0 else 'l' if cv<0 else 'p']+=1
             if not pd.isna(r.total_line) and abs(t-r.total_line)>=3:
                 cv=(r.total-r.total_line)*np.sign(t-r.total_line); MR['tw' if cv>0 else 'tl' if cv<0 else 'tp']+=1
-    FM=fit(cur,PRI)
+    FM=fit_nfl(cur,tset,PRI)
     # team against-the-spread and over/under records this season (closing lines from nflverse)
     REC={t:{'ats':[0,0,0],'ou':[0,0,0],'pf':0,'pa':0,'g':0} for t in tset}
     for r in cur.itertuples():
@@ -572,19 +540,19 @@ try:
         fair={'ref':{}}; pin=bb.get('Pinnacle',{})
         for mk_,i1,i2 in (('s',1,3),('o',1,2)):
             if mk_ in pin and pin[mk_][0] is not None:
-                fair[mk_]=[pin[mk_][0],round(novig(pin[mk_][i1],pin[mk_][i2]),4)]; fair['ref'][mk_]='Pinnacle'; continue
-            pt0=mode([v[mk_][0] for v in bb.values() if mk_ in v])
+                fair[mk_]=[pin[mk_][0],round(no_vig_shin(pin[mk_][i1],pin[mk_][i2]),4)]; fair['ref'][mk_]='Pinnacle'; continue
+            pt0=consensus_line([v[mk_][0] for v in bb.values() if mk_ in v])
             if pt0 is None: continue
-            ps=[novig(v[mk_][i1],v[mk_][i2]) for v in bb.values() if mk_ in v and v[mk_][0]==pt0]
-            fair[mk_]=[pt0,round(med(ps),4) if len(ps)>=3 else None]; fair['ref'][mk_]='market'
-        if 'm' in pin: fair['m']=round(novig(pin['m'][0],pin['m'][1]),4); fair['ref']['m']='Pinnacle'
+            ps=[no_vig_shin(v[mk_][i1],v[mk_][i2]) for v in bb.values() if mk_ in v and v[mk_][0]==pt0]
+            fair[mk_]=[pt0,round(median(ps),4) if len(ps)>=3 else None]; fair['ref'][mk_]='market'
+        if 'm' in pin: fair['m']=round(no_vig_shin(pin['m'][0],pin['m'][1]),4); fair['ref']['m']='Pinnacle'
         else:
-            pm=[novig(v['m'][0],v['m'][1]) for v in bb.values() if 'm' in v]
-            if len(pm)>=3: fair['m']=round(med(pm),4); fair['ref']['m']='market'
-        cons_s=mode([v['s'][0] for v in bb.values() if 's' in v]); cons_o=mode([v['o'][0] for v in bb.values() if 'o' in v])
+            pm=[no_vig_shin(v['m'][0],v['m'][1]) for v in bb.values() if 'm' in v]
+            if len(pm)>=3: fair['m']=round(median(pm),4); fair['ref']['m']='market'
+        cons_s=consensus_line([v['s'][0] for v in bb.values() if 's' in v]); cons_o=consensus_line([v['o'][0] for v in bb.values() if 'o' in v])
         mod=None
         if h_ in FM[0] and a_ in FM[0]:
-            m,t=proj(*FM,h_,a_); mod={'m':round(m,1),'t':round(t,1),'wp':round(Phi(m/13.5),3)}
+            m,t=project(FM,h_,a_); mod={'m':round(m,1),'t':round(t,1),'wp':round(normal_cdf(m/13.5),3)}
         u=UPR.get((a_,h_)); ctx={'div':bool(u.div_game) if u is not None and not pd.isna(u.div_game) else False,
              'rest':[None if u is None or pd.isna(u.away_rest) else int(u.away_rest),None if u is None or pd.isna(u.home_rest) else int(u.home_rest)],
              'roof':(u.roof if u is not None and isinstance(u.roof,str) else None)}
@@ -634,254 +602,40 @@ try:
             lab,si=MK[mk]; lg_=LOG.get(gid,[])
             if not lg_: continue
             vals=[x[si] for x in lg_]
-            avg=sum(vals)/len(vals); l3=sum(vals[-3:])/len(vals[-3:]); base=MW*avg+(1-MW)*l3
+            avg=sum(vals)/len(vals); l3=sum(vals[-3:])/len(vals[-3:])
             pri=(MODEL['priors'].get(gid) or [None]*9)[PRIC[lab]] if MODEL else None
-            if pri is not None and MK0: base=(len(vals)*base+MK0*pri)/(len(vals)+MK0)   # early season: mix in last season
+            base=base_projection(vals,pri,MW,MK0)   # early season: mixes in last season
             ai=ALT[lab]; fac=1.0
             if ALW and opp in ALW['T'] and pos_ in ALW['T'][opp]['a'] and LA.get(pos_) and LA[pos_][ai]>0:
-                fac=min(1.25,max(.8,1+.5*(ALW['T'][opp]['a'][pos_][ai]/LA[pos_][ai]-1)))
+                fac=matchup_factor(ALW['T'][opp]['a'][pos_][ai],LA[pos_][ai])
             d={k:v for k,v in d.items() if v[1] is not None}
             if not d: continue
             fair=None
             if mk=='player_anytime_td':
-                impl=med([prob(v[1]) for v in d.values()])
-                tm_p=td_model(gid,pos_); pj=None if tm_p is None else round(min(tm_p*fac,.9),3)   # chance he scores, from his usage
+                impl=median([implied(v[1]) for v in d.values()])
+                tm_p=td_chance(MODEL and MODEL.get('td'),USE.get(gid),pos_); pj=None if tm_p is None else round(min(tm_p*fac,.9),3)   # chance he scores, from his usage
                 fair=[None,round(min(impl/1.12,.95),4)]   # books only post "yes"; take out a typical cut to get a fair chance
             else:
                 pj=round(base*fac,1)
-                pt=mode([v[0] for v in d.values() if v[0] is not None and v[3] is not None])
+                pt=consensus_line([v[0] for v in d.values() if v[0] is not None and v[3] is not None])
                 if pt is not None:
-                    ps=[novig(v[1],v[3]) for v in d.values() if v[0]==pt and v[2]==pt and v[3] is not None]
-                    if len(ps)>=3: fair=[pt,round(med(ps),4)]
+                    ps=[no_vig_shin(v[1],v[3]) for v in d.values() if v[0]==pt and v[2]==pt and v[3] is not None]
+                    if len(ps)>=3: fair=[pt,round(median(ps),4)]
             PR.append({'eid':eid,'ko':ev.get('commence_time'),'n':desc,'t':tm_,'pos':pos_,'gid':gid,'opp':opp,'mk':lab,'b':d,'fair':fair,'v':[[x[0],x[1],x[si]] for x in lg_],'avg':round(avg,1),'l3':round(l3,1),'pj':pj,'md':(None if mk=='player_anytime_td' or not MODEL else round(pj*MODEL['q'][lab][50],1)),'fac':round(fac,2),'use':([round(USE[gid][0],1),round(USE[gid][1],1)] if gid in USE else None)})
     pat=max([pc['fetched'] for pc in od['props'].values()],default=None)
     # ---- official picks (best price across books). The page uses the same rules for single-book views.
-    RU={'val':[.025,.045,.07],'stale':.10,'mlmax':250,'mlmin':-300,'model':2.5,'minl':{'Pass yds':150,'Rush yds':25,'Rec yds':25,'Receptions':2.5,'Pass TDs':.5},'pick':2,'tdmax':300}
-    valS=lambda v:0 if v is None else 3 if v>=RU['val'][2] else 2 if v>=RU['val'][1] else 1 if v>=RU['val'][0] else 0
-    GSD={'hs':('s',0,1),'as':('s',2,3),'ov':('o',0,1),'un':('o',0,2),'mh':('m',None,0),'ma':('m',None,1)}
-    def gq(g,k):
-        m=GSD[k]; best=None
-        for bn,x in g['b'].items():
-            x=x.get(m[0])
-            if not x or x[m[2]] is None: continue
-            q={'pt':None if m[1] is None else x[m[1]],'pr':x[m[2]],'bk':bn}
-            if best is None: best=q
-            elif q['pt'] is not None and q['pt']!=best['pt']:
-                if ((best['pt']-q['pt']) if k=='ov' else (q['pt']-best['pt']))>0: best=q
-            elif q['pr']>best['pr']: best=q
-        return best
-    def gfair(g,k):
-        f=g['fair']
-        if k in('hs','as'):
-            if not f.get('s') or f['s'][1] is None: return None
-            return {'pt':f['s'][0] if k=='hs' else -f['s'][0],'p':f['s'][1] if k=='hs' else 1-f['s'][1],'sp':1}
-        if k in('ov','un'):
-            if not f.get('o') or f['o'][1] is None: return None
-            return {'pt':f['o'][0],'p':f['o'][1] if k=='ov' else 1-f['o'][1],'ov':k=='ov'}
-        return None if f.get('m') is None else {'pt':None,'p':f['m'] if k=='mh' else 1-f['m']}
-    def gev(q,fr):
-        if not q or not fr: return None
-        p=fr['p']
-        if fr['pt'] is not None and q['pt']!=fr['pt']:
-            d=(fr['pt']-q['pt']) if fr.get('ov') else (q['pt']-fr['pt'])
-            if abs(d)>2: return None
-            p+=d/.5*(.02 if fr.get('sp') else .015)
-            if fr.get('sp'):
-                lo,hi=min(abs(q['pt']),abs(fr['pt'])),max(abs(q['pt']),abs(fr['pt']))
-                if (lo<3<hi) or (lo<7<hi): p+=(.03 if d>0 else -.03)
-        return p*dec(q['pr'])-1
-    def gside(g,k):
-        q=gq(g,k)
-        if not q: return None
-        v=gev(q,gfair(g,k)); vs=valS(v); me=None; ms=0; flag=None
-        if v is not None and v>RU['stale']: vs=0; flag='stale'
-        if k in('mh','ma') and (q['pr']>RU['mlmax'] or q['pr']<RU['mlmin']): vs=0; flag=flag or 'range'
-        if g['mod'] and k in('hs','as'):
-            me=(g['mod']['m'] if k=='hs' else -g['mod']['m'])+q['pt']; ms=1 if me>=RU['model'] else 0
-        return {'k':k,'q':q,'v':v,'vs':vs,'me':me,'ms':ms,'s':vs+ms,'flag':flag}
+    RU=RULES
     INJ={}
     for pos_,rows_ in P.items():
         for r_ in rows_:
             if r_[5] and r_[8]: INJ[r_[8]]=r_[5][0]
-    hurt=lambda gid:INJ.get(gid) in ('Out','IR','Reserve','Doubtful')
-    def pq(p,sd):
-        best=None
-        for bn,x in p['b'].items():
-            q={'pt':x[2],'pr':x[3],'bk':bn} if sd=='u' else {'pt':x[0],'pr':x[1],'bk':bn}
-            if q['pr'] is None or (sd!='y' and q['pt'] is None): continue
-            if best is None: best=q
-            elif q['pt']!=best['pt']:
-                if (q['pt']>best['pt']) if sd=='u' else (q['pt']<best['pt']): best=q
-            elif q['pr']>best['pr']: best=q
-        return best
-    def pover(mk,mu,L):
-        if not MODEL or not mu or mu<=0: return None
-        x=L/mu; p_=sum(1 for v in MODEL['q'][mk] if v>x)/len(MODEL['q'][mk])
-        return min(.99,max(.01,p_+MODEL.get('cal',{}).get(mk,0)))   # weekly calibration nudge
-    def ptier(e): return 3 if e>=.10 else 2 if e>=.07 else 1 if e>=.04 else 0
-    def pa(p):
-        n=len(p['v'])
-        if p['mk']=='Anytime TD':
-            q=pq(p,'y')
-            if not q: return None
-            im=prob(q['pr']); pf=p['fair'][1] if p['fair'] else None
-            P=None if p['pj'] is None or pf is None else MB*p['pj']+(1-MB)*pf
-            ls=ptier(P-im) if (P is not None and n>=4 and q['pr']<=RU['tdmax']) else 0
-            return {'sd':'y','q':q,'ls':ls,'vs':0,'v':None,'s':min(ls,2),'srt':(P-im) if P is not None else 0,'P':P}
-        def side(q,dr):
-            if not q: return None
-            po=pover(p['mk'],p['pj'],q['pt'])
-            if p['fair'] and p['fair'][0]==q['pt']: fo=p['fair'][1]
-            else:
-                pr_=[x for x in p['b'].values() if x[0]==q['pt'] and x[2]==q['pt'] and x[1] is not None and x[3] is not None]
-                fo=(lambda a,b_:prob(a)/(prob(a)+prob(b_)))(pr_[0][1],pr_[0][3]) if pr_ else None
-            P=None
-            if po is not None and fo is not None: P=MB*po+(1-MB)*fo; P=P if dr>0 else 1-P
-            e=None if P is None else P-prob(q['pr'])
-            ls=ptier(e) if (e is not None and n>=4 and q['pt']>=RU['minl'].get(p['mk'],0)) else 0
-            v=None
-            if p['fair'] and p['fair'][0]==q['pt']: v=(p['fair'][1] if dr>0 else 1-p['fair'][1])*dec(q['pr'])-1
-            vs=valS(v)
-            if v is not None and v>RU['stale']: vs=0
-            if e is not None and e<0: vs=0   # never pick a side our own chance says loses at this price
-            return {'sd':'o' if dr>0 else 'u','q':q,'ls':ls,'vs':vs,'v':v,'s':min(ls,2)+vs,'srt':e or 0,'P':P}
-        pa.side=side
-        o,u=side(pq(p,'o'),1),side(pq(p,'u'),-1)
-        if o and u: return u if u['s']>o['s'] or (u['s']==o['s'] and u['srt']>o['srt']) else o
-        return o or u
     nowu=datetime.datetime.now(datetime.timezone.utc)
-    started=lambda iso:datetime.datetime.fromisoformat(iso.replace('Z','+00:00'))<=nowu
-    PK=[]
-    for g in GL:
-        if started(g['t']): continue
-        for a1,a2,mk_ in (('hs','as','spread'),('ov','un','total'),('mh','ma','ml')):
-            x1,x2=gside(g,a1),gside(g,a2); x=(x2 if x1 and x2 and x2['s']>x1['s'] else (x1 or x2)) if (x1 or x2) else None
-            if x and x['s']>=RU['pick']:
-                q=x['q']; PK.append({'id':'g|%s|%s|%s'%(g['id'],mk_,x['k']),'k':'g','eid':g['id'],'wk':g['wk'],'t':g['t'],'a':g['a'],'h':g['h'],'mk':mk_,'sd':x['k'],'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'s':x['s'],'v':None if x['v'] is None else round(x['v'],4),'ms':x['ms'],'vs':x['vs'],'pc':None if x['v'] is None else round((x['v']+1)/dec(q['pr']),4),'srt':x['s']+(x['v'] or 0)*5})
+    started=lambda iso:kicked_off(iso,nowu)
     WKOF={g['id']:g['wk'] for g in GL}
-    for p in PR:
-        if not p.get('ko') or started(p['ko']) or hurt(p['gid']): continue
-        x=pa(p)
-        if x and x['s']>=RU['pick']:
-            q=x['q']; PK.append({'id':'p|%s|%s|%s|%s'%(p['eid'],p['gid'],p['mk'],x['sd']),'k':'p','eid':p['eid'],'wk':WKOF.get(p['eid']),'t':p['ko'],'n':p['n'],'gid':p['gid'],'tm':p['t'],'opp':p['opp'],'mk':p['mk'],'sd':x['sd'],'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'s':x['s'],'v':None if x['v'] is None else round(x['v'],4),'ls':x['ls'],'vs':x['vs'],'pj':p['pj'],'pc':None if x.get('P') is None else round(x['P'],4),'srt':x['s']+x['srt']+(x['v'] or 0)*5})
+    PK=game_picks(GL,nowu)+prop_picks(PR,MODEL,MB,nowu,INJ,weeks=WKOF)
     PK.sort(key=lambda x:-x['srt'])
     # ---- parlays (for fun, tracked as their own record): of the week, of the game (same-game combo), anytime TD
-    def prop_leg(p,sd):
-        """One prop side as a parlay leg: best price, our blended chance, edge vs the price."""
-        if sd=='y':
-            q=pq(p,'y')
-            if not q or p['pj'] is None or not p['fair']: return None
-            P=MB*p['pj']+(1-MB)*p['fair'][1]
-        else:
-            q=pq(p,sd)
-            if not q: return None
-            P=None
-            po=pover(p['mk'],p['pj'],q['pt'])
-            if p['fair'] and p['fair'][0]==q['pt']: fo=p['fair'][1]
-            else:
-                pr_=[x for x in p['b'].values() if x[0]==q['pt'] and x[2]==q['pt'] and x[1] is not None and x[3] is not None]
-                fo=prob(pr_[0][1])/(prob(pr_[0][1])+prob(pr_[0][3])) if pr_ else None
-            if po is None or fo is None: return None
-            P=MB*po+(1-MB)*fo; P=P if sd=='o' else 1-P
-        return {'id':'p|%s|%s|%s|%s'%(p['eid'],p['gid'],p['mk'],sd),'k':'p','eid':p['eid'],'wk':WKOF.get(p['eid']),'t':p['ko'],'n':p['n'],'gid':p['gid'],'tm':p['t'],'opp':p['opp'],'mk':p['mk'],'sd':sd,'pt':q['pt'],'pr':q['pr'],'bk':q['bk'],'pc':round(P,4),'e':round(P-prob(q['pr']),4),'_p':p}
-    def at_book(leg,bn):
-        """The leg's price at one book on the same line, or None."""
-        if leg['k']=='p':
-            x=leg['_p']['b'].get(bn)
-            if not x: return None
-            if leg['sd']=='u': return x[3] if x[2]==leg['pt'] else None
-            if leg['sd']=='y': return x[1]
-            return x[1] if x[0]==leg['pt'] else None
-        g=next((g for g in GL if g['id']==leg['eid']),None); x=g and g['b'].get(bn)
-        if not x: return None
-        m=GSD[leg['sd']]; y=x.get(m[0])
-        if not y: return None
-        if m[1] is not None and y[m[1]]!=leg['pt']: return None
-        return y[m[2]]
-    def price_parlay(legs):
-        best=None
-        for bn in BKS:
-            ps=[at_book(l,bn) for l in legs]
-            if any(p_ is None for p_ in ps): continue
-            d=1.0
-            for p_ in ps: d*=dec(p_)
-            if best is None or d>best[0]: best=(d,bn)
-        if best: return round(best[0],3),best[1]
-        d=1.0
-        for l in legs: d*=dec(l['pr'])
-        return round(d,3),'mixed'
-    def am_from_dec(d): return int(round((d-1)*100)) if d>=2 else int(round(-100/(d-1)))
-    def one_book(cands,want=3,need=2,distinct=True):
-        """Best set of legs that ONE sportsbook offers (a parlay is placed at one book): each leg at that book's own price and
-        still above break-even there; the book with the best expected return wins."""
-        top=None
-        for bn in BKS:
-            if bn=='Pinnacle': continue   # the sharp reference; not open to US bettors
-            legs=[];seen=set()
-            for c in cands:
-                if distinct and c['eid'] in seen: continue
-                pr_=at_book(c,bn)
-                if pr_ is None or c['pc']<=prob(pr_)-.02: continue
-                l=dict(c);l['pr']=pr_;l['bk']=bn;l['e']=round(c['pc']-prob(pr_),4);legs.append(l);seen.add(c['eid'])
-                if len(legs)==want: break
-            if len(legs)<need: continue
-            ch=1.0;d=1.0
-            for l in legs: ch*=l['pc'];d*=dec(l['pr'])
-            if top is None or ch*d>top[0]: top=(ch*d,legs)
-        return top[1] if top else None
-    def mk_parlay(kind,title,legs,note,joint=None):
-        d,bn=price_parlay(legs); ch=1.0
-        for l in legs: ch*=l['pc']
-        if joint is not None: ch=max(ch,min(joint,ch*1.25))   # teammates hit together a bit more often than independent legs would
-        clean_=[{k:v for k,v in l.items() if k not in ('_p','e')} for l in legs]
-        return {'id':'x|%s|wk%s'%(kind,legs[0]['wk']),'k':'x','kind':kind,'title':title,'wk':legs[0]['wk'],'t':min(l['t'] for l in legs),'legs':clean_,
-                'dec':d,'pr':am_from_dec(d),'bk':bn,'pc':round(ch,4),'be':round(1/d,4),'note':note,'joint':joint,'s':0}
-    PX=[]
-    try:
-        # parlay of the week: 2-3 of the strongest non-TD picks from different games, at one book
-        cands=[]
-        for x in PK:
-            if x['sd']=='y' or x.get('pc') is None or x['pc']<=prob(x['pr']) or x['pr']<-200: continue
-            l=dict(x);l.pop('srt',None)
-            if x['k']=='p': l['_p']=next(p for p in PR if p['gid']==x['gid'] and p['mk']==x['mk'] and p['eid']==x['eid'])
-            cands.append(l)
-        legs=one_book(cands[:10])
-        if legs: PX.append(mk_parlay('week','Parlay of the week',legs,'Our strongest picks from different games, all at one sportsbook.'))
-        # anytime TD parlay: the most likely scorers priced near or better than our chance, different games, at one book
-        tds=[]
-        for p in PR:
-            if p['mk']!='Anytime TD' or started(p.get('ko') or '2000-01-01T00:00:00Z') or hurt(p['gid']) or len(p['v'])<4: continue
-            l=prop_leg(p,'y')
-            if l and l['pc']>=.30 and l['e']>=-.02 and l['pr']<=300: tds.append(l)
-        tds.sort(key=lambda l:-(l['pc']+l['e']))
-        legs=one_book(tds[:10])
-        if legs: PX.append(mk_parlay('td','Anytime TD parlay of the week',legs,'The likeliest scorers on the board, from different games, all at one sportsbook.'))
-        # parlay of the game: QB over + his receiver over that have hit together most this season
-        best=None
-        byteam={}
-        for p in PR:
-            if started(p.get('ko') or '2000-01-01T00:00:00Z') or hurt(p['gid']) or len(p['v'])<4: continue
-            byteam.setdefault((p['eid'],p['t']),[]).append(p)
-        for (eid,tm),ps in byteam.items():
-            qbs=[p for p in ps if p['mk'] in ('Pass yds','Pass TDs')]; recs=[p for p in ps if p['mk'] in ('Rec yds','Receptions','Anytime TD') and p['pos'] in ('WR','TE')]
-            for a in qbs:
-                la=prop_leg(a,'o')
-                if not la or la['e']<-.02: continue
-                for r in recs:
-                    lr=prop_leg(r,'y' if r['mk']=='Anytime TD' else 'o')
-                    if not lr or lr['e']<-.02: continue
-                    wr={v[0]:v[2] for v in r['v']}
-                    both=[(v[2]>la['pt']) and ((wr[v[0]]>=1) if lr['sd']=='y' else (wr[v[0]]>lr['pt'])) for v in a['v'] if v[0] in wr]
-                    if len(both)<4: continue
-                    j=sum(both)/len(both)
-                    sc=j+la['e']+lr['e']
-                    if j>=.5:
-                        pair=one_book([la,lr],want=2,need=2,distinct=False)
-                        if pair and (best is None or sc>best[0]): best=(sc,pair,round(j,3),len(both))
-        if best:
-            px=mk_parlay('game','Parlay of the game',best[1],'A quarterback and his receiver who have cleared these lines together in %d of %d games this season. Same-game parlays usually pay less than this; check your book.'%(round(best[2]*best[3]),best[3]),joint=best[2])
-            PX.append(px)
-    except Exception as ex_: print('parlays skipped:',ex_)
+    PX=build_parlays(PK,PR,GL,BKS,MODEL,MB,nowu,INJ)
     # ---- pick log: a pick counts if it was a pick at the last refresh before kickoff; graded from final scores and weekly stats
     pkf='odds/picks.json'
     try: PLOG=json.load(open(pkf))
@@ -892,49 +646,13 @@ try:
         r_={k:v for k,v in x.items() if k!='srt'}; r_['res']=None; r_['at']=oinfo['lines_at'][:16]
         r_['first']=FIRST.get(x['id']) or {'pr':x['pr'],'pt':x.get('pt'),'bk':x['bk'],'at':oinfo['lines_at'][:16]}
         PLOG[x['id']]=r_
-    SI={'Pass yds':7,'Rush yds':8,'Rec yds':9,'Receptions':6,'Pass TDs':10,'Anytime TD':11}
     logmax=max((r[0] for L_ in LOG.values() for r in L_),default=0)
     fin={}
     for r in cur.itertuples(): fin[(int(r.week),r.away_team,r.home_team)]=(r.away_score,r.home_score); fin[(int(r.week),r.home_team)]=fin[(int(r.week),r.away_team)]=(r.away_team,r.home_team,r.away_score,r.home_score)
-    def grade_one(r_):
-        if r_['k']=='g':
-            sc=fin.get((r_['wk'],r_['a'],r_['h']))
-            if not sc: return
-            asc,hsc=sc
-            if r_['mk']=='spread': c_=((hsc-asc) if r_['sd']=='hs' else (asc-hsc))+r_['pt']
-            elif r_['mk']=='total': c_=((asc+hsc)-r_['pt'])*(1 if r_['sd']=='ov' else -1)
-            else: c_=(hsc-asc)*(1 if r_['sd']=='mh' else -1)
-            r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[asc,hsc]
-        else:
-            gm=fin.get((r_['wk'],r_.get('tm')))
-            if not gm or logmax<r_['wk']: return
-            row=[x for x in LOG.get(r_['gid'],[]) if x[0]==r_['wk']]
-            if not row: r_['res']='V'; return
-            val=row[0][SI[r_['mk']]]; r_['val']=val
-            if r_['sd']=='y': r_['res']='W' if val>=1 else 'L'
-            else:
-                c_=(val-r_['pt'])*(1 if r_['sd']=='o' else -1); r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'
-    for r_ in PLOG.values():
-        if r_.get('res') is not None or not started(r_['t']) or r_.get('wk') is None: continue
-        if r_['k']=='x':
-            for l in r_['legs']:
-                if l.get('res') is None and started(l['t']): grade_one(l)
-            rs=[l.get('res') for l in r_['legs']]
-            if 'L' in rs: r_['res']='L'; r_['u']=-1
-            elif None not in rs:
-                d=1.0
-                for l in r_['legs']:
-                    if l['res']=='W': d*=dec(l['pr'])
-                if r_['bk']!='mixed' and all(x=='W' for x in rs): d=r_['dec']   # every leg won: the parlay's own price
-                r_['res']='W' if any(x=='W' for x in rs) else 'P'; r_['u']=round(d-1,3) if r_['res']=='W' else 0
-            continue
-        grade_one(r_)
-        if r_.get('res'): r_['u']=round(dec(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
+    grade_log(PLOG,fin,LOG,logmax,nowu)
     if not os.environ.get('ODDS_OFFLINE'): json.dump(PLOG,open(pkf,'w'))
-    def summ(rs):
-        return {'w':sum(1 for r in rs if r.get('res')=='W'),'l':sum(1 for r in rs if r.get('res')=='L'),'p':sum(1 for r in rs if r.get('res') in('P','V')),'u':round(sum(r.get('u',0) or 0 for r in rs),2)}
     done=[r for r in PLOG.values() if r.get('res') and r['k']!='x']
-    REC2={'x':summ([r for r in PLOG.values() if r.get('res') and r['k']=='x']),'all':summ(done),'g':summ([r for r in done if r['k']=='g']),'p':summ([r for r in done if r['k']=='p']),'s3':summ([r for r in done if r['s']>=3])}
+    REC2={'x':summarize([r for r in PLOG.values() if r.get('res') and r['k']=='x']),'all':summarize(done),'g':summarize([r for r in done if r['k']=='g']),'p':summarize([r for r in done if r['k']=='p']),'s3':summarize([r for r in done if r['s']>=3])}
     LGL=sorted(PLOG.values(),key=lambda r:r['t'],reverse=True)
     FIN=[[int(r.week),r.away_team,r.home_team,int(r.away_score),int(r.home_score)] for r in cur.itertuples()]
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
@@ -949,20 +667,11 @@ try:
     import statistics as _st2
     _now=datetime.datetime.now(datetime.timezone.utc)
     _start=lambda s:datetime.datetime.fromisoformat(s.replace('Z','+00:00'))
-    _dec=lambda a:(1+a/100) if a>0 else (1-100/a)
-    _prob=lambda a:100/(a+100) if a>0 else -a/(-a+100)
     cg=[g for g in json.load(open('cfb/games_%d.json'%SEASON)) if g['homeClassification']=='fbs' and g['awayClassification']=='fbs']
     cl={x['id']:x for x in json.load(open('cfb/lines_%d.json'%SEASON))}
     lastg=[g for g in json.load(open('cfb/games_%d.json'%(SEASON-1))) if g['homeClassification']=='fbs' and g['awayClassification']=='fbs' and g['completed'] and g['homePoints'] is not None]
     done=[g for g in cg if g['completed'] and g['homePoints'] is not None]
-    def _ridge(games,prior,lam):
-        teams=sorted({g['homeTeam'] for g in games}|{g['awayTeam'] for g in games}|set(prior)); ix={t:i for i,t in enumerate(teams)}; n=len(teams); X=[];y=[]
-        for g in games:
-            x=np.zeros(n+1);x[ix[g['homeTeam']]]=1;x[ix[g['awayTeam']]]=-1;x[n]=0 if g['neutralSite'] else 1
-            X.append(x);y.append(g['homePoints']-g['awayPoints']-(prior.get(g['homeTeam'],0)-prior.get(g['awayTeam'],0)))
-        X=np.array(X);y=np.array(y);bb=np.linalg.solve(X.T@X+np.diag(np.r_[np.full(n,lam),.01]),X.T@y)
-        return {t:bb[ix[t]]+prior.get(t,0) for t in teams},bb[n]
-    R0,_=_ridge(lastg,{},5.0); CR,CH=_ridge(done,{t:.6*v for t,v in R0.items()},8.0)
+    R0,_=fit_ridge_margins(lastg,{},5.0); CR,CH=fit_ridge_margins(done,{t:.6*v for t,v in R0.items()},8.0)
     BKN={'DraftKings':'DraftKings','ESPN Bet':'ESPN BET','Bovada':'Bovada','William Hill (New Jersey)':'Caesars','Caesars Sportsbook (Colorado)':'Caesars'}
     upcoming=[g for g in cg if not g['completed'] and g.get('startDate') and _start(g['startDate'])>_now-datetime.timedelta(hours=4)]
     try: _left=int(float(oinfo['credits_left'])) if oinfo.get('credits_left') is not None else None
@@ -1005,7 +714,7 @@ try:
                 books[nm_]=v
         sps=[v[0] for v in books.values() if v[0] is not None]; ous=[v[1] for v in books.values() if v[1] is not None]
         ml=[(v[2],v[3]) for v in books.values() if v[2] is not None and v[3] is not None]
-        wp=_st2.median([_prob(a)/(_prob(a)+_prob(c)) for a,c in ml]) if ml else None
+        wp=_st2.median([no_vig_proportional(a,c) for a,c in ml]) if ml else None
         h,a=g['homeTeam'],g['awayTeam']; hf=0 if g['neutralSite'] else 1
         mod=round(CR.get(h,0)-CR.get(a,0)+CH*hf,1) if (h in CR and a in CR) else None
         row={'id':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'ac':g.get('awayConference'),'hc':g.get('homeConference'),'neutral':bool(g['neutralSite']),
@@ -1037,7 +746,7 @@ try:
     for r_ in CLOG.values():
         if r_.get('res') is not None or r_['gid'] not in fin: continue
         ap,hp=fin[r_['gid']]; c_=((hp-ap) if r_['sd']=='hs' else (ap-hp))+r_['pt']
-        r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(_dec(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
+        r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(decimal(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
     if not os.environ.get('ODDS_OFFLINE'): json.dump(CLOG,open(cpf,'w'))
     cd=[r for r in CLOG.values() if r.get('res')]
     CFB={'G':CG,'PK':CP,'LG':sorted(CLOG.values(),key=lambda r:r['t'],reverse=True)[:200],
