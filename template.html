@@ -19,6 +19,7 @@ tr:not(.grp):hover td{background:color-mix(in srgb,var(--b) 10%,var(--panel))}
 table tr:nth-child(even):not(.grp):not(:hover) td{background:color-mix(in srgb,var(--panel) 94%,var(--ink))}
 .wrap{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 .upd{display:inline-block;font:600 12px Barlow,system-ui,sans-serif;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:8px;vertical-align:2px}.top .ctl button{white-space:nowrap}
+.hl{margin:-6px 0 14px;padding:2px 0 2px 9px;border-left:3px solid var(--a);color:var(--mute);font-size:14px;line-height:1.35}
 @media (max-width:420px){.top .ctl{flex-direction:column;gap:6px;align-items:flex-end}.top .ctl button,.top .ctl select{padding:5px 10px;font-size:14px;max-width:140px}}
 @media (max-width:600px){main{margin:8px 6px;border-radius:14px;padding:16px 12px 40px}}
 h1,h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;margin:8px 0 4px;line-height:1}h1{font-size:clamp(30px,7vw,44px)}h2{font-size:clamp(26px,6vw,36px)}
@@ -166,7 +167,7 @@ main.wide{max-width:1180px}
 .stk{width:80px;min-width:0;flex:0;padding:4px 6px;font-size:15px}.psub{font:500 12px Barlow,system-ui,sans-serif;color:var(--mute)}.pt td.nm{white-space:nowrap}
 </style></head><body><canvas id="scene" aria-hidden="true"></canvas><main>
 <div class="top" id="top"><h1>Football dashboard</h1><button class="back dspb" id="dsp" aria-expanded="false" aria-controls="ctl">Display</button><div class="ctl" id="ctl"><select class="back" id="scn" aria-label="Background scene"><option value="ocean">Night ocean</option><option value="grass">Day grassland</option><option value="snow">Snowy peak</option></select><button class="back" id="mot" aria-label="Turn background motion on or off"></button><button class="back" id="clr" aria-label="Turn stat colors on or off"></button></div></div>
-<p class="sub">2026 regular season so far.<span class="upd" id="upd"></span></p>
+<p class="sub">2026 regular season so far.<span class="upd" id="upd"></span></p><p class="hl" id="hl" hidden></p>
 <nav class="bar"><div class="seg sec" id="sec"><button data-s="nfl" aria-pressed="true">NFL</button><button data-s="fan" aria-pressed="false">Fantasy</button><button data-s="bet" aria-pressed="false">Betting</button></div></nav>
 <div class="bar" id="nflnav"><div class="seg" id="tabs"><button data-v="t" aria-pressed="true">Teams</button><button data-v="p" aria-pressed="false">Players</button><button data-v="n" aria-pressed="false">Matchups</button><button data-v="c" aria-pressed="false">Compare</button></div></div>
 <section id="vp" hidden>
@@ -377,7 +378,8 @@ function side(o,d){
   h+='<h3>'+d+'’s 3 biggest pass-rush threats</h3><p class="sub">'+(thr.length?thr.map(function(r,i){return (i+1)+'. <b>'+r[0]+'</b> ('+r[2]+') · '+r[8]+(r[8]===1?' sack, ':' sacks, ')+r[9]+' QB hits, '+r[7]+' TFL'}).join('<br>'):'No data')+'</p>';
   return h+'<h3>'+o+' line, man by man</h3>'+olTable(o,d);
 }
-function matchup(){var g=D.G[+$('gm').value||0];$('mu').innerHTML=side(g[0],g[1])+side(g[1],g[0]);skillRender()}
+var NOG='<p class="sub">This week’s games aren’t available right now. They come back with the next refresh.</p>';
+function matchup(){var g=D.G[+$('gm').value||0];if(!g){$('mu').innerHTML=$('ms').innerHTML=NOG;return}$('mu').innerHTML=side(g[0],g[1])+side(g[1],g[0]);skillRender()}
 var SKN={QB:1,RB:2,WR:3,TE:1};
 function sp(v){return st.sc==='std'?v[1]:st.sc==='half'?(v[0]+v[1])/2:v[0]}
 function srank(t,side,p){var W=D.ALW.T,ks=side==='a'?'aa':side,me=W[t]&&W[t][ks]&&W[t][ks][p];side=ks;if(!me)return null;var x=sp(me),n=0;for(var k in W){var o=W[k][side][p];if(o&&(side==='s'?sp(o)>x:sp(o)<x))n++}return n+1}
@@ -404,7 +406,7 @@ function skillSide(o,d){
 }
 function skillRender(){
   if(!D.ALW){$('ms').innerHTML='<p class="sub">Game-by-game stats aren’t available right now, so skill matchups are hidden. They come back with the next refresh.</p>';return}
-  var g=D.G[+$('gm').value||0];
+  var g=D.G[+$('gm').value||0];if(!g){$('ms').innerHTML=NOG;return}
   $('ms').innerHTML=skillSide(g[0],g[1])+skillSide(g[1],g[0])+'<div class="note">How it works: “pts/g at spot” is the fantasy points per game this offense gets from that position, ranked 1st (most) to 32nd. “Allows/g” is the fantasy points per game this defense gives up to that position, ranked 1st (toughest, fewest allowed) to 32nd (softest). The edge compares those two ranks with the same levels as the trenches: Even under 4 spots, I (slight) 4 to 9, II (clear) 10 to 17, III (big) 18 or more. Through week '+D.ALW.wk+'. Points follow the PPR, Half PPR or Standard setting on the Players tab. Players shown are the current starters from the latest depth chart (top QB, two RBs, three WRs, top TE). Anyone Out on the latest injury report or on injured reserve moves to the out section and the next man up takes his spot; Questionable and Doubtful players stay in with a tag. A dash means no stats yet this season. Defense ranks are adjusted for schedule: each game counts what the defense allowed compared with what that offense usually scores at the position, so a defense that faced weak offenses doesn’t look tougher than it is. The allows/g number itself is the plain average. A guide, not a prediction.</div>';
 }
 function initN(){
@@ -460,7 +462,11 @@ function render(){if(st.side==='D')renderX();else if(st.pos==='OL')renderOL();el
 var SCL={ppr:'PPR/g',half:'Half PPR/g',std:'Std/g'};
 function setForm(r){var fm=r.fm;if(!fm)return;r.l3=fm[0]==null?null:st.sc==='ppr'?fm[0]:st.sc==='std'?fm[1]:Math.round((fm[0]+fm[1])*5)/10;r.tr=r.l3==null||r[4]==null?null:Math.round((r.l3-r[4])*10)/10}
 function setSc(m){st.sc=m;A.forEach(function(r){r[4]=m==='ppr'?r.pp:m==='std'?r.sd:Math.round((r.pp+r.sd)*5)/10;setForm(r)});[].forEach.call($('fsc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});[].forEach.call($('csc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});if(st.sec==='fan'&&FV==='c')renderD();['QB','RB','WR','TE'].forEach(function(p){D.PC[p][0][0]=SCL[m]});[].forEach.call($('sc').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===m)});render();if(CP.a)cRender();if(D.G)skillRender();if(st.sec==='fan'&&FV==='s')renderF();if(st.sec==='fan'&&FV==='m'&&RL.M)leagueRender()}
-function fresh(){var s=D.META&&D.META.sources;if(D.META&&D.META.built)$('upd').textContent='Updated '+D.META.built.replace(/ at .*/,'');if(!s)return;var x=[];
+var HLN={schedule:'this week’s games',injuries:'injuries',rosters:'injured reserve list',depth:'depth charts',weekly:'game-by-game stats',snaps:'snap counts',dynasty:'dynasty values',college_prospects:'college prospects',player_cards:'player cards',odds:'NFL betting lines',college_betting:'college betting lines'};
+function fresh(){var s=D.META&&D.META.sources;if(D.META&&D.META.built)$('upd').textContent='Updated '+D.META.built.replace(/ at .*/,'');
+  var H=(D.META&&D.META.health)||{},bad=Object.keys(H).filter(function(k){return /^failed/.test(H[k])}).map(function(k){return HLN[k]||k.replace(/_/g,' ')});
+  if(bad.length){$('hl').innerHTML='Some sections didn’t update today: '+esc(bad.join(', '))+'. They should come back with the next refresh.';$('hl').hidden=false}
+  if(!s)return;var x=[];
   if(s.weekly_stats)x.push('Game stats through week '+s.weekly_stats.week);if(s.depth)x.push('depth chart from '+s.depth.asof);if(s.injuries)x.push('injury report from week '+s.injuries.week);
   $('fr').textContent=x.length?x.join(', ')+'.':''}
 function showSec(s){st.sec=s;[].forEach.call($('sec').children,function(b){b.setAttribute('aria-pressed',b.dataset.s===s)});
