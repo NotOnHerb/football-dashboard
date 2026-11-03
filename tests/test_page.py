@@ -758,6 +758,8 @@ def test_feed_names_are_escaped(built, browser):
         d['ODD']['G'][1]['a'] = IMG  # a rich-week game (the golden game keeps its teams, the views select it)
         for g in d['CFB']['G']: g['a'] = IMG
         add_book(d, IMG)
+        from pick_data import recompute_picks  # so the hostile book's own Picks view has cards too
+        d['ODD']['PK'], d['ODD']['PKB'] = recompute_picks(d)
     out = variant(built, 'site_escape', edit)
     url, srv = serve(out)
     found = {}
