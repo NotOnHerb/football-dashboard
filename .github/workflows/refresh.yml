@@ -59,4 +59,4 @@ jobs:
       # Runs after the save, so the site and pick ledgers are kept even when a section failed.
       # A failure here fails the run, which notifies the owner.
       - name: Check every section built
-        run: python check_health.py
+        run: python check_health.py --require-api

@@ -7,8 +7,8 @@ SCRIPT = os.path.join(ROOT, 'check_health.py')
 HEALTHY = {'schedule': 'ok', 'injuries': 'ok', 'depth': 'ok', 'weekly': 'ok', 'odds': 'ok', 'college_prospects': 'skipped: no CFBD_KEY secret'}
 
 
-def run(folder):
-    r = subprocess.run([sys.executable, SCRIPT, str(folder / 'data.json')], capture_output=True, text=True, env=dict(os.environ, PYTHONUTF8='1'))
+def run(folder, *flags):
+    r = subprocess.run([sys.executable, SCRIPT, *flags, str(folder / 'data.json')], capture_output=True, text=True, env=dict(os.environ, PYTHONUTF8='1'))
     return r.returncode, r.stdout + r.stderr
 
 
@@ -21,6 +21,23 @@ def test_passes_without_an_api_folder(tmp_path):
     make(tmp_path)
     code, out = run(tmp_path)
     assert code == 0 and 'health ok' in out
+
+
+def test_require_api_fails_when_the_api_was_never_written(tmp_path):
+    make(tmp_path)
+    assert run(tmp_path, '--require-api')[0] == 1 and 'missing' in run(tmp_path, '--require-api')[1]
+    assert run(tmp_path)[0] == 0   # without the flag a missing api folder is fine (local runs)
+    (tmp_path / 'api' / 'v1').mkdir(parents=True)
+    (tmp_path / 'api' / 'v1' / 'index.json').write_text(json.dumps({'built': 'Nov 02, 2026 at 12:00 UTC'}), encoding='utf-8')
+    code, out = run(tmp_path, '--require-api')
+    assert code == 0 and 'health ok' in out
+
+
+def test_the_refresh_requires_the_api_and_the_test_workflow_watches_the_new_files():
+    wf = os.path.join(ROOT, '.github', 'workflows')
+    assert 'python check_health.py --require-api' in open(os.path.join(wf, 'refresh.yml'), encoding='utf-8').read()
+    paths = open(os.path.join(wf, 'test.yml'), encoding='utf-8').read()
+    for p in ('api_export.py', 'check_health.py', "'mcp_server/**'", "'schema/**'", "'engine/**'"): assert p in paths
 
 
 def test_passes_when_the_api_was_built_from_this_data(tmp_path):

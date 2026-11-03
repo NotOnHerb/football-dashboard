@@ -99,10 +99,23 @@ def test_export_removes_files_this_build_did_not_write(data, tmp_path):
     with_pkb = dict(data, ODD=dict(data['ODD'], PKB={'BetRivers': []}))
     api_export.export(with_pkb, str(tmp_path))
     assert (tmp_path / 'picks_by_book.json').exists()
-    (tmp_path / 'notes.txt').write_text('keep')
+    (tmp_path / 'notes.txt').write_text('keep'); (tmp_path / 'other.json').write_text('{}')
     api_export.export(data, str(tmp_path))   # the next build has no PKB
-    assert not (tmp_path / 'picks_by_book.json').exists() and (tmp_path / 'notes.txt').exists()
-    assert (tmp_path / 'picks.json').exists()
+    assert not (tmp_path / 'picks_by_book.json').exists() and (tmp_path / 'picks.json').exists()
+    assert (tmp_path / 'notes.txt').exists() and (tmp_path / 'other.json').exists()   # only the API's own files are ever removed
+    assert set(api_export.API_FILES) >= {os.path.basename(p)[:-5] for p in api_export.export(with_pkb, str(tmp_path / 'x'))}
+
+
+def test_export_refuses_a_folder_that_holds_data_json(data, tmp_path):
+    """`python api_export.py data.json .` must not delete or overwrite anything in the repo root."""
+    (tmp_path / 'data.json').write_text('{"keep": true}'); (tmp_path / 'model.json').write_text('{"keep": true}')
+    with pytest.raises(ValueError, match='holds a data.json'): api_export.export(data, str(tmp_path))
+    assert json.load(open(tmp_path / 'data.json')) == {'keep': True} and json.load(open(tmp_path / 'model.json')) == {'keep': True}
+    assert sorted(os.listdir(tmp_path)) == ['data.json', 'model.json']
+    src = tmp_path / 'in.json'; src.write_text(json.dumps(data), encoding='utf-8')
+    r = subprocess.run([sys.executable, os.path.join(ROOT, 'api_export.py'), str(src), str(tmp_path)], capture_output=True, text=True,
+                       env=dict(os.environ, PYTHONUTF8='1'))
+    assert r.returncode != 0 and json.load(open(tmp_path / 'model.json')) == {'keep': True}
 
 
 def test_export_games_props_and_health(out, data):

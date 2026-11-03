@@ -2,7 +2,7 @@ import pandas as pd, numpy as np, json, gzip, base64
 import os, datetime
 import sources
 from engine.odds import implied, decimal, no_vig_shin, no_vig_proportional, consensus_line, median, normal_cdf
-from engine.rules import RULES, COLLEGE_EXCLUDED_BOOKS, COLLEGE_GAP_MAX, COLLEGE_GAP_MIN, COLLEGE_GAP_STRONG, COLLEGE_MIN_BOOKS, COLLEGE_MIN_PRICE
+from engine.rules import RULES, COLLEGE_EXCLUDED_BOOKS, COLLEGE_GAP_MAX, COLLEGE_GAP_MIN, COLLEGE_GAP_STRONG, COLLEGE_MIN_BOOKS, COLLEGE_MIN_PRICE, COLLEGE_MIN_SCORE, COLLEGE_STRONG_SCORE
 from engine.projections import base_projection, matchup_factor, td_chance
 from engine.team_model import fit_nfl, project, fit_ridge_margins
 from engine.picks import game_picks, prop_picks, started as kicked_off
@@ -733,7 +733,7 @@ try:
                 vv=books[bn]; prc=(vv[5] if sd=='hs' else vv[6]) if len(vv)>6 else None; prc=prc if prc is not None else -110
                 ok_price=prc>=COLLEGE_MIN_PRICE   # a better number at a worse price gives the edge back (the backtest assumed about -110)
                 oth=_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
-                if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2 if abs(d)>=COLLEGE_GAP_STRONG else 1,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
+                if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':COLLEGE_STRONG_SCORE if abs(d)>=COLLEGE_GAP_STRONG else COLLEGE_MIN_SCORE,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
                 if ok_price: row['pick']=CP[-1]['id']
         CG.append(row)
     # log and grade college picks (own record)

@@ -100,17 +100,17 @@ def explain(pick, rules, others=None):
         reasons.append('College %s %s at %s; this book is %.1f points off the median of the other books (they are at %s).' % (
             side, fmt_quote(pt, pr), p.get('book'), p.get('gap') or 0, p.get('others_line')))
         reasons.append('College spread rule: with at least %d books posting, one book %s to under %s points off the median of the others '
-                       '(%s never supply the odd number), at a price of %+d or better. Every pick that passes is official: score 2 from a gap of %s '
+                       '(%s never supply the odd number), at a price of %+d or better. Every pick that passes is official: score %s from a gap of %s '
                        'points, else %s. This one scored %s.' % (
                            R.COLLEGE_MIN_BOOKS, R.COLLEGE_GAP_MIN, R.COLLEGE_GAP_MAX, ', '.join(R.COLLEGE_EXCLUDED_BOOKS),
-                           R.COLLEGE_MIN_PRICE, R.COLLEGE_GAP_STRONG, R.COLLEGE_MIN_SCORE, p.get('score')))
+                           R.COLLEGE_MIN_PRICE, R.COLLEGE_STRONG_SCORE, R.COLLEGE_GAP_STRONG, R.COLLEGE_MIN_SCORE, p.get('score')))
     else:
         reasons.append('%s: %s %s at %s.' % (describe(p), side, fmt_quote(pt, pr), p.get('book')))
         vs, ls, ms = p.get('value_score'), p.get('lean_score'), p.get('model_score')
         cuts = rules['val']
         if market == 'Anytime TD':
             scores.update(lean=ls)
-            reasons.append('Value: anytime TDs are scored on lean only (their fair price is not used), so value is 0 by design.')
+            reasons.append('Value: the value score is not used for anytime TDs, so they are scored on lean alone (the market\'s fair chance still goes into our chance).')
             if pc is not None and pr is not None: reasons.append(lean_text(pc, pr, ls))
             reasons.append('An anytime TD earns a lean only at a price of +%d or shorter and with at least %d games of history.' % (
                 rules['tdmax'], R.LEAN_MIN_GAMES))
@@ -213,9 +213,10 @@ def create_server(source=None, ideas_path=None, now=None):
         number, line movement and the ids of the official picks on each game. Prices are American odds; spread lines are from the home team's view."""
         g = doc('games'); picks = live(doc('picks'))
         lines = [dict(x, picks=[p['id'] for p in picks if p.get('event_id') == x['event_id']]) for x in live(g['lines'])]
-        teams = {(x['away'], x['home']) for x in lines}
+        # The schedule rows (G) stay unless their odds line shows the game has started; a game with no posted lines stays too.
+        started_games = {(x['away'], x['home']) for x in g['lines']} - {(x['away'], x['home']) for x in lines}
         return {'week': g['week'], 'as_of': clock().isoformat(), 'games': lines,
-                'remaining': [r for r in g['remaining'] if (r['away'], r['home']) in teams], 'finals_this_season': len(g['finals'])}
+                'remaining': [r for r in g['remaining'] if (r['away'], r['home']) not in started_games], 'finals_this_season': len(g['finals'])}
 
     @server.tool(annotations=read_only)
     def get_picks(book: str | None = None) -> Result:

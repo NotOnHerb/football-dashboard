@@ -27,6 +27,8 @@ from schema.fields import rows_named  # noqa: E402
 from schema.health import CORE_SECTIONS  # noqa: E402
 
 API_VERSION = 1
+# Every file this module writes, by name without .json (picks_by_book only when data.json has ODD.PKB). Only these are ever removed.
+API_FILES = ['index', 'players', 'teams', 'games', 'picks', 'picks_by_book', 'props', 'pick_log', 'dynasty', 'college', 'health', 'data.schema']
 
 # Short pick keys in data.json -> names. Keys that are not here (id, kind, title, legs, note, ...) keep their name.
 # 'legs' (parlays) holds picks, and 'first' holds the first price seen; both are renamed the same way.
@@ -264,7 +266,11 @@ def build(data):
 
 
 def export(data, out_dir='api/v1'):
-    """Writes the API files for a data.json dict into OUT_DIR, removes any other .json file there, and returns the paths written."""
+    """Writes the API files for a data.json dict into OUT_DIR and removes API files an earlier build wrote that this one did not
+    (only files named in API_FILES; anything else in OUT_DIR is left alone). Returns the paths written. Refuses a folder that
+    holds data.json, so a wrong out_dir (the repo root) can never be written into."""
+    if os.path.exists(os.path.join(out_dir, 'data.json')):
+        raise ValueError('%s holds a data.json; api_export writes only into its own api folder (default api/v1)' % out_dir)
     os.makedirs(out_dir, exist_ok=True)
     written = []
     for name, doc in build(data).items():
@@ -274,8 +280,9 @@ def export(data, out_dir='api/v1'):
     path = os.path.join(out_dir, 'data.schema.json')
     shutil.copyfile(os.path.join(HERE, 'schema', 'data.schema.json'), path)
     written.append(path)
-    for f in os.listdir(out_dir):   # a file from an earlier build that this one did not write (e.g. picks_by_book.json) is stale
-        if f.endswith('.json') and os.path.join(out_dir, f) not in written: os.remove(os.path.join(out_dir, f))
+    for name in API_FILES:   # an API file from an earlier build that this one did not write (picks_by_book.json) is stale
+        stale = os.path.join(out_dir, name + '.json')
+        if stale not in written and os.path.exists(stale): os.remove(stale)
     return written
 
 

@@ -269,7 +269,7 @@ def test_explain_anytime_td_uses_the_td_rule(data, tmp_path):
             'pj': td['pj'], 'pc': 0.6, 'srt': 1.0}
     r = call(server_with(data, tmp_path, odd_pk=[pick]), 'explain_pick', pick_id=pick['id'])
     text = ' '.join(r['reasons'])
-    assert 'value is 0 by design' in text and '+%d or shorter' % data['ODD']['RU']['tdmax'] in text
+    assert 'value score is not used for anytime TDs' in text and 'fair price is not used' not in text and '+%d or shorter' % data['ODD']['RU']['tdmax'] in text
     assert 'at least %d games' % R.LEAN_MIN_GAMES in text
     assert 'value' not in r['scores'] and 'Value scores are' not in text and 'needs a line of at least' not in text
 
@@ -284,6 +284,25 @@ def test_explain_numbers_come_from_engine_rules(server, data, monkeypatch):
     monkeypatch.setattr(R, 'LEAN_MAX_SCORE', 3)
     text = ' '.join(call(server, 'explain_pick', pick_id=pk['id'])['reasons'])
     assert 'Lean tiers are 1 at 5 points, 2 at 8 and 3 at 11' in text and 'at least 6 games' in text and 'at most 3 toward' in text
+
+
+def test_college_scores_come_from_engine_rules(data, tmp_path, monkeypatch):
+    from engine import rules as R
+    cp = college_pick(data)
+    s = server_with(data, tmp_path, cfb_pk=[cp])
+    assert 'score 2 from a gap of 1.5 points, else 1.' in ' '.join(call(s, 'explain_pick', pick_id=cp['id'])['reasons'])
+    monkeypatch.setattr(R, 'COLLEGE_STRONG_SCORE', 5)
+    assert 'score 5 from a gap of 1.5 points' in ' '.join(call(s, 'explain_pick', pick_id=cp['id'])['reasons'])
+    build = open(os.path.join(ROOT, 'build.py'), encoding='utf-8').read()
+    assert "'s':COLLEGE_STRONG_SCORE if abs(d)>=COLLEGE_GAP_STRONG else COLLEGE_MIN_SCORE" in build
+
+
+def test_week_games_without_odds_lines_still_lists_the_schedule(data, tmp_path):
+    """When the odds section failed (ODD.G empty) the schedule rows from G are still the week's games."""
+    d = tmp_path / 'root'; (d / 'api').mkdir(parents=True)
+    api_export.export(dict(data, ODD=dict(data['ODD'], G=[], PK=[], P=[])), str(d / 'api' / 'v1'))
+    w = call(create_server(Source(root=str(d)), tmp_path / 'i.jsonl'), 'get_week_games')
+    assert w['games'] == [] and [(r['away'], r['home']) for r in w['remaining']] == [tuple(data['G'][0][:2])]
 
 
 def test_the_engine_reads_the_same_constants():
