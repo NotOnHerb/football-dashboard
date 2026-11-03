@@ -685,8 +685,8 @@ def test_saved_bets_survive(sites, browser, built):
 
 def test_saved_bets_merge(sites, browser, built):
     """With both a bare and a namespaced copy: settings saved by this page win; bets from the bare list are merged in
-    by id and never dropped (this page's version of a bet it already has is kept); a bet removed here stays removed
-    over reloads; and a bet an old tab adds to the bare list later shows up on the next load."""
+    by id (this page's version of a bet it already has is kept); a bet removed here stays removed over reloads, and
+    when a stale old tab saves its list again (still holding that bet) only the bet it added shows up."""
     d = site_data(built)
     pa, pb, pc = over_props(d, 3)
     A, B, C = saved_bet(d, pa, '10'), saved_bet(d, pb, '20'), saved_bet(d, pc, '30')
@@ -704,6 +704,7 @@ def test_saved_bets_merge(sites, browser, built):
         page.evaluate('b => localStorage.setItem("mybets", JSON.stringify(b))', [dict(A, stake='99'), B, C])  # an old tab saves C
         got = my_bets(page, reload=True)
         assert got.get(A['id']) == '10' and got.get(C['id']) == '30', got
+        assert B['id'] not in got, 'a bet removed here came back from a stale bare list'
         assert page.evaluate('localStorage.getItem("mybets")') is not None
         assert not log['errors'], (log['errors'], log['blocked'])
     finally:
