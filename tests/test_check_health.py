@@ -68,3 +68,59 @@ def test_core_sections_are_defined_once():
     from schema.health import CORE_SECTIONS
     assert api_export.CORE_SECTIONS is CORE_SECTIONS
     assert 'CORE = [' not in open(SCRIPT, encoding='utf-8').read()
+
+
+def write_shard_index(folder, build=None):
+    """data/index.json next to data.json, stamped with data.json's build id unless build is given."""
+    sys.path.insert(0, ROOT)
+    from schema.shards import build_id
+    data = json.load(open(folder / 'data.json', encoding='utf-8'))
+    (folder / 'data').mkdir(exist_ok=True)
+    (folder / 'data' / 'index.json').write_text(json.dumps({'build': build or build_id(data), 'shards': {}}), encoding='utf-8')
+
+
+def test_passes_when_the_split_files_match_this_data(tmp_path):
+    make(tmp_path)
+    write_shard_index(tmp_path)
+    code, out = run(tmp_path, '--require-shards')
+    assert code == 0 and 'data/ matches data.json' in out and 'health ok' in out
+
+
+def test_fails_when_the_split_files_are_from_another_build(tmp_path):
+    make(tmp_path)
+    write_shard_index(tmp_path, build='0123456789abcdef')
+    for flags in ((), ('--require-shards',)):   # a stale data/ fails whether or not it is required
+        code, out = run(tmp_path, *flags)
+        assert code == 1 and 'data/ is out of step' in out and '0123456789abcdef' in out
+    (tmp_path / 'data' / 'index.json').write_text('{not json', encoding='utf-8')
+    code, out = run(tmp_path)
+    assert code == 1 and 'unreadable' in out
+
+
+def test_require_shards_fails_when_data_was_never_written(tmp_path):
+    make(tmp_path)
+    code, out = run(tmp_path, '--require-shards')
+    assert code == 1 and 'missing' in out
+    assert run(tmp_path)[0] == 0   # without the flag a missing data/ is fine (local runs)
+
+
+def test_the_stamp_check_agrees_with_what_build_py_writes(tmp_path_factory):
+    """The real replay's data/index.json passes, so check_health computes the stamp the way build.py does."""
+    sys.path.insert(0, HERE)
+    from replay_util import replay_dir
+    code, out = run(replay_dir(tmp_path_factory), '--require-shards')
+    assert code == 0 and 'data/ matches data.json' in out
+
+
+def test_unknown_flags_are_refused(tmp_path):
+    make(tmp_path)
+    for typo in ('--require-ap', '--requireapi', '--require_api', '--bogus'):
+        code, out = run(tmp_path, typo)
+        assert code == 2 and 'unknown option' in out and typo in out
+    code, out = run(tmp_path, '--require-api', '--bogus')   # a good flag next to a typo does not hide it
+    assert code == 2 and '--bogus' in out
+
+
+def test_the_refresh_requires_the_split_files_too():
+    wf = open(os.path.join(ROOT, '.github', 'workflows', 'refresh.yml'), encoding='utf-8').read()
+    assert 'python check_health.py --require-api --require-shards' in wf

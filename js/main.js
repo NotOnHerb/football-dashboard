@@ -4,7 +4,7 @@
 // sections load their data and run their init on first visit.
 // VER is the build stamp on this script's own URL (build.py writes it into index.html), used to cache-bust the data.
 var VER=(function(){var s=document.currentScript,m=s&&/[?&]v=([^&#]*)/.exec(s.src);return m?m[1]:''})();
-var HLN={schedule:'this week’s games',injuries:'injuries',rosters:'injured reserve list',depth:'depth charts',weekly:'game-by-game stats',snaps:'snap counts',dynasty:'dynasty values',college_prospects:'college prospects',player_cards:'player cards',odds:'NFL betting lines',college_betting:'college betting lines'};
+var HLN={schedule:'this week’s games',injuries:'injuries',rosters:'injured reserve list',depth:'depth charts',weekly:'game-by-game stats',snaps:'snap counts',dynasty:'dynasty values',college_prospects:'college prospects',player_cards:'player cards',odds:'NFL betting lines',odds_by_book:'single-book picks',college_betting:'college betting lines'};
 function fresh(){var s=D.META&&D.META.sources;if(D.META&&D.META.built)$('upd').textContent='Updated '+D.META.built.replace(/ at .*/,'');
   var H=(D.META&&D.META.health)||{},bad=Object.keys(H).filter(function(k){return /^failed/.test(H[k])}).map(function(k){return HLN[k]||k.replace(/_/g,' ')});
   if(bad.length){$('hl').innerHTML='Some sections didn’t update today: '+esc(bad.join(', '))+'. They should come back with the next refresh.';$('hl').hidden=false}

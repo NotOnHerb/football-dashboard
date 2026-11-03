@@ -10,8 +10,8 @@ The daily refresh runs `python api_export.py` right after `build.py` and commits
 next to the page: https://notonherb.github.io/football-dashboard/api/v1/index.json. Locally,
 `python api_export.py [data.json] [out_dir]` writes them (default `api/v1/`), and removes an API file from an earlier build
 that this one did not write (`picks_by_book.json`); other files in the folder are never touched, and a folder that holds a
-`data.json` is refused. The daily run's last step, `check_health.py --require-api`, fails if `api/v1/index.json` is missing
-or was built from an older `data.json`. Prices are American odds. `schema/fields.py` is the source of the row names.
+`data.json` is refused. The daily run's last step, `check_health.py --require-api --require-shards`, fails if `api/v1/index.json` or `data/index.json` is missing
+or was built from an older `data.json`. Unknown `--` options exit 2. Prices are American odds. `schema/fields.py` is the source of the row names.
 
 **The files are as of the build** (`built` in `index.json`, once a day). They still list games that have since kicked off;
 the page hides those when you open it, and so do the MCP tools (see below). If you read the files directly, drop picks,

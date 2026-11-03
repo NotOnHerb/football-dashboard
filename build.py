@@ -656,8 +656,9 @@ try:
     FIN=[[int(r.week),r.away_team,r.home_team,int(r.away_score),int(r.home_score)] for r in cur.itertuples()]
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
     books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
-    PKB=picks_by_book(books,GL,PR,MODEL,MB,nowu,INJ,weeks=WKOF)   # PK again for each sportsbook, using only that book's quotes (ODD.PKB)
-    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'PKB':PKB,'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    try: PKB=picks_by_book(books,GL,PR,MODEL,MB,nowu,INJ,weeks=WKOF)   # PK again for each sportsbook, using only that book's quotes (ODD.PKB)
+    except Exception as ex: print('per-book picks skipped:',ex); PKB=None; bad('odds_by_book',ex)   # not core: ODD and PK still build and ODD.PKB is left out (the page, API export and MCP server handle that)
+    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,**({'PKB':PKB} if PKB is not None else {}),'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
     ok('odds'); print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| parlays',[(x['kind'],len(x['legs']),x['pr'],x['bk'],x['pc']) for x in PX],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex); bad('odds',ex,'ODDS_API_KEY')
