@@ -15,7 +15,7 @@ def games_from(s,teams):
         a,h=fx(r.away_team),fx(r.home_team)
         if a not in teams or h not in teams: return None
         dt=pd.to_datetime(str(r.gameday)+' '+str(r.gametime))
-        out.append([a,h,'Wk %d, %s ET'%(r.week,dt.strftime('%a %b %d, %-I:%M %p'))])
+        out.append([a,h,'Wk %d, %s, %d:%s ET'%(r.week,dt.strftime('%a %b %d'),int(dt.strftime('%I')),dt.strftime('%M %p'))])   # %-I is Linux-only
     return out
 def get_games(fb,teams):
     try:
