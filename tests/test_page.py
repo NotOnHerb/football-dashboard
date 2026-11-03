@@ -53,6 +53,9 @@ def replay(workdir):
 
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
+    # Keep-alive: the page fetches several data files per load, and a new socket per file has run Windows out of
+    # socket buffers (net::ERR_NO_BUFFER_SPACE) over a few hundred page loads.
+    protocol_version = 'HTTP/1.1'
     def log_message(self, *a): pass
 
 
@@ -250,6 +253,27 @@ def mocks_for(data, inject=False):
 
 # ---------------------------------------------------------------- browser
 
+# A section's dataKeys decide which data files have loaded when it runs, and guarded reads (D.PRI&&..., D.LOG||{})
+# would hide a key left out. So in every page test, a read of D.<KEY> whose data file hasn't loaded yet logs a console
+# error, which fails the test. window.D is made an accessor before the page's scripts run (core.js's `var D` keeps it)
+# that wraps whatever the page assigns in a Proxy asking the page's keyLoaded (js/registry.js). OPTIONAL lists the
+# functions that read a key that may not be there yet on purpose.
+OPTIONAL = ['colorize', 'cardRows', 'pIndex', 'openCard']
+WATCH_READS = """(() => {
+  const optional = %s;
+  let d;
+  const wrap = o => !o || typeof o !== 'object' ? o : new Proxy(o, {get(t, k, r) {
+    if (typeof k === 'string' && /^[A-Z]+$/.test(k) && typeof keyLoaded === 'function' && !keyLoaded(k)) {
+      const stack = new Error().stack || '';
+      if (!optional.some(f => stack.includes('at ' + f + ' ')))
+        console.error('D.' + k + ' read before its data file loaded (a dataKeys entry missing?): ' + stack.split('\\n').slice(2, 5).join(' | '));
+    }
+    return Reflect.get(t, k, r);
+  }});
+  Object.defineProperty(window, 'D', {configurable: true, get() { return d }, set(v) { d = wrap(v) }});
+})()""" % json.dumps(OPTIONAL)
+
+
 def new_page(browser, mocks):
     """A fresh browser context (empty localStorage) on a page that cannot reach the internet. Returns (page, log)."""
     ctx = browser.new_context(viewport={'width': 1280, 'height': 900}, locale='en-US', timezone_id='UTC')
@@ -270,6 +294,7 @@ def new_page(browser, mocks):
         if r.request.resource_type == 'image': return r.fulfill(body=PIXEL, content_type='image/gif')  # headshots
         log['blocked'].append(r.request.url); r.abort()
     ctx.route('**/*', route)
+    ctx.add_init_script(WATCH_READS)
     page = ctx.new_page()
     page.set_default_timeout(10000)
     page.on('console', lambda m: log['errors'].append('console: ' + m.text) if m.type == 'error' else None)
@@ -661,6 +686,153 @@ def test_failed_data_file_is_isolated(sites, browser, built):
         down['odds'] = False
         do(page, page_views.BET); settle(page)
         assert page.is_visible('#sb') and page.locator('#bo .bc, #bo .card').count() > 0
+        assert page.locator('#hlerr').count() == 0, 'the failure line should go once the retry worked'
+    finally:
+        log['ctx'].close()
+
+
+def test_failed_deep_link_waits(sites, browser, built):
+    """A deep link whose data file fails keeps its address, and the next visit to the section opens the linked view."""
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    down = {'odds': True}
+    page.route('**/data/odds.json*', lambda r: r.fulfill(status=503, body='') if down['odds'] else r.fallback())
+    try:
+        page.goto(sites[''] + 'index.html#betting/props', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000); settle(page)
+        assert 'Betting' in page.inner_text('#hlerr') and page.evaluate('location.hash') == '#betting/props'
+        do(page, page_views.NFL); down['odds'] = False
+        do(page, page_views.BET); settle(page)
+        assert page.get_attribute(page_views.bet('props'), 'aria-pressed') == 'true' and page.evaluate('location.hash') == '#betting/props'
+    finally:
+        log['ctx'].close()
+
+
+def shard_edit(edit):
+    """A route handler serving the real data file after edit(file json)."""
+    def handle(r):
+        body = r.fetch().json(); edit(body); r.fulfill(json=body)
+    return handle
+
+
+@pytest.mark.parametrize('what', ['other build', 'other keys'])
+def test_data_file_from_another_build_is_refused(sites, browser, built, what):
+    """A data file from another build than core.json (a tab open across the daily refresh, or the CDN mid-deploy), or
+    holding other keys than index.json lists, is refused: the section reports that the dashboard updated and asks
+    for a refresh, instead of mixing two days' numbers."""
+    edit = (lambda b: b.update(build='0' * 16)) if what == 'other build' else (lambda b: b['data'].pop('LOG'))
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    page.route('**/data/odds.json*', shard_edit(edit))
+    try:
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        do(page, page_views.BET); settle(page)
+        assert page.inner_text('#hlerr') == ('The dashboard was updated after this page opened, so part of it can’t load: Betting → Picks. '
+                                             'Refresh the page to get the new version.')
+        assert len(log['errors']) == 1 and 'failed in load' in log['errors'][0], log['errors']
+        assert page.locator('#bo > *').count() == 0 and not page.evaluate("keyLoaded('ODD') || keyLoaded('LOG')")
+    finally:
+        log['ctx'].close()
+
+
+def test_slow_data_file_times_out(sites, browser, built):
+    """A click on a section whose data is loading shows it at once (its nav button pressed, a "Loading" line); a data
+    file that never answers fails after FETCH_MS, and the next visit tries again."""
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    page.add_init_script('window.FETCH_MS = 500')
+    hang = {'on': True}
+    page.route('**/data/odds.json*', lambda r: None if hang['on'] else r.fallback())  # no answer: the request hangs
+    try:
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        do(page, page_views.BET)
+        assert page.inner_text('#ldsec') == 'Loading Betting…' and page.get_attribute(page_views.BET, 'aria-pressed') == 'true'
+        settle(page)
+        assert 'Betting → Picks' in page.inner_text('#hlerr') and page.locator('#ldsec').count() == 0
+        assert any('took longer than 0.5 s' in e for e in log['errors']), log['errors']
+        hang['on'] = False
+        do(page, page_views.NFL); do(page, page_views.BET); settle(page)
+        assert page.locator('#bo .bc, #bo .card').count() > 0 and page.locator('#hlerr').count() == 0
+    finally:
+        log['ctx'].close()
+
+
+@pytest.mark.parametrize('how', ['no data/', 'index from another build'])
+def test_whole_data_fallback(built, browser, how):
+    """With no data/index.json (index.html restamped before the first split build), or index.json and core.json from
+    two builds, the page loads data.json whole and every view still works."""
+    out = variant(built, 'site_whole', with_college)
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    got = []
+    page.on('request', lambda r: got.append(urlparse(r.url).path) if urlparse(r.url).path.endswith('.json') else None)
+    if how == 'no data/': os.remove(os.path.join(out, 'data', 'index.json'))
+    else: page.route('**/data/index.json*', shard_edit(lambda b: b.update(build='0' * 16)))
+    url, srv = serve(out)
+    exp = json.load(gzip.open(EXPECTED, 'rt', encoding='utf-8'))
+    try:
+        page.goto(url + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000); settle(page)
+        assert page_text(page) == exp['nfl/teams/whole']
+        for a in (page_views.BET,): do(page, a)
+        settle(page)
+        assert page_text(page) == exp['betting/nfl/picks/best-available']
+        assert sorted(got) == ['/data.json', '/data/core.json', '/data/index.json'], got
+        assert all('404' in e for e in log['errors']) and bool(log['errors']) == (how == 'no data/'), log['errors']
+    finally:
+        log['ctx'].close(); srv.shutdown()
+
+
+def test_card_clicks_while_loading_draw_once(sites, browser, built):
+    """Clicks on several players while the card's data loads open one card, the last one clicked."""
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    held = []
+    page.route('**/data/players.json*', lambda r: held.append(r))
+    try:
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        do(page, page_views.tab('p'))
+        page.evaluate('() => { const f = drawCard; window.__draws = []; drawCard = function (n) { __draws.push(n); return f.apply(this, arguments) } }')
+        names = [page.locator('#pt td.nm').nth(i).evaluate("e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim()") for i in (0, 1, 2)]
+        for i in (0, 1, 2): page.locator('#pt td.nm').nth(i).click()
+        assert page.inner_text('#ldsec') == 'Loading the player card…'
+        for _ in range(100):
+            if held: break
+            page.wait_for_timeout(50)
+        held[0].fallback()
+        for a in page_views.CARD_OPEN: do(page, a)
+        settle(page)
+        assert page.evaluate('__draws') == [names[2]] and page.inner_text('#pcn') == names[2]
+        assert not log['errors'], log['errors']
+    finally:
+        log['ctx'].close()
+
+
+def test_dynasty_only_player_card(sites, browser, built):
+    """From Betting (dynasty list not loaded yet), a player only the dynasty list knows still gets his card."""
+    d = site_data(built)
+    known = {r[0] for rows in d['P'].values() for r in rows} | {r[0] for r in d['X']}
+    name = next(r[0] for r in d['DY']['P'] if r[0] not in known)
+    page, log = new_page(browser, mocks_for(d))
+    try:
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        do(page, page_views.BET); settle(page)
+        assert page.evaluate('n => openCard(n, null)', name) is False  # not known before the dynasty list loads
+        for a in page_views.CARD_OPEN: do(page, a)
+        assert page.inner_text('#pcn') == name and 'Dynasty' in page.inner_text('#pcb')
+        assert not log['errors'], log['errors']
+    finally:
+        log['ctx'].close()
+
+
+def test_read_watch_fires(sites, browser, built):
+    """The page tests' check on D.<KEY> reads (WATCH_READS) is live: a read of a key whose file hasn't loaded logs."""
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    try:
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        assert not log['errors'], log['errors']
+        page.evaluate('() => D.ODD')
+        assert len(log['errors']) == 1 and 'D.ODD read before its data file loaded' in log['errors'][0], log['errors']
     finally:
         log['ctx'].close()
 

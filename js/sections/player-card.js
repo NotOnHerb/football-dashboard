@@ -18,11 +18,19 @@ function logChart(log,avg){var w=Math.max(log.length*44,220),h=120,mx=Math.max.a
   if(avg!=null){var ay=h-avg/mx*h+4;s+='<line x1="0" x2="'+w+'" y1="'+ay+'" y2="'+ay+'" stroke="currentColor" stroke-dasharray="4 4" opacity=".5"/>'}
   return s+'</svg>'}
 function cardRows(name){if(!PIX||PIXDY!==D.DY)pIndex();return PIX[name]}
-// openCard(name, team): opens the card for that player, or returns false when no player has that name. The first
-// time, the card's data loads first, so the card opens a moment after the click.
-function openCard(name,team){if(!cardRows(name))return false;
-  if(CARD.ready)drawCard(name,team);else need(CARD).then(function(){drawCard(name,team)},function(e){sectionFailed(CARD,'load',e)});
-  return true}
+// openCard(name, team, known): opens the card for that player; returns whether a player has that name. The first
+// time, the card's data loads first, so the card opens a moment after the click; clicks meanwhile only change which
+// card opens (CARDWANT, the latest). Before the dynasty list has loaded, a name not found yet may still be a player
+// with dynasty data only: the data loads and the card opens if he is there (the return value is then false). The
+// click handler passes known, so a click on a team name never loads the card's data.
+var CARDWANT=null;
+function openCard(name,team,known){var hit=!!cardRows(name);
+  if(CARD.ready){if(hit)drawCard(name,team);return hit}
+  if(!hit&&(known||D.DY))return false;
+  var first=!CARDWANT;CARDWANT=[name,team];loadingNote('Loading the player card…');
+  if(first)need(CARD).then(function(){var w=CARDWANT;CARDWANT=null;loadingNote(null);if(cardRows(w[0]))drawCard(w[0],w[1])},
+    function(e){CARDWANT=null;loadingNote(null);sectionFailed(CARD,'load',e)});
+  return hit}
 function drawCard(name,team){var c=cardRows(name);if(!c)return;var e=c.filter(function(x){return x.team===team})[0]||c[0],r=e.r,gid,pos,tm,h='',tl=[];
   if(e.t==='o'){gid=r.gid;pos=r[2];tm=r[1]}else if(e.t==='d'){gid=r[20];pos=r[2];tm=r[1]}else{gid=r[16];pos=r[1];tm=r[2]}
   var P=(D.PL&&gid&&D.PL[gid])||[],dy=D.DY?D.DY.P.filter(function(x){return x[0]===name&&(x[16]===gid||!gid)})[0]:null,inj=r.inj||(dy&&dy[14]),dl=r.dl||(dy&&dy[15]),a=age(P[4])||(dy&&dy[3]);
@@ -57,6 +65,6 @@ function initCards(){$('pcx').onclick=closeCard;$('pc').addEventListener('click'
   document.querySelector('main').addEventListener('click',function(e){var el=e.target.closest('td.nm, table b');if(!el||e.target.closest('th'))return;
     var nm='';el.childNodes.forEach(function(n){if(n.nodeType===3)nm+=n.textContent});nm=nm.trim();if(!nm)return;
     var tr=el.closest('tr'),team=null;if(tr)[].forEach.call(tr.cells,function(c){var t=c.textContent.trim();if(D.N[t])team=t});
-    if(openCard(nm,team)){e.stopPropagation()}},true);
+    if(openCard(nm,team,true)){e.stopPropagation()}},true);
   document.querySelector('main').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var el=e.target.closest&&e.target.closest('td.nm');if(el){el.click();e.preventDefault()}})}
 var CARD=register({id:'card',label:'Player card',dataKeys:['PL','LOG','DY','PRI','ODD','P','X','N','PC','ALW','G'],needs:['bet'],init:initCards});

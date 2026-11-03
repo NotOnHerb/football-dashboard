@@ -623,7 +623,7 @@ try:
                     if len(ps)>=3: fair=[pt,round(median(ps),4)]
             PR.append({'eid':eid,'ko':ev.get('commence_time'),'n':desc,'t':tm_,'pos':pos_,'gid':gid,'opp':opp,'mk':lab,'b':d,'fair':fair,'v':[[x[0],x[1],x[si]] for x in lg_],'avg':round(avg,1),'l3':round(l3,1),'pj':pj,'md':(None if mk=='player_anytime_td' or not MODEL else round(pj*MODEL['q'][lab][50],1)),'fac':round(fac,2),'use':([round(USE[gid][0],1),round(USE[gid][1],1)] if gid in USE else None)})
     pat=max([pc['fetched'] for pc in od['props'].values()],default=None)
-    # ---- official picks (best price across books). The page uses the same rules for single-book views.
+    # ---- official picks (best price across books). Single-book views show PKB below: the same rules, one book's quotes.
     RU=RULES
     INJ={}
     for pos_,rows_ in P.items():

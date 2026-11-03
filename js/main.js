@@ -12,8 +12,13 @@ function fresh(){var s=D.META&&D.META.sources;if(D.META&&D.META.built)$('upd').t
   if(s.weekly_stats)x.push('Game stats through week '+s.weekly_stats.week);if(s.depth)x.push('depth chart from '+s.depth.asof);if(s.injuries)x.push('injury report from week '+s.injuries.week);
   $('fr').textContent=x.length?x.join(', ')+'.':''}
 async function load(){
-  try{D={};setShards((await Promise.all([fetchData('data/index.json'),loadShard('core')]))[0])}
-  catch(err){console.error('Couldn’t load the core data:',err);bootFailed();return}
+  D={};
+  try{var got=await Promise.all([fetchData('data/index.json'),fetchData('data/core.json')]);setIndex(got[0]);takeShard('core',got[1])}
+  catch(err){
+    // No data/ yet (index.html restamped before the first split build), or index.json and core.json from two builds
+    // (mid-deploy): data.json whole has everything from one build.
+    console.warn('Loading data.json whole instead of data/:',err.message);
+    try{D=await fetchData('data.json');WHOLE=true}catch(e2){console.error('Couldn’t load the data:',e2);bootFailed();return}}
   // Without the player rows every section would show plausible but wrong numbers, so this one is fatal.
   try{prepRows()}catch(err){console.error('Couldn’t prepare the player rows (P, X, OLP):',err);bootFailed();return}
   guard({label:'Update notes',dataKeys:['META'],init:fresh},'init');

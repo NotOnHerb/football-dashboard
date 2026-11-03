@@ -19,24 +19,32 @@ OUTPUTS = {'index.html', 'data.json', 'data', 'api', 'model.json', 'cfb', 'odds'
 
 def test_shards_union_equals_data_json(tmp_path_factory):
     """The golden build's data/ holds every top-level key of its data.json exactly once, with the same value, and
-    data/index.json lists what each file holds. The files are what shards.write makes from data.json, byte for byte,
-    so the copies the page tests serve (re-split after editing data.json) match what the build ships."""
+    data/index.json lists what each file holds. Every file carries the same build stamp, a hash of data.json. The
+    files are what shards.files makes from data.json, byte for byte, so the copies the page tests serve (re-split
+    after editing data.json) match what the build ships."""
     work = replay_util.replay_dir(tmp_path_factory)
     whole = json.load(open(work / 'data.json', encoding='utf-8'))
     index = json.load(open(work / 'data' / 'index.json', encoding='utf-8'))
-    assert index == shards.SHARDS
-    assert sorted(os.path.basename(p) for p in glob.glob(str(work / 'data' / '*.json'))) == sorted(['index.json'] + ['%s.json' % s for s in index])
+    build = shards.build_id(whole)
+    assert index == {'build': build, 'shards': shards.SHARDS}
+    assert sorted(os.path.basename(p) for p in glob.glob(str(work / 'data' / '*.json'))) == sorted(['index.json'] + ['%s.json' % s for s in index['shards']])
     seen = {}
-    for name, keys in index.items():
-        part = json.load(open(work / 'data' / ('%s.json' % name), encoding='utf-8'))
-        assert list(part) == keys, name
-        for k, v in part.items():
+    for name, keys in index['shards'].items():
+        f = json.load(open(work / 'data' / ('%s.json' % name), encoding='utf-8'))
+        assert list(f) == ['build', 'data'] and f['build'] == build, name
+        assert list(f['data']) == keys, name
+        for k, v in f['data'].items():
             assert k not in seen, '%s is in both %s and %s' % (k, seen[k], name)
             seen[k] = name
             assert v == whole[k], k
     assert set(seen) == set(whole)
-    for name, part in shards.split(whole).items():
-        assert open(work / 'data' / ('%s.json' % name), 'rb').read() == shards.dumps(part).encode('utf-8'), name
+    for f, text in shards.files(whole).items():
+        assert open(work / 'data' / f, 'rb').read() == text.encode('utf-8'), f
+
+
+def test_build_id_follows_the_data():
+    data = {k: None for ks in shards.SHARDS.values() for k in ks}
+    assert shards.build_id(data) == shards.build_id(dict(data)) != shards.build_id(dict(data, META={'built': 'x'}))
 
 
 def test_split_rejects_unmapped_keys():
