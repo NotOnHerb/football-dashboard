@@ -40,3 +40,4 @@ COLLEGE_GAP_MAX = 3
 COLLEGE_GAP_STRONG = 1.5
 COLLEGE_MIN_PRICE = -118
 COLLEGE_EXCLUDED_BOOKS = ('Pinnacle',)
+COLLEGE_MIN_SCORE = 1           # the lowest score a listed college pick has (every listed pick is official)

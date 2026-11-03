@@ -3,19 +3,23 @@
 Run it from the repo root (see .mcp.json.example):   python -m mcp_server.server
 Tools only read, except add_idea, which appends one line to ideas/inbox.jsonl (a local file, never committed).
 Data comes from the repo's files, or from the published API when FD_API_URL is set (see mcp_server/data.py).
-Picks are explained from what the pick itself stored plus engine.rules; nothing here recomputes a pick.
+Games, picks and props whose kickoff has passed are left out of the "current" tools, as the page leaves them out
+(the pick log keeps them). Picks are explained from what the pick itself stored plus engine.rules; nothing here
+recomputes a pick.
 """
 import datetime, difflib, json, os, re, sys
 from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # the repo root, for engine/ and api_export
 from mcp.server.mcpserver import MCPServer  # noqa: E402
-from mcp.types import ToolAnnotations
+from mcp.types import ToolAnnotations  # noqa: E402
 
-from engine.odds import implied
-from engine.projections import p_over
-from engine.rules import RULES
-from mcp_server.data import ROOT, Source
+from engine import rules as R  # noqa: E402
+from engine.odds import implied  # noqa: E402
+from engine.picks import started  # noqa: E402
+from engine.projections import p_over  # noqa: E402
+from engine.rules import RULES  # noqa: E402
+from mcp_server.data import ROOT, Source  # noqa: E402
 
 KINDS = {'g': 'g', 'game': 'g', 'p': 'p', 'prop': 'p', 'x': 'x', 'parlay': 'x', 'c': 'c', 'college': 'c'}
 RESULTS = {'w': 'W', 'win': 'W', 'l': 'L', 'loss': 'L', 'p': 'P', 'push': 'P', 'v': 'V', 'void': 'V'}
@@ -23,8 +27,10 @@ SIDE_NAMES = {'hs': 'home spread', 'as': 'away spread', 'ov': 'over', 'un': 'und
               'ma': 'away moneyline', 'o': 'over', 'u': 'under', 'y': 'yes (anytime TD)'}
 Result = dict[str, Any]   # tools return a dict; this annotation makes the SDK send it as structured content too
 DEFAULT_IDEAS = os.path.join(ROOT, 'ideas', 'inbox.jsonl')
-READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
-WRITES_LOCAL_FILE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
+
+
+def utcnow():
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 def norm(s):
@@ -66,16 +72,20 @@ def pick_teams(p):
     return {x for x in (p.get('team'), p.get('opponent'), p.get('away'), p.get('home')) if x}
 
 
-def band(value, cuts):
-    """Which of the increasing CUTS value reaches: 0 below the first, up to len(cuts)."""
-    return sum(1 for c in cuts if value is not None and value >= c)
+def lean_text(pc, pr, ls):
+    """The lean paragraph: our chance vs the price's implied chance, and the tier it earned (tiers from engine.rules)."""
+    t = R.LEAN_TIERS
+    return ('Lean: our chance %.1f%% (the model blended with the market) against %.1f%% implied by the price, an edge of %.1f points. '
+            'Lean tiers are 1 at %.0f points, 2 at %.0f and 3 at %.0f; this scored %s, and a lean counts at most %d toward the total.' % (
+                pc * 100, implied(pr) * 100, (pc - implied(pr)) * 100, t[0] * 100, t[1] * 100, t[2] * 100, ls, R.LEAN_MAX_SCORE))
 
 
 def explain(pick, rules, others=None):
-    """Plain-language reasons for a pick, from the fields it stored and the pick rules. Returns {'reasons', 'scores'}."""
+    """Plain-language reasons for a pick, from the fields it stored and the pick rules. Returns {'reasons', 'scores'}.
+    Every threshold quoted comes from the rules passed in or from engine.rules; nothing is recomputed."""
     reasons, p = [], pick
     v, pc, pr, pt = p.get('ev'), p.get('our_chance'), p.get('price'), p.get('line')
-    kind = p.get('type')
+    kind, market = p.get('type'), p.get('market')
     side = SIDE_NAMES.get(p.get('side'), p.get('side'))
     scores = {'total': p.get('score'), 'needed_for_a_pick': rules['pick']}
     if kind == 'x':
@@ -85,41 +95,48 @@ def explain(pick, rules, others=None):
         if p.get('note'): reasons.append(p['note'])
         for l in p.get('legs') or []:
             reasons.append('Leg: %s' % describe(l))
-        return {'reasons': reasons, 'scores': scores}
-    if kind == 'c':
-        reasons.append('College %s %s at %s; this book is %.1f points off the other books (they are at %s).' % (
+    elif kind == 'c':
+        scores['needed_for_a_pick'] = R.COLLEGE_MIN_SCORE
+        reasons.append('College %s %s at %s; this book is %.1f points off the median of the other books (they are at %s).' % (
             side, fmt_quote(pt, pr), p.get('book'), p.get('gap') or 0, p.get('others_line')))
-        reasons.append('College picks need a line 1 to 3 points better than the other books; score %s.' % p.get('score'))
-        return {'reasons': reasons, 'scores': scores}
-    reasons.append('%s: %s %s at %s.' % (describe(p), side, fmt_quote(pt, pr), p.get('book')))
-    vs, ls, ms = p.get('value_score'), p.get('lean_score'), p.get('model_score')
-    scores.update(value=vs)
-    cuts = rules['val']
-    if v is None:
-        reasons.append('Value: no expected value (the fair line is not at this number), so it scores 0 on value.')
+        reasons.append('College spread rule: with at least %d books posting, one book %s to under %s points off the median of the others '
+                       '(%s never supply the odd number), at a price of %+d or better. Every pick that passes is official: score 2 from a gap of %s '
+                       'points, else %s. This one scored %s.' % (
+                           R.COLLEGE_MIN_BOOKS, R.COLLEGE_GAP_MIN, R.COLLEGE_GAP_MAX, ', '.join(R.COLLEGE_EXCLUDED_BOOKS),
+                           R.COLLEGE_MIN_PRICE, R.COLLEGE_GAP_STRONG, R.COLLEGE_MIN_SCORE, p.get('score')))
     else:
-        reasons.append('Value: expected value %+.1f%% per unit at the best price. Value scores are 1 at %.1f%%, 2 at %.1f%% and 3 at %.1f%%; '
-                       'this one scored %s. (Above %.0f%% a price is treated as stale, not a pick.)' % (
-                           v * 100, cuts[0] * 100, cuts[1] * 100, cuts[2] * 100, vs, rules['stale'] * 100))
-    if kind == 'p':
-        scores.update(lean=ls)
-        if pc is not None and pr is not None:
-            edge = pc - implied(pr)
-            reasons.append('Lean: our chance %.1f%% (the model blended with the market) against %.1f%% implied by the price, an edge of %.1f points. '
-                           'Lean tiers are 1 at 4 points, 2 at 7 and 3 at 10; this scored %s, and a lean counts at most 2 toward the total.' % (
-                               pc * 100, implied(pr) * 100, edge * 100, ls))
-        if p.get('projection') is not None:
-            reasons.append('Projection %s against the line %s.' % (p['projection'], pt))
-        reasons.append('A prop needs a line of at least %s for %s to earn a lean, and the player needs at least 4 games of history.' % (
-            rules['minl'].get(p.get('market'), 'n/a'), p.get('market')))
-    else:
-        scores.update(model=ms)
-        if ms is not None and p.get('market') == 'spread':
-            reasons.append('Team model: %s (1 when our model beats the line by %s points or more).' % (
-                'it does' if ms else 'it does not', rules['model']))
-        if pc is not None:
-            reasons.append('Our chance %.1f%% at this price (fair chance adjusted for the line and the price).' % (pc * 100))
-    reasons.append('Total score %s (needed %s for an official pick).' % (p.get('score'), rules['pick']))
+        reasons.append('%s: %s %s at %s.' % (describe(p), side, fmt_quote(pt, pr), p.get('book')))
+        vs, ls, ms = p.get('value_score'), p.get('lean_score'), p.get('model_score')
+        cuts = rules['val']
+        if market == 'Anytime TD':
+            scores.update(lean=ls)
+            reasons.append('Value: anytime TDs are scored on lean only (their fair price is not used), so value is 0 by design.')
+            if pc is not None and pr is not None: reasons.append(lean_text(pc, pr, ls))
+            reasons.append('An anytime TD earns a lean only at a price of +%d or shorter and with at least %d games of history.' % (
+                rules['tdmax'], R.LEAN_MIN_GAMES))
+        else:
+            scores.update(value=vs)
+            if v is None:
+                reasons.append('Value: no expected value (the fair line is not at this number), so it scores 0 on value.')
+            else:
+                reasons.append('Value: expected value %+.1f%% per unit at the best price. Value scores are 1 at %.1f%%, 2 at %.1f%% and 3 at %.1f%%; '
+                               'this one scored %s. (Above %.0f%% a price is treated as stale, not a pick.)' % (
+                                   v * 100, cuts[0] * 100, cuts[1] * 100, cuts[2] * 100, vs, rules['stale'] * 100))
+            if kind == 'p':
+                scores.update(lean=ls)
+                if pc is not None and pr is not None: reasons.append(lean_text(pc, pr, ls))
+                if p.get('projection') is not None:
+                    reasons.append('Projection %s against the line %s.' % (p['projection'], pt))
+                reasons.append('A prop needs a line of at least %s for %s to earn a lean, and the player needs at least %d games of history.' % (
+                    rules['minl'].get(market, 'n/a'), market, R.LEAN_MIN_GAMES))
+            else:
+                scores.update(model=ms)
+                if ms is not None and market == 'spread':
+                    reasons.append('Team model: %s (1 when our model beats the line by %s points or more).' % (
+                        'it does' if ms else 'it does not', rules['model']))
+                if pc is not None:
+                    reasons.append('Our chance %.1f%% at this price (fair chance adjusted for the line and the price).' % (pc * 100))
+        reasons.append('Total score %s (needed %s for an official pick).' % (p.get('score'), rules['pick']))
     fs = p.get('first_seen')
     if fs and (fs.get('price') != pr or fs.get('line') != pt):
         reasons.append('First seen at %s %s on %s; now %s.' % (fs.get('book'), fmt_quote(fs.get('line'), fs.get('price')), fs.get('at'),
@@ -158,14 +175,19 @@ def book_prices(pick, props):
     return []
 
 
-def create_server(source=None, ideas_path=None):
-    """The MCP server. SOURCE is a mcp_server.data.Source (default: from the environment); IDEAS_PATH is where add_idea writes."""
+def create_server(source=None, ideas_path=None, now=None):
+    """The MCP server. SOURCE is a mcp_server.data.Source (default: from the environment); IDEAS_PATH is where add_idea writes;
+    NOW is a function returning the current time as an aware datetime (tests pass a fixed one)."""
     src = source or Source.from_env()
     ideas = ideas_path or DEFAULT_IDEAS
+    clock = now or utcnow
+    # The tools read files here, or the published API (a network read) when FD_API_URL is set.
+    read_only = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=bool(src.base_url))
+    writes_local_file = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
     server = MCPServer('football-dashboard', instructions=(
         'NFL and college betting dashboard data. Start with health() to see how fresh it is, get_week_games() for the slate, '
         'get_picks() for official picks and explain_pick(pick_id) for the reasoning. All prices are American odds. '
-        'Everything is read-only except add_idea.'))
+        'Games, picks and props already kicked off are left out of the current tools. Everything is read-only except add_idea.'))
 
     def doc(name):
         d = src.get(name)
@@ -176,30 +198,44 @@ def create_server(source=None, ideas_path=None):
         ix = src.get('index') or {}
         return ix.get('rules') or RULES
 
-    @server.tool(annotations=READ_ONLY)
-    def get_week_games() -> Result:
-        """This week's remaining NFL games with every book's moneyline, spread and total, the fair line, our model's number,
-        line movement and the official picks on each game. Prices are American odds; spread lines are from the home team's view."""
-        g = doc('games'); picks = doc('picks')
-        lines = [dict(x, picks=[p['id'] for p in picks if p.get('event_id') == x['event_id']]) for x in g['lines']]
-        return {'week': g['week'], 'games': lines, 'remaining': g['remaining'], 'finals_this_season': len(g['finals'])}
+    def live(rows):
+        """ROWS (picks, games, props) whose kickoff has not passed, like the page's past() check; rows without a kickoff stay."""
+        t = clock()
+        return [r for r in rows if not r.get('kickoff') or not started(r['kickoff'], t)]
 
-    @server.tool(annotations=READ_ONLY)
+    def book_names():
+        ix = src.get('index') or {}
+        return sorted(ix.get('books') or [])
+
+    @server.tool(annotations=read_only)
+    def get_week_games() -> Result:
+        """This week's NFL games that have not kicked off, with every book's moneyline, spread and total, the fair line, our model's
+        number, line movement and the ids of the official picks on each game. Prices are American odds; spread lines are from the home team's view."""
+        g = doc('games'); picks = live(doc('picks'))
+        lines = [dict(x, picks=[p['id'] for p in picks if p.get('event_id') == x['event_id']]) for x in live(g['lines'])]
+        teams = {(x['away'], x['home']) for x in lines}
+        return {'week': g['week'], 'as_of': clock().isoformat(), 'games': lines,
+                'remaining': [r for r in g['remaining'] if (r['away'], r['home']) in teams], 'finals_this_season': len(g['finals'])}
+
+    @server.tool(annotations=read_only)
     def get_picks(book: str | None = None) -> Result:
-        """Current official picks, strongest first. With book (for example 'DraftKings'), the picks that sportsbook alone would
-        give (its own lines and prices); without PKB in the data, the picks whose best price is at that book."""
-        picks = doc('picks')
+        """Current official picks for games that have not kicked off, strongest first. With book (for example 'DraftKings'), the picks that
+        sportsbook alone would give (its own lines and prices); when the data has no per-book picks, only the subset of current picks whose
+        best price is at that book (the result's source says which)."""
+        picks = live(doc('picks'))
         if book is None: return {'book': None, 'source': 'all books, best price', 'count': len(picks), 'picks': picks}
         pbb = src.get('picks_by_book')
+        known = sorted(pbb) if pbb else book_names()
+        key = next((k for k in known if k.lower() == book.lower()), None)
+        if key is None: return {'book': book, 'error': 'no such book', 'books': known}
         if pbb:
-            key = next((k for k in pbb if k.lower() == book.lower()), None)
-            if key is None: return {'book': book, 'error': 'no such book', 'books': sorted(pbb)}
-            return {'book': key, 'source': 'picks_by_book (that book only)', 'count': len(pbb[key]), 'picks': pbb[key]}
-        sel = [p for p in picks if str(p.get('book', '')).lower() == book.lower()]
-        return {'book': book, 'source': 'current picks whose best price is at this book (no per-book picks in this data)',
-                'count': len(sel), 'picks': sel}
+            sel = live(pbb[key])
+            return {'book': key, 'source': 'picks_by_book (that book only)', 'count': len(sel), 'picks': sel}
+        sel = [p for p in picks if str(p.get('book', '')).lower() == key.lower()]
+        return {'book': key, 'source': 'SUBSET of the current picks: those whose best price is at this book. It is not what this book alone '
+                                       'would pick (no per-book picks in this data)', 'count': len(sel), 'picks': sel}
 
-    @server.tool(annotations=READ_ONLY)
+    @server.tool(annotations=read_only)
     def get_pick_log(kind: str | None = None, week: int | None = None, result: str | None = None, limit: int = 50) -> Result:
         """The pick log, newest first. kind: game, prop, parlay or college (or g, p, x, c). result: W, L, P (push), V (void) or
         pending. Returns the win-loss record and units of everything matching, and up to limit records."""
@@ -215,24 +251,24 @@ def create_server(source=None, ideas_path=None):
                'p': sum(1 for p in rows if p.get('result') in ('P', 'V')), 'units': round(sum(p.get('units') or 0 for p in rows), 2)}
         return {'matching': len(rows), 'record': rec, 'picks': rows[:max(0, limit)]}
 
-    @server.tool(annotations=READ_ONLY)
+    @server.tool(annotations=read_only)
     def get_player(query: str) -> Result:
         """One player by name (fuzzy: 'jsn', 'smith-njigba' and 'Jaxon Smith Njigba' all work) or gsis id ('00-0038543'): season stats by label,
-        injury, depth chart slot, recent form, game log, dynasty value, this week's props and picks. Other close matches are listed."""
+        injury, depth chart slot, recent form, game log, dynasty value, and the props and picks for games not yet kicked off. Other close matches are listed."""
         hits = find_players(doc('players'), query)
         if not hits: return {'error': 'no player matches %r' % query, 'query': query}
         p = hits[0]; gid = p['gsis_id']
         dy = next((d for d in doc('dynasty')['players'] if d.get('gsis_id') == gid), None)
         return {'player': p, 'dynasty': dy,
-                'props': [x for x in doc('props') if x['gsis_id'] == gid],
-                'picks': [x for x in doc('picks') if x.get('gsis_id') == gid],
+                'props': [x for x in live(doc('props')) if x['gsis_id'] == gid],
+                'picks': [x for x in live(doc('picks')) if x.get('gsis_id') == gid],
                 'other_matches': [{'name': h['name'], 'team': h['team'], 'pos': h['pos'], 'gsis_id': h['gsis_id']} for h in hits[1:]]}
 
-    @server.tool(annotations=READ_ONLY)
+    @server.tool(annotations=read_only)
     def get_props(player: str | None = None, game: str | None = None, limit: int = 100) -> Result:
-        """Player props with every book's line and price, our projection and the fair line. Filter by player (fuzzy name) and/or
-        game (team code like 'CHI', 'CHI@SEA', or an event id). limit caps the list."""
-        rows = doc('props')
+        """Player props for games not yet kicked off, with every book's line and price, our projection and the fair line. Filter by
+        player (fuzzy name) and/or game (team code like 'CHI', 'CHI@SEA', or an event id). limit caps the list."""
+        rows = live(doc('props'))
         if player: rows = [x for x in rows if score_name(player, x['player']) > 0]
         if game:
             codes = {t['code'] for t in doc('teams')}
@@ -240,7 +276,7 @@ def create_server(source=None, ideas_path=None):
             rows = [x for x in rows if x['event_id'] == game or (want and want <= {x['team'], x['opponent']})]
         return {'matching': len(rows), 'props': rows[:max(0, limit)]}
 
-    @server.tool(annotations=READ_ONLY)
+    @server.tool(annotations=read_only)
     def explain_pick(pick_id: str) -> Result:
         """Why a pick is a pick, from the scores it stored (value, lean, model) and the pick rules. pick_id is the id from get_picks
         or get_pick_log, for example 'p|<eventId>|<gsis id>|Rec yds|u'. Works for current picks and past ones."""
@@ -254,17 +290,17 @@ def create_server(source=None, ideas_path=None):
         x = explain(found, rules(), book_prices(found, src.get('props')))
         return {'id': pick_id, 'summary': describe(found), 'reasons': x['reasons'], 'scores': x['scores'], 'rules': rules(), 'pick': found}
 
-    @server.tool(annotations=READ_ONLY)
+    @server.tool(annotations=read_only)
     def get_team(code: str) -> Result:
         """A team by code ('CHI') or name ('Bears'): season stats by column, depth chart (line, front seven, secondary), what it allows
-        to each position, this week's game and the picks that involve it."""
+        to each position, its game this week if not yet kicked off, and the current picks that involve it."""
         teams = doc('teams'); t = resolve_team(teams, code)
         if t is None: return {'error': 'no team matches %r' % code, 'codes': sorted(x['code'] for x in teams)}
         c = t['code']
-        games = [g for g in doc('games')['lines'] if c in (g['away'], g['home'])]
-        return {'team': t, 'games': games, 'picks': [p for p in doc('picks') if c in pick_teams(p)]}
+        games = [g for g in live(doc('games')['lines']) if c in (g['away'], g['home'])]
+        return {'team': t, 'games': games, 'picks': [p for p in live(doc('picks')) if c in pick_teams(p)]}
 
-    @server.tool(annotations=READ_ONLY)
+    @server.tool(annotations=read_only)
     def calibration(prop: str, projection: float | None = None, line: float | None = None) -> Result:
         """How the projection model behaves for a prop type ('Rec yds', 'Receptions', 'Pass yds', 'Rush yds', 'Pass TDs', 'Anytime TD'):
         the swing of actual vs projection, the calibration nudge, sample size, blend with the market. Give projection and line to get
@@ -295,7 +331,7 @@ def create_server(source=None, ideas_path=None):
             out['model_chance_over'] = p_over(q, cal.get(key, 0), projection, line)
         return out
 
-    @server.tool(annotations=READ_ONLY)
+    @server.tool(annotations=read_only)
     def health() -> Result:
         """How fresh the data is and which sections of the last build worked (core sections: schedule, injuries, depth, weekly, odds)."""
         h = dict(doc('health')); ix = src.get('index') or {}
@@ -303,12 +339,12 @@ def create_server(source=None, ideas_path=None):
                  data_from=src.where)
         return h
 
-    @server.tool(annotations=WRITES_LOCAL_FILE)
+    @server.tool(annotations=writes_local_file)
     def add_idea(text: str, tags: list[str] | None = None) -> Result:
         """Saves an idea or note for the owner to ideas/inbox.jsonl (one JSON line, local file, not committed). The only tool that writes."""
         if not text.strip(): return {'error': 'text is empty'}
         os.makedirs(os.path.dirname(ideas) or '.', exist_ok=True)
-        rec = {'at': datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(), 'text': text.strip(), 'tags': tags or []}
+        rec = {'at': clock().astimezone(datetime.timezone.utc).replace(microsecond=0).isoformat(), 'text': text.strip(), 'tags': tags or []}
         with open(ideas, 'a', encoding='utf-8') as f: f.write(json.dumps(rec, ensure_ascii=False) + '\n')
         return {'saved': True, 'file': ideas, 'idea': rec}
 

@@ -63,20 +63,46 @@ def test_export_is_lossless_for_picks(out, data):
     d, _ = out
     assert len(set(api_export.PICK_KEYS.values())) == len(api_export.PICK_KEYS)   # no two short keys share a name
     picks = load(d, 'picks')
-    assert picks and [unname(p, api_export.PICK_KEYS) for p in picks] == data['ODD']['PK'] + data['CFB']['PK']
+    assert picks and [unname(p, api_export.PICK_KEYS) for p in picks] == data['ODD']['PK']
     log = load(d, 'pick_log')
     nfl = [p for p in log if p['sport'] == 'nfl']
     assert [unname(p, api_export.PICK_KEYS) for p in nfl] == data['ODD']['LG']
     assert any(p['type'] == 'x' and p['legs'] for p in nfl)   # parlay legs are renamed too
-    assert [unname(p, api_export.COLLEGE_PICK_KEYS) for p in log if p['sport'] == 'college'] == data['CFB']['LG']
+    college = [unname(p, api_export.COLLEGE_PICK_KEYS) for p in log if p['sport'] == 'college']
+    assert college and college == data['CFB']['LG']
+
+
+def test_college_picks_are_lossless_too(data, tmp_path):
+    """The replay has no current college picks, so add one shaped like build.py's."""
+    cp = dict(data['CFB']['LG'][0], res=None); cp.pop('fin', None); cp.pop('u', None)
+    full = dict(data, CFB=dict(data['CFB'], PK=[cp]))
+    api_export.export(full, str(tmp_path))
+    picks = load(tmp_path, 'picks')
+    assert [p['sport'] for p in picks] == ['nfl', 'college']
+    assert unname(picks[1], api_export.COLLEGE_PICK_KEYS) == cp
+    assert {'game_id', 'others_line', 'book_lines'} <= set(picks[1])
+    assert len(set(api_export.COLLEGE_PICK_KEYS.values())) == len(api_export.COLLEGE_PICK_KEYS)
+    assert len(set(api_export.FIRST_KEYS.values())) == len(api_export.FIRST_KEYS)
 
 
 def test_export_handles_missing_college_data(out, data):
     d, _ = out
     assert data['CF'] is None   # the replay has no prospect data
     c = load(d, 'college')
-    assert c['prospects'] == [] and c['big_board'] == []
+    assert c['prospects'] is None and c['big_board'] is None and c['big_board_sources'] is None   # null, not empty
     assert len(c['games']) == len(data['CFB']['G'])
+    book = next(iter(c['games'][0]['books'].values()))
+    assert set(book) <= set(api_export.COLLEGE_BOOK_FIELDS) and 'home_spread' in book
+
+
+def test_export_removes_files_this_build_did_not_write(data, tmp_path):
+    with_pkb = dict(data, ODD=dict(data['ODD'], PKB={'BetRivers': []}))
+    api_export.export(with_pkb, str(tmp_path))
+    assert (tmp_path / 'picks_by_book.json').exists()
+    (tmp_path / 'notes.txt').write_text('keep')
+    api_export.export(data, str(tmp_path))   # the next build has no PKB
+    assert not (tmp_path / 'picks_by_book.json').exists() and (tmp_path / 'notes.txt').exists()
+    assert (tmp_path / 'picks.json').exists()
 
 
 def test_export_games_props_and_health(out, data):

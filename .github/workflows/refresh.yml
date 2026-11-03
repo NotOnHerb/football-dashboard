@@ -41,7 +41,8 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_PLAN: ${{ vars.ODDS_PLAN || 'free' }}
           ODDS_PROPS: ${{ github.event.inputs.props || 'auto' }}
-      # Named-field JSON for agents (api/v1/). Standard library only; a failure keeps the previous files.
+      # Named-field JSON for agents (api/v1/). Standard library only. A failure only warns so the site still saves and
+      # the previous api files stay; check_health.py (last step) then fails the run because api/v1 is older than data.json.
       - name: Export the API files
         run: python api_export.py || echo "::warning::API export failed, keeping the previous api files"
       - name: Save the new site

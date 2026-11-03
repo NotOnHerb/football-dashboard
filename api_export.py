@@ -24,6 +24,7 @@ import json, os, shutil, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from schema.fields import rows_named  # noqa: E402
+from schema.health import CORE_SECTIONS  # noqa: E402
 
 API_VERSION = 1
 
@@ -46,6 +47,11 @@ COLLEGE_PICK_KEYS = {
     'pt': 'line', 'pr': 'price', 'bk': 'book', 'others': 'others_line', 's': 'score', 'lines': 'book_lines',
     'res': 'result', 'fin': 'final', 'u': 'units',
 }
+
+
+# A college game's book entry (CFB.G books[book]) by position; entries from CollegeFootballData alone have the first five.
+COLLEGE_BOOK_FIELDS = ['home_spread', 'total', 'home_moneyline', 'away_moneyline', 'open_spread',
+                       'home_spread_price', 'away_spread_price']
 
 
 def rename(d, keys):
@@ -196,24 +202,27 @@ def dynasty(data):
 
 def college(data):
     """College games, picks, log, record, prospects (CF is null on days without CollegeFootballData access)."""
-    cfb, cf = data.get('CFB') or {}, data.get('CF') or {}
+    cfb, cf = data.get('CFB') or {}, data.get('CF')
     games_ = [{'game_id': g['id'], 'week': g['wk'], 'kickoff': g['t'], 'away': g['a'], 'home': g['h'],
                'away_conference': g.get('ac'), 'home_conference': g.get('hc'), 'neutral': g.get('neutral'),
-               'books': g.get('books'), 'spread': g.get('sp'), 'total': g.get('ou'), 'home_win': g.get('wp'),
+               'books': {bk: dict(zip(COLLEGE_BOOK_FIELDS, v)) for bk, v in (g.get('books') or {}).items()},
+               'spread': g.get('sp'), 'total': g.get('ou'), 'home_win': g.get('wp'),
                'model_spread': g.get('mod')} for g in cfb.get('G') or []]
-    cb = cf.get('CB') or {}
-    sources = rows_named('CF.CB.S', cb.get('S') or [])
-    board = []
-    for r in cb.get('P') or []:
-        row = rows_named('CF.CB.P', [r])[0]
-        row['ranks'] = {s['source']: rank for s, rank in zip(sources, r[len(row):])}
-        board.append(row)
+    cb = (cf or {}).get('CB')
+    sources = rows_named('CF.CB.S', cb.get('S') or []) if cb else None
+    board = None   # null (not empty) when the day's build had no college prospect data
+    if cb:
+        board = []
+        for r in cb.get('P') or []:
+            row = rows_named('CF.CB.P', [r])[0]
+            row['ranks'] = {s['source']: rank for s, rank in zip(sources, r[len(row):])}
+            board.append(row)
     return {'games': games_,
             'picks': [name_pick(p, COLLEGE_PICK_KEYS) for p in cfb.get('PK') or []],
             'log': [name_pick(p, COLLEGE_PICK_KEYS) for p in cfb.get('LG') or []],
             'record': cfb.get('REC'), 'backtest': cfb.get('BT'), 'lines_at': cfb.get('at'),
-            'prospects': rows_named('CF.P', cf.get('P') or []),
-            'draft_year': cf.get('draft'),
+            'prospects': rows_named('CF.P', cf.get('P') or []) if cf else None,
+            'draft_year': cf.get('draft') if cf else None,
             'big_board': board, 'big_board_sources': sources}
 
 
@@ -221,7 +230,7 @@ def health(data):
     """Build health: each section's status, where the data came from, and whether a core section failed."""
     meta = data.get('META') or {}
     h = meta.get('health') or {}
-    core = ['schedule', 'injuries', 'depth', 'weekly', 'odds']   # the sections check_health.py fails the run on
+    core = CORE_SECTIONS   # the sections check_health.py fails the run on
     failed = sorted(k for k, v in h.items() if str(v).startswith('failed'))
     return {'built': meta.get('built'), 'season': meta.get('season'), 'sections': h, 'sources': meta.get('sources'),
             'failed': failed, 'core_failed': [k for k in failed if k in core] + [k for k in core if k not in h],
@@ -255,7 +264,7 @@ def build(data):
 
 
 def export(data, out_dir='api/v1'):
-    """Writes the API files for a data.json dict into OUT_DIR. Returns the paths written."""
+    """Writes the API files for a data.json dict into OUT_DIR, removes any other .json file there, and returns the paths written."""
     os.makedirs(out_dir, exist_ok=True)
     written = []
     for name, doc in build(data).items():
@@ -265,6 +274,8 @@ def export(data, out_dir='api/v1'):
     path = os.path.join(out_dir, 'data.schema.json')
     shutil.copyfile(os.path.join(HERE, 'schema', 'data.schema.json'), path)
     written.append(path)
+    for f in os.listdir(out_dir):   # a file from an earlier build that this one did not write (e.g. picks_by_book.json) is stale
+        if f.endswith('.json') and os.path.join(out_dir, f) not in written: os.remove(os.path.join(out_dir, f))
     return written
 
 
