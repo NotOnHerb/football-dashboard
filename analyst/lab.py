@@ -26,7 +26,7 @@ def rows(seasons, min_prior_games=3):
     for s in seasons:
         cur, prev = weekly(s), weekly(s - 1)
         pg = prev.groupby('player_id'); pn = pg.size(); pm = pg[list(MK.values())].mean()
-        for pid, g in cur.sort_values('week').groupby('player_id'):
+        for pid, g in cur.sort_values('week', kind='stable').groupby('player_id'):
             pos = g.position.iloc[-1]
             if pos not in ('QB', 'RB', 'WR', 'TE'): continue
             att, car, tgt = g.attempts.values, g.carries.values, g.targets.values

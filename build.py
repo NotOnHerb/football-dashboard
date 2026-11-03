@@ -63,7 +63,7 @@ M={'QB':(df.attempts>=1,999),'RB':((df.carries+df.targets)>=5,999),'WR':(df.targ
 df['fantasy_points']=df.fantasy_points.fillna(0)
 P={};n=0
 for pos,(m,k) in M.items():
-    d=df[(df.position==pos)&m].sort_values('fantasy_points_ppr',ascending=False).head(k); P[pos]=[]
+    d=df[(df.position==pos)&m].sort_values('fantasy_points_ppr',ascending=False,kind='stable').head(k); P[pos]=[]
     for ix,r in d.iterrows():
         vals=[None if pd.isna(c.at[ix,e]) else round(float(c.at[ix,e]),dd) for _,dd,e in PC[pos]]
         vals=[int(v) if v is not None and dd==0 else v for v,(_,dd,_e) in zip(vals,PC[pos])]
@@ -107,9 +107,9 @@ for t,d in df.groupby('recent_team'):
     LG['give']+=give;LG['take']+=take;LG['sk']+=S('def_sacks');LG['sks']+=S('sacks_suffered');LG['py']+=pyd;LG['ry']+=S('receiving_yards');LG['blk']+=blk;LG['blka']+=blka
 print('CHECKS (should be close): giveaways',LG['give'],'vs takeaways',LG['take'],'| def sacks',LG['sk'],'vs sacks taken',LG['sks'],'| pass yds',LG['py'],'vs rec yds',LG['ry'],'| kicks blocked by D',LG['blk'],'vs against',LG['blka'])
 dd=df[(df.position_group=='DL')|((df.position=='OLB')&(df.def_sacks>=2))].copy(); gg=z(dd.games)
-dd['k']=dd.def_sacks+dd.def_qb_hits; dd=dd.sort_values('k',ascending=False)
+dd['k']=dd.def_sacks+dd.def_qb_hits; dd=dd.sort_values('k',ascending=False,kind='stable')
 DL=[[r.player_display_name,r.recent_team,r.position,int(r.games),round(float(r.def_sacks),1),round(float(r.def_sacks/r.games),2),int(r.def_qb_hits),round(float(r.def_qb_hits/r.games),2),int(r.def_tackles_for_loss),int(r.def_tackles_solo),int(r.def_tackles_solo+r.def_tackle_assists),int(r.def_pass_defended),int(r.def_fumbles_forced),round(float(r.k/r.games),2)] for _,r in dd.iterrows()]
-oo=df[df.position_group=='OL'].sort_values('penalties',ascending=False)
+oo=df[df.position_group=='OL'].sort_values('penalties',ascending=False,kind='stable')
 OL=[[r.player_display_name,r.recent_team,r.position,int(r.penalties),int(r.penalty_yards),int(r.fumbles_lost_total)] for _,r in oo.iterrows()]
 G=get_games({t[0] for t in T})
 print('game teams missing from data:',sorted({x for g in G for x in g[:2]}-{t[0] for t in T}),'| DL',len(DL),'OL',len(OL))
@@ -117,14 +117,14 @@ dx=df[df.position_group.isin(['DL','LB','DB'])].copy()
 for cc in ['def_sacks','def_qb_hits','def_interceptions','def_pass_defended','def_fumbles_forced','fumble_recovery_opp','def_tds','def_tackles_for_loss','def_tackles_solo','def_tackle_assists','def_safeties']: dx[cc]=dx[cc].fillna(0)
 dx['idp']=dx.def_tackles_solo*1+dx.def_tackle_assists*.5+dx.def_tackles_for_loss*1+dx.def_sacks*3+dx.def_qb_hits*.5+dx.def_interceptions*3+dx.def_pass_defended*1+dx.def_fumbles_forced*3+dx.fumble_recovery_opp*2+dx.def_tds*6+dx.def_safeties*2
 dx['tk']=dx.def_tackles_solo+dx.def_tackle_assists
-dx=dx[(dx.tk>=1)|(dx.def_sacks>0)|(dx.def_interceptions>0)].sort_values('tk',ascending=False)
+dx=dx[(dx.tk>=1)|(dx.def_sacks>0)|(dx.def_interceptions>0)].sort_values('tk',ascending=False,kind='stable')
 X=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.tk),int(r.def_tackles_solo),round(float(r.tk/r.games),1),int(r.def_tackles_for_loss),round(float(r.def_sacks),1),int(r.def_qb_hits),int(r.def_interceptions),int(r.def_pass_defended),int(r.def_fumbles_forced),int(r.fumble_recovery_opp),int(r.def_tds),round(float(r.idp),1),round(float(r.idp/r.games),1),r.player_id] for _,r in dx.iterrows()]
 kx=df[df.position=='K'].copy()
 for cc in [c for c in kx.columns if c.startswith(('fg_made_','fg_missed_'))]+['fg_made','fg_att','fg_missed','pat_made','pat_att']: kx[cc]=kx[cc].fillna(0)
 a39=kx.fg_made_0_19+kx.fg_made_20_29+kx.fg_made_30_39; a50=kx.fg_made_50_59+kx.fg_made_60_; m40=kx.fg_missed_40_49+kx.fg_missed_50_59+kx.fg_missed_60_
 kx['pts']=a39*3+kx.fg_made_40_49*4+a50*5+kx.pat_made-kx.fg_missed
 print('kicker check: FG made by range matches total for',int(((a39+kx.fg_made_40_49+a50)==kx.fg_made).sum()),'of',len(kx))
-kx=kx.assign(a39=a39,a50=a50,m40=m40).sort_values('pts',ascending=False)
+kx=kx.assign(a39=a39,a50=a50,m40=m40).sort_values('pts',ascending=False,kind='stable')
 K=[[r.player_display_name,r.recent_team,r.position,int(r.games),int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts),round(float(r.pts/r.games),1)] for _,r in kx.iterrows()]
 print('defenders',len(X),'| kickers',len(K),'| top kicker',K[0][:2],K[0][-2:])
 P['K']=[[r.player_display_name,r.recent_team,int(r.games),[round(float(r.pts/r.games),1),None,None,round(float(r.fg_att/r.games),1),None,int(r.fg_made),int(r.fg_att),(round(float(r.fg_made/r.fg_att*100),1) if r.fg_att>0 else None),(int(r.fg_long) if pd.notna(r.fg_long) else None),int(r.a39),int(r.fg_made_40_49),int(r.a50),int(r.fg_missed),int(r.m40),int(r.pat_made),int(r.pat_att),int(r.pts)],round(float(r.pts/r.games),1),r.player_id] for _,r in kx.iterrows()]
@@ -151,7 +151,7 @@ INJ=load_inj()
 def load_depth(teams):
     try:
         c=load('depth')
-        dt=str(c.dt.max())[:10]; c=c[c.dt==c.dt.max()].dropna(subset=['player_name']).sort_values('pos_rank'); CALL=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t))); c=c.drop_duplicates(['team','pos_grp','pos_abb'])
+        dt=str(c.dt.max())[:10]; c=c[c.dt==c.dt.max()].dropna(subset=['player_name']).sort_values('pos_rank',kind='stable'); CALL=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t))); c=c.drop_duplicates(['team','pos_grp','pos_abb'])
         c=c.assign(team=c.team.map(lambda t:t if t in teams else ALIAS.get(t,t)))
         ST=df.drop_duplicates('player_id').set_index('player_id')
         base=c[c.pos_grp.str.startswith('Base',na=False)]
@@ -259,14 +259,14 @@ ALW=load_allowed()
 # ---- recent form (last 3 games played) and snap share
 FORM={}
 if WK is not None:
-    for pid,g in WK.sort_values('week').groupby('player_id'):
+    for pid,g in WK.sort_values('week',kind='stable').groupby('player_id'):
         l3=g.tail(3); FORM[pid]=[round(float(l3.fantasy_points_ppr.mean()),1),round(float(l3.fantasy_points.mean()),1),None,None]
 SNAP={}
 try:
     sn=load('snaps'); pl=load('players')
     sn=sn.merge(pl[['pfr_id','gsis_id']].dropna().drop_duplicates('pfr_id'),left_on='pfr_player_id',right_on='pfr_id',how='inner')
     sn['pct']=np.where(sn.offense_pct.fillna(0)>=sn.defense_pct.fillna(0),sn.offense_pct.fillna(0),sn.defense_pct.fillna(0))*100
-    for gid,g in sn.sort_values('week').groupby('gsis_id'): SNAP[gid]=[round(float(g.pct.mean())),round(float(g.tail(3).pct.mean()))]
+    for gid,g in sn.sort_values('week',kind='stable').groupby('gsis_id'): SNAP[gid]=[round(float(g.pct.mean())),round(float(g.tail(3).pct.mean()))]
     print('snap shares ok:',len(SNAP),'players'); ok('snaps')
 except Exception as ex:
     pl=None; print('snap counts failed:',ex); bad('snaps',ex)
@@ -276,7 +276,7 @@ try:
     dv=load('dynasty_values')
     pk=dv[dv.pos=='PICK'].copy(); pk['yr']=pk.player.str.extract(r'^(\d{4})')[0].astype(float)
     pk=pk[pk.yr>SEASON]
-    picks=[[r.player,int(r.value_1qb),int(r.value_2qb)] for _,r in pk.sort_values('value_1qb',ascending=False).iterrows()]
+    picks=[[r.player,int(r.value_1qb),int(r.value_2qb)] for _,r in pk.sort_values('value_1qb',ascending=False,kind='stable').iterrows()]
     pv=dv[dv.pos.isin(['QB','RB','WR','TE'])].copy()
     bio=pl.drop_duplicates('gsis_id').set_index('gsis_id') if pl is not None else None
     sst=df.drop_duplicates('player_id').set_index('player_id')
@@ -452,7 +452,7 @@ try:
     if DY: IDS|={r[16] for r in DY['P'] if isinstance(r[16],str)}
     bio2=pl.drop_duplicates('gsis_id').set_index('gsis_id') if pl is not None else None
     if WK is not None:
-        for pid,g in WK.sort_values('week').groupby('player_id'):
+        for pid,g in WK.sort_values('week',kind='stable').groupby('player_id'):
             LOG[pid]=[[int(r.week),r.opponent_team,round(float(r.fantasy_points_ppr),1),round(float(r.fantasy_points),1),int(r.yds),int(r.td),int(r.receptions),int(r.passing_yards),int(r.rushing_yards),int(r.receiving_yards),int(r.passing_tds),int(r.rushing_tds+r.receiving_tds)] for _,r in g.iterrows()]
     HS=df.drop_duplicates('player_id').set_index('player_id').headshot_url if 'headshot_url' in df else {}
     for g in IDS|set(LOG):
