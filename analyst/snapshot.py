@@ -1,16 +1,19 @@
 """Builds the Analyst Desk snapshot from the site's data, as JSON files ready for the Desk's database.
 
-python analyst/snapshot.py OUT_DIR
+python analyst/snapshot.py OUT_DIR [DATA_JSON]
 Writes OUT_DIR/snap/<doc>.json (each under ~200 KB): meta, picks, log, games, props1..N.
 The weekly analyst and the daily sync upload these with ArtifactData (collection "snap", doc id = file name).
+The data is the published data.json (the live site's, see pages.py), since git no longer keeps one; DATA_JSON reads a
+local file instead (an offline build's). The pick log is the committed ledger, odds/picks.json.
 """
 import json, os, sys, datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from engine.odds import implied, no_vig_proportional
 from engine.projections import p_over
+import pages
 
-def main(out):
-    D = json.load(open('data.json')); O = D.get('ODD') or {}
+def main(out, data=None):
+    D = json.load(open(data, encoding='utf-8')) if data else pages.fetch_published('data.json'); O = D.get('ODD') or {}
     try: LOG = json.load(open('odds/picks.json'))
     except Exception: LOG = {}
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()[:16]
@@ -103,4 +106,4 @@ def main(out):
         print(f, os.path.getsize(os.path.join(out, 'snap', f)))
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'analyst_out')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'analyst_out', sys.argv[2] if len(sys.argv) > 2 else None)

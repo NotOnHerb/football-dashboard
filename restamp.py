@@ -1,9 +1,9 @@
 """Stamps index.html from template.html: every __VER__ becomes a version (the current UTC minute, so browsers fetch
 the new js/ and assets/ files) and __DATE__ the data's build date.
 
-build.py calls stamp() at the end of every build. Run on its own from the repo root, `python restamp.py` restamps the
-page for the data already built (META.built in data.json): no network, no Odds API credits. The restamp workflow
-(.github/workflows/restamp.yml) runs it when a push to main changes only the page's code.
+build.py calls stamp() at the end of every build, and pages.py when it redeploys the published data with new page
+code. Run on its own from the repo root, `python restamp.py` restamps the page for the data.json already here
+(META.built): no network, no Odds API credits.
 """
 import datetime, json
 

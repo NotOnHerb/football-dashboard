@@ -12,11 +12,13 @@ A static NFL and college football dashboard for stats, fantasy and betting, publ
 - `engine/` holds the betting logic (odds math, pick rules, picks, grading, parlays) that `build.py` and the analyst
   tools share. `schema/` names every position of every row in `data.json` (`schema/fields.py`) and holds the JSON
   schema for the whole file.
-- `.github/workflows/refresh.yml` runs the whole thing daily and commits the result. Generated files (`data.json`,
-  `data/`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`) are committed by that workflow, not by hand.
+- `.github/workflows/refresh.yml` runs the whole thing daily. It commits only the ledgers (`odds/`, `cfb/`,
+  `model.json`: the state the next build starts from) and deploys the site through a GitHub Pages artifact
+  (`pages.py`). The generated files (`index.html`, `data.json`, `data/`, `api/`) are git-ignored and never committed,
+  so a fresh clone has none of them: build offline, or read the published copies (`analyst/snapshot.py` does).
 - The page's source is `template.html` (markup), `assets/site.css` and `js/` (classic scripts: `core.js`,
   `registry.js`, `router.js`, one file per section in `js/sections/`, `main.js` boots). `restamp.py` (run by
-  `build.py`, and on its own by the restamp workflow) stamps every `?v=__VER__` in `template.html` into `index.html`.
+  `build.py` and `pages.py`) stamps every `?v=__VER__` in `template.html` into `index.html`.
 - `api_export.py` writes named-field JSON for agents to `api/v1/`; `mcp_server/` serves it over MCP. See `docs/api.md`.
 
 ## Knowledgebase
@@ -36,8 +38,8 @@ install the test packages; there the Test check on the PR runs the suite.)
 That runs everything, including the Playwright page test (about 2.5 minutes). While iterating, run one file
 (`... python -m pytest -q tests/test_mcp.py`) or use `-k`. Run the full suite once before committing.
 
-Never commit generated output from a local run: `data.json`, `data/`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`.
-If a run rewrote them, `git checkout -- <path>` (or delete `api/`). Add files by name; avoid `git add -A`.
+Never commit a local run's ledgers: `model.json`, `odds/`, `cfb/`. If a run rewrote them, `git checkout -- <path>`.
+The generated files are git-ignored. Add files by name; avoid `git add -A`.
 
 ## Golden files
 
@@ -53,13 +55,14 @@ re-blessing, and the diff you commit should be limited to what you meant to chan
 
 ## Rules
 
-- **Never push to `main`.** Work on a branch and open a PR; the owner merges. (The refresh and restamp workflows are
-  the only things that commit to `main` directly.)
+- **Never push to `main`.** Work on a branch and open a PR; the owner merges. (The refresh workflow is the only
+  thing that commits to `main` directly.)
 - The page stays static: no bundler, framework or new CDN.
-- A push to `main` that changes `template.html`, `js/` or `assets/` goes live through the restamp workflow
-  (`.github/workflows/restamp.yml`), which restamps `index.html` from the data already built. It needs nothing from you.
+- A push to `main` that changes `template.html`, `js/` or `assets/` goes live through the deploy workflow
+  (`.github/workflows/deploy.yml`), which redeploys the site with the new code and the data already published. It
+  needs nothing from you.
 - **Odds API credits are scarce.** The free plan has 500 a month, and a full Refresh spends about 3. Never dispatch
-  Refresh just to restamp the page, and never run the build online locally: run it with `ODDS_OFFLINE=1`, or use the
+  Refresh just to redeploy the page, and never run the build online locally: run it with `ODDS_OFFLINE=1`, or use the
   golden runner (`tests/golden/runner.py`), which replays recorded inputs.
 - Keep every current top-level key in `data.json`; the analyst Desk sync (`analyst/snapshot.py`) depends on them.
 - Pin new dependencies exactly in `requirements.txt` (runtime) or `requirements-dev.txt` (tests only).
@@ -74,5 +77,6 @@ Desk's Ideas tab (collection `ideas` in the Desk database, `analyst/README.md`).
 
 Setup: copy `.mcp.json.example` to `.mcp.json` in the repo root (Claude Code reads it from the project folder) and
 approve the server. It starts with `python -m mcp_server.server`, which needs the pinned `mcp` package (in
-`requirements-dev.txt`). By default it reads the repo's files (`api/v1/`, or `data.json` if there is no `api/v1/`).
-Set `FD_API_URL` to read the published `api/v1/` instead. Tool list and the file formats are in `docs/api.md`.
+`requirements-dev.txt`). The example sets `FD_API_URL`, so it reads the published `api/v1/`
+(a fresh clone has no data files). Without it the server reads the repo's files from a local build (`api/v1/`, or
+`data.json` if there is no `api/v1/`). Tool list and the file formats are in `docs/api.md`.

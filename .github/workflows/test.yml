@@ -14,6 +14,7 @@ on:
       - cfb_fetch.py
       - check_health.py
       - restamp.py
+      - pages.py
       - api_export.py
       - 'mcp_server/**'
       - 'analyst/**'
@@ -24,7 +25,8 @@ on:
       - 'tests/**'
       - 'requirements*.txt'
       - .github/workflows/test.yml
-      - .github/workflows/restamp.yml
+      - .github/workflows/deploy.yml
+      - .github/workflows/refresh.yml
 
 permissions:
   contents: read

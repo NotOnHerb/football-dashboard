@@ -1,0 +1,51 @@
+name: Deploy page
+
+# A push that changes only the page's code goes live here: the site is redeployed with the new code and the data the
+# last refresh published (pages.py --live). No build, no Odds API credits, nothing committed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - template.html
+      - 'js/**'
+      - 'assets/**'
+      - pages.py
+      - restamp.py
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Shares the refresh's group, so a deploy and a refresh never run at once. A second run waits its turn. GitHub keeps
+# one waiting run per group and a newer one replaces it: two front-end pushes during a refresh deploy once, from the
+# newest main. Rarely, a push while one run is going and the daily refresh is waiting replaces that refresh; dispatch
+# Refresh by hand if the day's data is missing.
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      # main as it is when this run starts, which may be newer than the push that queued it.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Gather the site from the published data
+        run: python pages.py --live _site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy the site
+        id: deploy
+        uses: actions/deploy-pages@v4

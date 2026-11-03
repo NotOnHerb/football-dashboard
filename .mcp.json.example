@@ -4,7 +4,8 @@
       "command": "uv",
       "args": ["run", "--no-project", "--python", "3.12", "--with", "mcp==2.3.0", "python", "-m", "mcp_server.server"],
       "env": {
-        "PYTHONUTF8": "1"
+        "PYTHONUTF8": "1",
+        "FD_API_URL": "https://notonherb.github.io/football-dashboard/api/v1"
       }
     }
   }
