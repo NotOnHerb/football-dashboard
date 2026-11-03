@@ -60,7 +60,8 @@ re-blessing, and the diff you commit should be limited to what you meant to chan
 - The page stays static: no bundler, framework or new CDN.
 - A push to `main` that changes `template.html`, `js/` or `assets/` goes live through the deploy workflow
   (`.github/workflows/deploy.yml`), which redeploys the site with the new code and the data already published. It
-  needs nothing from you.
+  needs nothing from you, except when the change adds or drops a top-level `data.json` key: the published data
+  doesn't have it yet, so the deploy fails and the change goes live with the next refresh.
 - **Odds API credits are scarce.** The free plan has 500 a month, and a full Refresh spends about 3. Never dispatch
   Refresh just to redeploy the page, and never run the build online locally: run it with `ODDS_OFFLINE=1`, or use the
   golden runner (`tests/golden/runner.py`), which replays recorded inputs.

@@ -26,15 +26,18 @@ def built(tmp_path_factory):
 
 
 def serve_published(monkeypatch, files):
-    """Answers urlopen for SITE_URL + name from FILES {name: bytes}; anything else is a 404. Returns the URLs asked."""
+    """Answers urlopen for SITE_URL + name from FILES {name: bytes}; anything else is a 404. Returns the URLs asked
+    (without the cache-busting query, which every request must carry)."""
     asked = []
     def fake(req, timeout=None):
-        url = req.full_url
+        url, _, query = req.full_url.partition('?')
+        assert re.fullmatch(r't=\d+', query), req.full_url
         asked.append(url)
         name = url[len(pages.site_url()):]
         if name not in files: raise OSError('404 %s' % url)
         return io.BytesIO(files[name])
     monkeypatch.setattr(pages.urllib.request, 'urlopen', fake)
+    monkeypatch.setattr(pages.time, 'sleep', lambda s: None)
     return asked
 
 
@@ -69,6 +72,8 @@ def test_live_rebuild_matches_the_refresh(built, tmp_path, monkeypatch):
     root = tmp_path / 'checkout'; root.mkdir()
     shutil.copy(os.path.join(ROOT, 'template.html'), root / 'template.html')
     asked = serve_published(monkeypatch, {'data.json': (built / 'data.json').read_bytes()})
+    os.makedirs(root / 'odds')
+    shutil.copy(built / 'odds' / 'lines.json', root / 'odds' / 'lines.json')   # the ledger the same build committed
     built_at = pages.rebuild_from_live(str(root))
     assert asked == [pages.SITE_URL + 'data.json']
     assert (root / 'data.json').read_bytes() == (built / 'data.json').read_bytes()
@@ -81,14 +86,27 @@ def test_live_rebuild_matches_the_refresh(built, tmp_path, monkeypatch):
 
 def test_live_rebuild_needs_the_published_data(tmp_path, monkeypatch):
     """No published data.json, or one from before the data/ split: nothing is written, so nothing deploys."""
-    serve_published(monkeypatch, {})
+    asked = serve_published(monkeypatch, {})
     with pytest.raises(RuntimeError, match='could not fetch'):
         pages.rebuild_from_live(str(tmp_path))
-    assert os.listdir(tmp_path) == []
+    assert os.listdir(tmp_path) == [] and len(asked) == 2   # tried twice
     serve_published(monkeypatch, {'data.json': json.dumps({'META': {'built': 'x'}}).encode()})
     with pytest.raises(ValueError, match='SHARDS'):
         pages.rebuild_from_live(str(tmp_path))
     assert os.listdir(tmp_path) == []
+
+
+def test_live_rebuild_refuses_an_older_published_copy(built, tmp_path, monkeypatch):
+    """Right after a refresh deploys, the CDN can still serve the previous data.json; --live must not republish it."""
+    data = json.load(open(built / 'data.json', encoding='utf-8'))
+    os.makedirs(tmp_path / 'odds')
+    with open(tmp_path / 'odds' / 'lines.json', 'w', encoding='utf-8') as f:
+        json.dump({'fetched': '2099-01-01T10:00:00+00:00', 'data': []}, f)
+    serve_published(monkeypatch, {'data.json': (built / 'data.json').read_bytes()})
+    assert data['ODD']['at'] != '2099-01-01T10:00:00+00:00'
+    with pytest.raises(RuntimeError, match='not the latest build'):
+        pages.rebuild_from_live(str(tmp_path))
+    assert os.listdir(tmp_path) == ['odds']
 
 
 def test_site_url_can_be_overridden(monkeypatch):

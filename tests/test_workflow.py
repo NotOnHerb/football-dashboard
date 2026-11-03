@@ -94,14 +94,15 @@ def test_git_adds_parser():
 
 
 def test_refresh_commits_the_ledgers_and_deploys_the_site():
-    """The refresh commits exactly the ledgers, then gathers the site and deploys it; pages.py serves every
-    generated file."""
+    """The refresh gathers the site, commits exactly the ledgers (untracking any generated file main still tracks),
+    then deploys; pages.py serves every generated file."""
     import pages
     scripts = script_blocks(REFRESH)
     saves = [s for s in scripts if re.search(r'\bgit commit\b', s)]
     assert len(saves) == 1, saves
     assert set(git_adds(saves[0])) == LEDGERS
-    assert scripts.index('python pages.py _site') > scripts.index(saves[0])
+    assert 'git rm -r -q --cached --ignore-unmatch index.html data.json data api' in saves[0].splitlines()
+    assert scripts.index('python pages.py _site') < scripts.index(saves[0])
     assert GENERATED <= set(pages.REQUIRED + pages.OPTIONAL)
     assert deploy_steps(REFRESH) == ['actions/upload-pages-artifact@v3', 'actions/deploy-pages@v4']
 

@@ -51,11 +51,16 @@ jobs:
       # (without api/v1 that day); check_health.py (last step) then fails the run.
       - name: Export the API files
         run: python api_export.py || echo "::warning::API export failed, the site deploys without api/v1"
-      # Git keeps only the ledgers; the site itself (index.html, data.json, data/, api/) deploys below.
+      # Before the save, so a merge the save rebases onto can't mix its code into this build's site.
+      - name: Gather the site
+        run: python pages.py _site
+      # Git keeps only the ledgers; the site itself (index.html, data.json, data/, api/) deploys below. The git rm
+      # untracks any generated file main still tracks (from before the Pages deploy), so the rebase never meets one.
       - name: Save the ledgers
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          git rm -r -q --cached --ignore-unmatch index.html data.json data api
           if [ -f model.json ]; then git add model.json; fi
           if [ -d cfb ]; then git add cfb; fi
           if [ -d odds ]; then git add odds; fi
@@ -63,8 +68,6 @@ jobs:
           # A merge can land during the build; the ledgers are only ever written here, so rebasing onto it is safe.
           git pull --rebase origin main
           git push
-      - name: Gather the site
-        run: python pages.py _site
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
