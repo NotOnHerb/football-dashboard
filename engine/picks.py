@@ -164,8 +164,8 @@ def prop_picks(props, model, blend, now, injured, books=None, weeks=None):
     """Official prop picks for props whose game hasn't started by NOW and whose player isn't hurt (INJURED: gsis id ->
     report status), strongest first. WEEKS (event id -> week) labels each pick's week; the build passes the games'."""
     weeks = weeks or {}; PK = []
-    # a prop with no kickoff time is skipped here, while the page's past() check would still list it; the Odds API always
-    # sends commence_time, so the two never disagree on real data
+    # a prop with no kickoff time is never a pick (the page lists only these picks); the Odds API always sends
+    # commence_time, so real data has none
     for p in props:
         if not p.get('ko') or started(p['ko'], now) or is_hurt(injured, p['gid']): continue
         x = prop_side(p, model, blend, books)

@@ -7,8 +7,8 @@ picks for the edited data:
 
     PK, PKB = recompute_picks(data)      # PK: best across books; PKB: {book: picks at that book only}
 
-Use it to keep PK/PKB consistent with the edited rows, or to compare them with what the page computes on its own
-(tests/test_pkb_page.py does this today; once the page reads ODD.PK / ODD.PKB, the "rich/" test variants set them with it).
+The page shows ODD.PK / ODD.PKB as they are, so an edit that changes ODD.G / ODD.P sets them with this (with_rich_week
+for the "rich/" views; tests/test_pkb_page.py after nudging prices).
 """
 import datetime, json, os, sys
 

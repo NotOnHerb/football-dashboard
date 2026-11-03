@@ -126,7 +126,8 @@ def with_college(data):
 
 def with_rich_week(data):
     """Two more NFL games (copies of the real CHI-SEA row with other teams and kickoffs), ten more prop picks, a few more
-    props in the new games, and two college picks (shaped like build.py's CFB.PK rows). For the "rich/" views.
+    props in the new games, and two college picks (shaped like build.py's CFB.PK rows), with ODD.PK / ODD.PKB recomputed
+    for the edited rows. For the "rich/" views.
     Cloned props keep the source player's gid and stats (only name, team, opponent and kickoff change), so they share
     his game log, injury status and hit rates."""
     O, base = data['ODD'], data['ODD']['G'][0]
@@ -173,6 +174,8 @@ def with_rich_week(data):
                       'lines': {b: (w[0] if sd == 'hs' else -w[0]) for b, w in g['books'].items() if w[0] is not None}})
     assert len(picks) == 2
     C['PK'] = picks
+    from pick_data import recompute_picks  # the page shows ODD.PK / ODD.PKB, so they must describe the edited rows
+    O['PK'], O['PKB'] = recompute_picks(data)
 
 
 def skill_pool(data):
