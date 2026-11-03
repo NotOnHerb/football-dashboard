@@ -2,7 +2,7 @@ import pandas as pd, numpy as np, json, gzip, base64
 import os, datetime
 import sources
 from engine.odds import implied, decimal, no_vig_shin, no_vig_proportional, consensus_line, median, normal_cdf
-from engine.rules import RULES
+from engine.rules import RULES, COLLEGE_EXCLUDED_BOOKS, COLLEGE_GAP_MAX, COLLEGE_GAP_MIN, COLLEGE_GAP_STRONG, COLLEGE_MIN_BOOKS, COLLEGE_MIN_PRICE
 from engine.projections import base_projection, matchup_factor, td_chance
 from engine.team_model import fit_nfl, project, fit_ridge_margins
 from engine.picks import game_picks, prop_picks, started as kicked_off
@@ -721,19 +721,19 @@ try:
              'books':books,'sp':_st2.median(sps) if sps else None,'ou':_st2.median(ous) if ous else None,'wp':None if wp is None else round(wp,3),'mod':mod}
         # best number: with 3+ books, the one book whose spread is 1 to 3 points off the others, one bet per game
         # (backtested 2023-25, one bet per game: gap 1.5-3 150-115, 56.6% = level II; gap 1-1.5 164-134, 55.0% = level I)
-        if len(sps)>=3 and _start(g['startDate'])>_now:
+        if len(sps)>=COLLEGE_MIN_BOOKS and _start(g['startDate'])>_now:
             best=None
             for bn,v in books.items():
-                if v[0] is None or bn=='Pinnacle': continue
+                if v[0] is None or bn in COLLEGE_EXCLUDED_BOOKS: continue
                 d=v[0]-_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
                 if best is None or abs(d)>abs(best[0]): best=(d,bn,v[0])
             d,bn,s0=best
-            if 1<=abs(d)<3:
+            if COLLEGE_GAP_MIN<=abs(d)<COLLEGE_GAP_MAX:
                 sd='hs' if d>0 else 'as'; pt=s0 if sd=='hs' else -s0
                 vv=books[bn]; prc=(vv[5] if sd=='hs' else vv[6]) if len(vv)>6 else None; prc=prc if prc is not None else -110
-                ok_price=prc>=-118   # a better number at a worse price gives the edge back (the backtest assumed about -110)
+                ok_price=prc>=COLLEGE_MIN_PRICE   # a better number at a worse price gives the edge back (the backtest assumed about -110)
                 oth=_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
-                if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2 if abs(d)>=1.5 else 1,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
+                if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':2 if abs(d)>=COLLEGE_GAP_STRONG else 1,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
                 if ok_price: row['pick']=CP[-1]['id']
         CG.append(row)
     # log and grade college picks (own record)

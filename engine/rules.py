@@ -23,4 +23,20 @@ def value_score(ev):
 def lean_tier(edge):
     """0-3 from our chance minus the price's implied chance on a prop."""
     e = edge
-    return 3 if e >= .10 else 2 if e >= .07 else 1 if e >= .04 else 0
+    return 3 if e >= LEAN_TIERS[2] else 2 if e >= LEAN_TIERS[1] else 1 if e >= LEAN_TIERS[0] else 0
+
+
+# Fixed parts of the pick rules that RULES (serialized into data.json) does not carry. Named here so the build, the
+# engine and the MCP server's explanations read one number. Changing one changes picks.
+LEAN_TIERS = (.04, .07, .10)    # lean tier 1, 2, 3: our chance minus the price's implied chance on a prop
+LEAN_MIN_GAMES = 4              # a prop needs at least this many games of history to earn a lean
+LEAN_MAX_SCORE = 2              # a lean adds at most this much to a prop's (or anytime TD's) score
+# College spread picks (build.py): with COLLEGE_MIN_BOOKS+ books, one book's spread COLLEGE_GAP_MIN to just under
+# COLLEGE_GAP_MAX points off the median of the others, at a price of COLLEGE_MIN_PRICE or better. COLLEGE_EXCLUDED_BOOKS
+# never supply the odd number. Every college pick listed is official: score 2 at a gap of COLLEGE_GAP_STRONG or more, else 1.
+COLLEGE_MIN_BOOKS = 3
+COLLEGE_GAP_MIN = 1
+COLLEGE_GAP_MAX = 3
+COLLEGE_GAP_STRONG = 1.5
+COLLEGE_MIN_PRICE = -118
+COLLEGE_EXCLUDED_BOOKS = ('Pinnacle',)
