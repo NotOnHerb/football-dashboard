@@ -32,7 +32,7 @@ FIELDS = {
     # Sleeper lookup (DY.L[sleeper_id]); idp_or_k_per_game is IDP pts/g, or kicker pts/g for kickers.
     'DY.L': ['name', 'pos', 'team', 'age', 'value_1qb', 'value_2qb', 'ppr_per_game', 'std_per_game', 'games',
              'last3_ppr', 'idp_or_k_per_game', 'injury', 'depth_label', 'last3_std', 'gsis_id'],
-    # College prospect. 0-29 stats and bio, 30-34 computed, 35-39 consensus big board match.
+    # College prospect. 0-29 stats and bio, 30-34 computed, 35-39 consensus big board match (rank, avg rank, boards, best, worst).
     'CF.P': ['name', 'pos', 'team', 'conference', 'class_year', 'stars', 'recruit_rank', 'hs_class', 'usage_pct',
              'avg_ppa', 'total_ppa', 'draft_eligible',
              'pass_att', 'pass_pct', 'pass_yds', 'pass_td', 'pass_int', 'pass_ypa',
@@ -40,7 +40,7 @@ FIELDS = {
              'rec_rec', 'rec_yds', 'rec_td', 'rec_ypr',
              'rec_yds_share', 'rush_yds_share', 'height', 'weight',
              'dynasty_score', 'letter_grade', 'ppr_total', 'std_total', 'team_games',
-             'consensus_rank', 'boards', 'best_rank', 'worst_rank', 'name_key'],
+             'consensus_rank', 'avg_rank', 'boards', 'best_rank', 'worst_rank'],
     # Consensus big board row; one rank per board follows (order of CF.CB.S).
     'CF.CB.P': ['rank', 'name', 'pos', 'school', 'avg_rank', 'boards', 'best_rank', 'worst_rank'],
     # A board that feeds the consensus.

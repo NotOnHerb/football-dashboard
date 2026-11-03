@@ -47,7 +47,7 @@
     },
     "DY": {
       "type": ["object", "null"],
-      "required": ["P", "K", "L", "E"],
+      "required": ["P", "K"],
       "properties": {
         "P": {"type": "array", "items": {"type": "array"}},
         "K": {"type": "array", "items": {"type": "array"}},
