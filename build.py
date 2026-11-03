@@ -529,12 +529,12 @@ try:
         if not a_ or not h_: continue
         bb={}
         for B in ev.get('bookmakers',[]):
-            nm_=bk(B['key']); x={}
+            nm_=bk(B['key']); x={}   # a spread or total posted without a line can't be priced, so it is left out
             for M in B.get('markets',[]):
                 oc={(o.get('name')):o for o in M.get('outcomes',[])}
                 if M['key']=='h2h' and ev['home_team'] in oc and ev['away_team'] in oc: x['m']=[oc[ev['home_team']]['price'],oc[ev['away_team']]['price']]
-                elif M['key']=='spreads' and ev['home_team'] in oc and ev['away_team'] in oc: x['s']=[oc[ev['home_team']].get('point'),oc[ev['home_team']]['price'],oc[ev['away_team']].get('point'),oc[ev['away_team']]['price']]
-                elif M['key']=='totals' and 'Over' in oc and 'Under' in oc: x['o']=[oc['Over'].get('point'),oc['Over']['price'],oc['Under']['price']]
+                elif M['key']=='spreads' and ev['home_team'] in oc and ev['away_team'] in oc and oc[ev['home_team']].get('point') is not None and oc[ev['away_team']].get('point') is not None: x['s']=[oc[ev['home_team']].get('point'),oc[ev['home_team']]['price'],oc[ev['away_team']].get('point'),oc[ev['away_team']]['price']]
+                elif M['key']=='totals' and 'Over' in oc and 'Under' in oc and oc['Over'].get('point') is not None: x['o']=[oc['Over'].get('point'),oc['Over']['price'],oc['Under']['price']]
             if x: bb[nm_]=x; BKS[nm_]=BKS.get(nm_,0)+1
         # fair odds: Pinnacle (the sharpest book) with its cut removed when it has the market, otherwise the middle of the other books
         fair={'ref':{}}; pin=bb.get('Pinnacle',{})
