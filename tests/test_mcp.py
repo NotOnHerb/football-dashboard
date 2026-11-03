@@ -98,6 +98,32 @@ def test_get_picks_per_book_matches_pkb(server, data):
     assert any(data['ODD']['PKB'].values())
 
 
+def test_explain_pick_finds_book_only_picks_and_book_versions(data, tmp_path):
+    """A side can be official at one book's prices without being in ODD.PK; get_picks(book) returns it, so explain_pick must find it."""
+    pk = data['ODD']['PK'][0]
+    only = dict(pk, id=pk['id'].rsplit('|', 2)[0] + '|Rec yds|o', sd='o', pr=-105, bk='DraftKings')   # in DraftKings' list alone
+    differs = dict(pk, pr=pk['pr'] + 7, bk='DraftKings')                                               # same id, DraftKings' own price
+    pkb = {bk: list(v) for bk, v in data['ODD']['PKB'].items()}
+    pkb['DraftKings'] = [only, differs]
+    d = tmp_path / 'root'; (d / 'api').mkdir(parents=True)
+    api_export.export(dict(data, ODD=dict(data['ODD'], PKB=pkb)), str(d / 'api' / 'v1'))
+    s = create_server(Source(root=str(d)), tmp_path / 'i.jsonl')
+    assert only['id'] not in [p['id'] for p in data['ODD']['PK'] + data['ODD']['LG']]   # really absent from PK and the log
+    listed = [p['id'] for p in call(s, 'get_picks', book='draftkings')['picks']]
+    assert only['id'] in listed
+    r = call(s, 'explain_pick', pick_id=only['id'])             # found by searching every book's list, and says whose
+    assert r['book_version'] == 'DraftKings' and "DraftKings's version" in r['reasons'][0] and r['pick']['price'] == -105
+    r = call(s, 'explain_pick', pick_id=only['id'], book='DRAFTKINGS')
+    assert r['book_version'] == 'DraftKings' and r['pick']['price'] == -105
+    # an id that is also in PK: no book means the best-price pick, with a book it is that book's version
+    best = call(s, 'explain_pick', pick_id=pk['id'])
+    assert best['book_version'] is None and best['pick']['price'] == pk['pr']
+    mine = call(s, 'explain_pick', pick_id=pk['id'], book='DraftKings')
+    assert mine['book_version'] == 'DraftKings' and mine['pick']['price'] == differs['pr'] and 'can differ' in mine['reasons'][0]
+    assert call(s, 'explain_pick', pick_id=pk['id'], book='Nope')['error'] == 'no such book'
+    assert 'error' in call(s, 'explain_pick', pick_id='p|nope', book='DraftKings')
+
+
 def test_get_picks_per_book_keeps_the_kickoff_filter(work, data, tmp_path):
     ko = datetime.datetime.fromisoformat(data['ODD']['G'][0]['t'].replace('Z', '+00:00'))
     s = create_server(Source(root=str(work)), tmp_path / 'i.jsonl', now=ko + datetime.timedelta(minutes=1))

@@ -278,18 +278,37 @@ def create_server(source=None, ideas_path=None, now=None):
         return {'matching': len(rows), 'props': rows[:max(0, limit)]}
 
     @server.tool(annotations=read_only)
-    def explain_pick(pick_id: str) -> Result:
+    def explain_pick(pick_id: str, book: str | None = None) -> Result:
         """Why a pick is a pick, from the scores it stored (value, lean, model) and the pick rules. pick_id is the id from get_picks
-        or get_pick_log, for example 'p|<eventId>|<gsis id>|Rec yds|u'. Works for current picks and past ones."""
+        or get_pick_log, for example 'p|<eventId>|<gsis id>|Rec yds|u'. Works for current picks and past ones. A pick from
+        get_picks(book) can differ from the best-price pick with the same id (or exist only for that book): pass the same book to
+        explain that book's version. Without book, the best-price pick and the log are searched first, then every book's list."""
+        pbb = src.get('picks_by_book') or {}
+        found, version = None, None
+        if book:
+            key = next((k for k in pbb if k.lower() == book.lower()), None)
+            if key is None: return {'error': 'no such book', 'book': book, 'books': sorted(pbb)}
+            found = next((p for p in pbb[key] if p['id'] == pick_id), None)
+            version = key if found else None
         pool = doc('picks') + doc('pick_log')
-        found = next((p for p in pool if p['id'] == pick_id), None)
+        if found is None:
+            found = next((p for p in pool if p['id'] == pick_id), None)
         if found is None:
             legs = [l for p in pool for l in p.get('legs') or [] if l['id'] == pick_id]
             found = legs[0] if legs else None
+        if found is None:   # only some book's list has it: official at that book's prices, not at the best price
+            for key in pbb:
+                found = next((p for p in pbb[key] if p['id'] == pick_id), None)
+                if found: version = key; break
         if found is None:
             return {'error': 'no pick with id %r' % pick_id, 'hint': 'ids come from get_picks or get_pick_log'}
         x = explain(found, rules(), book_prices(found, src.get('props')))
-        return {'id': pick_id, 'summary': describe(found), 'reasons': x['reasons'], 'scores': x['scores'], 'rules': rules(), 'pick': found}
+        if version:
+            x['reasons'].insert(0, "This is %s's version of the pick: official when only %s's quotes are used (it is not in the best-price list)." % (version, version)
+                                if not any(p['id'] == pick_id for p in doc('picks')) else
+                                "This is %s's version of the pick: scored from only %s's quotes, so it can differ from the best-price pick with this id." % (version, version))
+        return {'id': pick_id, 'summary': describe(found), 'book_version': version, 'reasons': x['reasons'], 'scores': x['scores'],
+                'rules': rules(), 'pick': found}
 
     @server.tool(annotations=read_only)
     def get_team(code: str) -> Result:
