@@ -15,8 +15,8 @@ A static NFL and college football dashboard for stats, fantasy and betting, publ
 - `.github/workflows/refresh.yml` runs the whole thing daily and commits the result. Generated files (`data.json`,
   `data/`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`) are committed by that workflow, not by hand.
 - The page's source is `template.html` (markup), `assets/site.css` and `js/` (classic scripts: `core.js`,
-  `registry.js`, `router.js`, one file per section in `js/sections/`, `main.js` boots). `build.py` stamps every
-  `?v=__VER__` in `template.html` into `index.html`.
+  `registry.js`, `router.js`, one file per section in `js/sections/`, `main.js` boots). `restamp.py` (run by
+  `build.py`, and on its own by the restamp workflow) stamps every `?v=__VER__` in `template.html` into `index.html`.
 - `api_export.py` writes named-field JSON for agents to `api/v1/`; `mcp_server/` serves it over MCP. See `docs/api.md`.
 
 ## Knowledgebase
@@ -53,8 +53,8 @@ re-blessing, and the diff you commit should be limited to what you meant to chan
 
 ## Rules
 
-- **Never push to `main`.** Work on a branch and open a PR; the owner merges. (The daily refresh workflow is the
-  only thing that commits to `main` directly.)
+- **Never push to `main`.** Work on a branch and open a PR; the owner merges. (The refresh and restamp workflows are
+  the only things that commit to `main` directly.)
 - The page stays static: no bundler, framework or new CDN.
 - A push to `main` that changes `template.html`, `js/` or `assets/` goes live through the restamp workflow
   (`.github/workflows/restamp.yml`), which restamps `index.html` from the data already built. It needs nothing from you.

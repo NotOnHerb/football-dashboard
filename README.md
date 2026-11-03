@@ -11,7 +11,8 @@ Live site: https://notonherb.github.io/football-dashboard/
 - `index.html` is the page. It loads its data when it opens, so fresh data never needs a new page: `data/core.json`
   first, then each section's part of `data/` the first time it is opened (`data/` is `data.json` split by top-level key).
   Its source is `template.html` plus `assets/site.css` and the scripts in `js/` (one file per section in
-  `js/sections/`); after changing any of them, run the Refresh workflow so `index.html` is restamped.
+  `js/sections/`); a push to `main` that changes any of them is restamped into `index.html` by the restamp workflow
+  (`.github/workflows/restamp.yml`), with no Odds API credits spent.
 - `.github/workflows/refresh.yml` runs the build every day at about 6 AM Eastern and saves the result.
 
 ## Plugging in a paid or live data feed later

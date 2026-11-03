@@ -13,6 +13,7 @@ on:
       - model_fit.py
       - cfb_fetch.py
       - check_health.py
+      - restamp.py
       - api_export.py
       - 'mcp_server/**'
       - 'analyst/**'
@@ -23,6 +24,7 @@ on:
       - 'tests/**'
       - 'requirements*.txt'
       - .github/workflows/test.yml
+      - .github/workflows/restamp.yml
 
 permissions:
   contents: read

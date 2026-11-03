@@ -2,7 +2,8 @@
 
 This PR is ready to merge once the Test check is green. Two things are on your side after it merges: updating
 `analyst/SYNC.md`, and turning on "Allow auto-merge" with the Test check required on `main`, so the sync worker's PRs
-can merge themselves.
+can merge themselves. The refresh and restamp workflows also push straight to `main`, so the required check needs to
+let them through. Let's set that one up together.
 
 ## Where your review landed
 
@@ -16,7 +17,8 @@ can merge themselves.
 - **`AGENTS.md`:** the site is described as stats + fantasy + betting, and the broken `py` launcher note says it's
   Thomas's Windows machine.
 - **Sync worker:** it moves to PRs that auto-merge when the Test check passes. Your approval on the Desk stays the one
-  human sign-off. This needs "Allow auto-merge" turned on and the Test check required on `main`.
+  human sign-off. This needs "Allow auto-merge" turned on and the Test workflow's `golden` check required on `main`,
+  with the refresh and restamp workflows allowed to push past it.
 - **`analyst/SYNC.md`:** yours to update after the merge. Here's what changed under it:
   - Picks now come only from the build (`engine/picks.py`, rules in `engine/rules.py`), and the page shows `ODD.PK` /
     `ODD.PKB`. The check that fits step 3 now is `pytest tests/test_pkb_page.py tests/test_page.py`.
@@ -35,11 +37,11 @@ can merge themselves.
 
 ## Merging and the first refresh
 
-- The merge itself triggers the restamp, so the new page goes live right away. It reads `data.json` until the first
-  refresh builds `data/`.
+- The merge itself triggers the restamp, so the new page goes live right away. It reads today's `data.json` until the
+  first refresh builds `data/`. Until then the per-book pick lists show as unavailable; every other view works.
 - Watch the next daily refresh. It's the first time `main` builds `data/`, `api/v1/` and the section health checks.
 - To roll back: revert the merge, then dispatch Refresh once so `index.html` is restamped from the old template (the
-  restamp workflow leaves with the revert). Bets saved on the new page are kept under `fd:mybets` and reappear when
+  restamp workflow leaves with the revert). That's the one Refresh worth its 3 credits outside the daily run. Bets saved on the new page are kept under `fd:mybets` and reappear when
   the refactor comes back.
 
 ## What changed
