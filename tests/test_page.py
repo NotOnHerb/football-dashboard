@@ -563,7 +563,6 @@ SCAN = """() => {
 }"""
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='Task 5')
 def test_feed_names_are_escaped(built, browser):
     """Feed text must reach the page as text. The first three injections (an odds-feed player, a dynasty-list player,
     a college prospect) use an <img onerror>; the rest are attribute and URL break-outs in the fields the knowledgebase

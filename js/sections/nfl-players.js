@@ -29,7 +29,7 @@ function wire(){
   $('sc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
   $('pos').innerHTML=['ALL','QB','RB','WR','TE','OL','K'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
   $('pos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;st.pos=p;[].forEach.call($('pos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});$('mn').hidden=p==='OL'||p==='K';$('sc').hidden=p==='OL'||p==='K';render()});
-  $('tm').innerHTML='<option value="ALL">All teams</option>'+Object.keys(D.N).sort().map(function(t){return '<option value="'+t+'">'+t+' '+D.N[t]+'</option>'}).join('');
+  $('tm').innerHTML='<option value="ALL">All teams</option>'+Object.keys(D.N).sort().map(function(t){return '<option value="'+esc(t)+'">'+esc(t)+' '+esc(D.N[t])+'</option>'}).join('');
   $('tm').onchange=function(){st.tm=this.value;render()};
   $('q').oninput=function(){st.q=this.value;render()};
 }

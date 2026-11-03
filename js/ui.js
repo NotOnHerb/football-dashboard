@@ -3,14 +3,14 @@
 // render through the MutationObserver set up in initGloss.
 function sortRows(rows,c,dir){return rows.slice().sort(function(a,b){var x=a[c],y=b[c];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return(typeof x==='string'?x.localeCompare(y):x-y)*dir})}
 var OUTS={Out:1,IR:1,Reserve:1};
-function injTag(j){return j?' <span class="thr '+(OUTS[j[0]]?'t4':'t3')+'" title="'+(j[1]||'Injury')+', week '+j[2]+' report">'+j[0]+' · wk '+j[2]+'</span>':''}
-function tags(r){return (r.dl?' <span class="dl'+(r.dl[1]?' on':'')+'" title="'+(r.dl[1]?'Starter':'Backup')+' on the latest depth chart">'+r.dl[0]+'</span>':'')+injTag(r.inj)}
+function injTag(j){return j?' <span class="thr '+(OUTS[j[0]]?'t4':'t3')+'" title="'+esc(j[1]||'Injury')+', week '+esc(j[2])+' report">'+esc(j[0])+' · wk '+esc(j[2])+'</span>':''}
+function tags(r){return (r.dl?' <span class="dl'+(r.dl[1]?' on':'')+'" title="'+(r.dl[1]?'Starter':'Backup')+' on the latest depth chart">'+esc(r.dl[0])+'</span>':'')+injTag(r.inj)}
 function cell(c,r){var v=r[c[1]];
-  if(c[2]<0){if(c[1]===2)return '<td style="text-align:right"><span class="tag '+v+'">'+v+'</span></td>';if(c[1]===0)return '<td class="nm">'+v+tags(r)+'</td>';return '<td>'+v+'</td>'}
+  if(c[2]<0){if(c[1]===2)return '<td style="text-align:right"><span class="tag '+esc(v)+'">'+esc(v)+'</span></td>';if(c[1]===0)return '<td class="nm">'+esc(v)+tags(r)+'</td>';return '<td>'+esc(v)+'</td>'}
   if(c[1]==='tr')return '<td>'+(v==null?'–':'<span class="'+(v>=1?'up':v<=-1?'dn':'')+'">'+(v>0?'▲ +':v<0?'▼ ':'')+v.toFixed(1)+'</span>')+'</td>';
   return '<td>'+f(v,c[2])+'</td>'}
 function tbl(cols,rows,sc,sd){
-  return '<table><tr>'+cols.map(function(c){var on=c[1]===sc;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(sd>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return cell(c,r)}).join('')+'</tr>'}).join('')+'</table>';
+  return '<table><tr>'+cols.map(function(c){var on=c[1]===sc;return '<th tabindex="0" data-c="'+esc(c[1])+'" class="'+(on?'on':'')+'">'+esc(c[0])+(on?(sd>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return cell(c,r)}).join('')+'</tr>'}).join('')+'</table>';
 }
 function ck(th){var c=th.dataset.c;return isNaN(c)?c:+c}
 function sortClick(e,k,fn){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=ck(th);
@@ -55,4 +55,4 @@ function initGloss(){glTip=document.createElement('div');glTip.className='tip';g
   new MutationObserver(function(){clearTimeout(glT);glT=setTimeout(function(){gloss();reSort();colorize()},30)}).observe(document.querySelector('main'),{childList:true,subtree:true});gloss();
   document.addEventListener('mouseover',function(e){var el=e.target.closest('.gl');if(!el){glTip.hidden=true;return}glTip.textContent=el.dataset.tip;glTip.hidden=false;var r=el.getBoundingClientRect(),w=Math.min(300,innerWidth-24);glTip.style.maxWidth=w+'px';var x=Math.max(12,Math.min(r.left,innerWidth-w-12));glTip.style.left=x+'px';glTip.style.top=(r.bottom+window.scrollY+6)+'px'});
   document.addEventListener('scroll',function(){glTip.hidden=true},{passive:true});
-  var keys=Object.keys(GL).sort(function(a,b){return a.localeCompare(b)});$('glist').innerHTML=keys.map(function(k){return '<dt>'+k+'</dt><dd>'+GL[k]+'</dd>'}).join('')}
+  var keys=Object.keys(GL).sort(function(a,b){return a.localeCompare(b)});$('glist').innerHTML=keys.map(function(k){return '<dt>'+esc(k)+'</dt><dd>'+esc(GL[k])+'</dd>'}).join('')}

@@ -9,21 +9,21 @@ function dRows(){var V=DS.f===1?7:8,rows=D.DY.P.map(function(r){var o=r.slice();
   return rows}
 var DC=[['Player',0,-1],['Pos',1,-1],['Team',2,-1],['Age',3,1],['Drafted','dr',-1],['College',6,-1],['Value','val',0],['Pos rank','vr',0],['PPR/g',10,1],['Prod rank','pr',0],['Value gap','gap',0],['Last 3',11,1],['Snap %',12,0],['Snap % L3',13,0]];
 function dCell(c,r){var v=r[c[1]];
-  if(c[1]===0)return '<td class="nm">'+v+tags(r)+'</td>';
-  if(c[1]===1)return '<td><span class="tag '+v+'">'+v+'</span></td>';
-  if(c[1]==='dr')return '<td>'+(r[4]?r[4]+(r[5]?' R'+r[5]:''):'–')+'</td>';
-  if(c[1]==='vr'||c[1]==='pr')return '<td>'+(v?r[1]+v:'–')+'</td>';
+  if(c[1]===0)return '<td class="nm">'+esc(v)+tags(r)+'</td>';
+  if(c[1]===1)return '<td><span class="tag '+esc(v)+'">'+esc(v)+'</span></td>';
+  if(c[1]==='dr')return '<td>'+(r[4]?esc(r[4])+(r[5]?' R'+esc(r[5]):''):'–')+'</td>';
+  if(c[1]==='vr'||c[1]==='pr')return '<td>'+(v?esc(r[1])+v:'–')+'</td>';
   if(c[1]==='gap')return '<td>'+(v==null?'–':'<span class="'+(v>=8?'up':v<=-8?'dn':'')+'">'+(v>0?'+':'')+v+'</span>')+'</td>';
-  if(c[2]<0)return '<td'+(c[1]===6?' class="wr"':'')+'>'+(v||'–')+'</td>';
+  if(c[2]<0)return '<td'+(c[1]===6?' class="wr"':'')+'>'+esc(v||'–')+'</td>';
   return '<td>'+f(v,c[2])+'</td>'}
-function dTbl(cols,rows,extra){return '<table><tr>'+cols.map(function(c){var on=!extra&&c[1]===DS.c;return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(DS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+(extra?'<th>Why</th>':'')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return dCell(c,r)}).join('')+(extra?'<td class="wr">'+extra(r)+'</td>':'')+'</tr>'}).join('')+'</table>'}
-function why(r){var w=[];if(r.gap>=8)w.push('Producing like '+r[1]+r.pr+', valued '+r[1]+r.vr);if(r.s3>=8)w.push('Snaps up '+r.s3+' pts lately');if(r.f3>=3)w.push('Last 3 games +'+r.f3+' PPR/g');if(r[3]!=null&&r[3]<=23)w.push('Age '+r[3]);return w.map(function(x){return '<span class="why">'+x+'</span>'}).join(' ')}
+function dTbl(cols,rows,extra){return '<table><tr>'+cols.map(function(c){var on=!extra&&c[1]===DS.c;return '<th tabindex="0" data-c="'+esc(c[1])+'" class="'+(on?'on':'')+'">'+esc(c[0])+(on?(DS.d>0?' ▲':' ▼'):'')+'</th>'}).join('')+(extra?'<th>Why</th>':'')+'</tr>'+rows.map(function(r){return '<tr>'+cols.map(function(c){return dCell(c,r)}).join('')+(extra?'<td class="wr">'+extra(r)+'</td>':'')+'</tr>'}).join('')+'</table>'}
+function why(r){var w=[];if(r.gap>=8)w.push('Producing like '+r[1]+r.pr+', valued '+r[1]+r.vr);if(r.s3>=8)w.push('Snaps up '+r.s3+' pts lately');if(r.f3>=3)w.push('Last 3 games +'+r.f3+' PPR/g');if(r[3]!=null&&r[3]<=23)w.push('Age '+r[3]);return w.map(function(x){return '<span class="why">'+esc(x)+'</span>'}).join(' ')}
 function renderD(){var m=false;$('dt').hidden=false;$('dsub').hidden=false;$('dfmt').hidden=DS.v==='c';$('ccl').hidden=DS.v!=='c';if(m){$('dctl').hidden=true;return}
   if(DS.v==='c'){$('dctl').hidden=false;return renderC()}
   if(!D.DY){$('dt').innerHTML='<p class="sub" style="padding:14px">Dynasty values aren’t available right now. They come back with the next refresh.</p>';return}
   $('dctl').hidden=DS.v==='k';var q=DS.q.toLowerCase(),rows=dRows().filter(function(r){return(DS.p==='ALL'||r[1]===DS.p)&&(!q||r[0].toLowerCase().indexOf(q)>-1)});
   if(DS.v==='k'){var K=D.DY.K.slice().sort(function(a,b){return b[DS.f]-a[DS.f]});$('dsub').textContent='Trade value of future rookie draft picks. Early, mid and late mean where in the round the pick is expected to land.';
-    $('dt').innerHTML='<table><tr><th>Pick</th><th>Value</th></tr>'+K.map(function(k){return '<tr><td class="nm">'+k[0]+'</td><td>'+k[DS.f].toLocaleString()+'</td></tr>'}).join('')+'</table>'}
+    $('dt').innerHTML='<table><tr><th>Pick</th><th>Value</th></tr>'+K.map(function(k){return '<tr><td class="nm">'+esc(k[0])+'</td><td>'+esc(k[DS.f].toLocaleString())+'</td></tr>'}).join('')+'</table>'}
   else if(DS.v==='g'){var CUT={QB:24,RB:36,WR:36,TE:18};rows=rows.filter(function(r){return r[3]!=null&&r[3]<=25.5&&r.vr>(r[1]==='TE'||r[1]==='QB'?8:20)&&((r.pr&&r.pr<=CUT[r[1]])||(r[13]!=null&&r[13]>=60))&&(r.gap>=8||r.s3>=8||r.f3>=3)&&!(r.inj&&OUTS[r.inj[0]])});
     rows.sort(function(a,b){var s=function(r){return Math.min(Math.max(r.gap||0,0),30)+Math.max(r.s3||0,0)/2+Math.max(r.f3||0,0)*2};return s(b)-s(a)});
     $('dsub').textContent='Young players (25 or under, outside the top tier at their position) whose usage or production is running ahead of their trade value. Buy-low candidates before the market catches up. To make the list a player has to be producing (top 36 RB or WR, top 24 QB, top 18 TE by PPR per game) or playing at least 60% of snaps over his last 3 games. Sorted by how far ahead of his value he’s running.';

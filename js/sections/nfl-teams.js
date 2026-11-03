@@ -4,8 +4,8 @@ function inV(k){return st.tv==='W'||D.TC[k][4].indexOf(st.tv)>-1}
 function rank(k,t){var x=t[k+1],hi=D.TC[k][2];if(x==null)return null;return 1+D.T.filter(function(r){return hi?r[k+1]>x:r[k+1]<x}).length}
 function team(a){tab('t');
   var t=D.T.filter(function(r){return r[0]===a})[0],n=D.T.length,g='';
-  var out='<button class="back" id="bk">Back to teams</button><h2>'+a+' '+D.N[a]+'</h2><p class="sub">'+t[1]+' games played. Rank 1 is best in the league (fewest for giveaways, penalties and sacks allowed). Play mix stats are ranked most to least.</p>'+mixBar(t)+'<div class="wrap"><table><tr><th>Stat</th><th>Value</th><th>Rank</th></tr>';
-  D.TC.forEach(function(s,k){if(k===0||!inV(k))return;if(s[3]!==g){g=s[3];out+='<tr class="grp"><td colspan="3">'+g+'</td></tr>'}out+='<tr><td>'+s[0]+'</td><td>'+f(t[k+1],s[1])+'</td><td>'+(rank(k,t)==null?'–':rank(k,t)+' of '+n)+'</td></tr>'});
+  var out='<button class="back" id="bk">Back to teams</button><h2>'+esc(a)+' '+esc(D.N[a])+'</h2><p class="sub">'+esc(t[1])+' games played. Rank 1 is best in the league (fewest for giveaways, penalties and sacks allowed). Play mix stats are ranked most to least.</p>'+mixBar(t)+'<div class="wrap"><table><tr><th>Stat</th><th>Value</th><th>Rank</th></tr>';
+  D.TC.forEach(function(s,k){if(k===0||!inV(k))return;if(s[3]!==g){g=s[3];out+='<tr class="grp"><td colspan="3">'+esc(g)+'</td></tr>'}out+='<tr><td>'+esc(s[0])+'</td><td>'+f(t[k+1],s[1])+'</td><td>'+(rank(k,t)==null?'–':rank(k,t)+' of '+n)+'</td></tr>'});
   out+='</table></div>';
   if(st.tv==='W'||st.tv==='O')['QB','RB','WR','TE'].forEach(function(p){
     var rs=A.filter(function(r){return r[1]===a&&r[2]===p}).sort(function(x,y){return y[7]*y[3]-x[7]*x[3]});
@@ -25,7 +25,7 @@ function teamTbl(id){
   if(s[0]==null)s[0]=idx[0]+1;
   if(id==='tt'&&idx.map(function(k){return k+1}).concat([0]).indexOf(s[0])<0){s[0]=idx[1]+1;s[1]=D.TC[idx[1]][2]?-1:1}
   var cols=[['Team',0]].concat(idx.map(function(k){return [D.TC[k][0],k+1,D.TC[k][1]]}));
-  $(id).innerHTML='<table><tr>'+cols.map(function(c){var on=c[1]===s[0];return '<th tabindex="0" data-c="'+c[1]+'" class="'+(on?'on':'')+'">'+c[0]+(on?(s[1]>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+sortRows(D.T,s[0],s[1]).map(function(r){return '<tr class="go" tabindex="0" data-t="'+r[0]+'"><td class="nm">'+r[0]+' '+D.N[r[0]]+'</td>'+cols.slice(1).map(function(c){return '<td>'+f(r[c[1]],c[2])+'</td>'}).join('')+'</tr>'}).join('')+'</table>';
+  $(id).innerHTML='<table><tr>'+cols.map(function(c){var on=c[1]===s[0];return '<th tabindex="0" data-c="'+esc(c[1])+'" class="'+(on?'on':'')+'">'+esc(c[0])+(on?(s[1]>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+sortRows(D.T,s[0],s[1]).map(function(r){return '<tr class="go" tabindex="0" data-t="'+esc(r[0])+'"><td class="nm">'+esc(r[0])+' '+esc(D.N[r[0]])+'</td>'+cols.slice(1).map(function(c){return '<td>'+f(r[c[1]],c[2])+'</td>'}).join('')+'</tr>'}).join('')+'</table>';
 }
 function renderT(){teamTbl('tt')}
 register({id:'nfl',label:'NFL',icon:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c-1-6 3-13 14-14-1 11-8 15-14 14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 15l6-6M10 11l3 3M12 9l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',panels:['nflnav','vp','vt','vn','vc'],dataKeys:[],
