@@ -7,13 +7,13 @@ Instructions for AI agents (and new humans) working in this repo.
 A static NFL and college football betting dashboard, published on GitHub Pages
 (https://notonherb.github.io/football-dashboard/). There is no server and no build step for the page.
 
-- `sources.py` is the only file that downloads data. `build.py` turns it into `data.json` and stamps `index.html`
-  from `template.html`. `model_fit.py` fits the projection model (`model.json`); `cfb_fetch.py` fetches college data.
+- `sources.py` is the only file that downloads data. `build.py` turns it into `data.json` (also split by top-level
+  key into `data/`, the files the page loads: `schema/shards.py`) and stamps `index.html` from `template.html`. `model_fit.py` fits the projection model (`model.json`); `cfb_fetch.py` fetches college data.
 - `engine/` holds the betting logic (odds math, pick rules, picks, grading, parlays) that `build.py` and the analyst
   tools share. `schema/` names every position of every row in `data.json` (`schema/fields.py`) and holds the JSON
   schema for the whole file.
 - `.github/workflows/refresh.yml` runs the whole thing daily and commits the result. Generated files (`data.json`,
-  `index.html`, `model.json`, `odds/`, `cfb/`, `api/`) are committed by that workflow, not by hand.
+  `data/`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`) are committed by that workflow, not by hand.
 - The page's source is `template.html` (markup), `assets/site.css` and `js/` (classic scripts: `core.js`,
   `registry.js`, `router.js`, one file per section in `js/sections/`, `main.js` boots). `build.py` stamps every
   `?v=__VER__` in `template.html` into `index.html`.
@@ -37,7 +37,7 @@ Run Python through uv (the bare `py` launcher is broken on the owner's machine),
 That runs everything, including the Playwright page test (about 2.5 minutes). While iterating, run one file
 (`... python -m pytest -q tests/test_mcp.py`) or use `-k`. Run the full suite once before committing.
 
-Never commit generated output from a local run: `data.json`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`,
+Never commit generated output from a local run: `data.json`, `data/`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`,
 `ideas/`. If a run rewrote them, `git checkout -- <path>` (or delete `api/`). Add files by name; avoid `git add -A`.
 
 ## Golden files

@@ -12,11 +12,13 @@ function routeOf(S){var c=(S.current&&guard(S,'current'))||{},V=c.view!=null?fin
   return '#'+slugOf(S)+(V?'/'+slugOf(V):'')+(qs?'?'+qs:'')}
 // go(route, hash): show the section and view a parsed route names. An unknown section changes nothing: it is logged
 // as a warning and the address goes back to the current view. An unknown view shows the section's current view.
+// select runs once the section's data has loaded and its init has run (whenReady), so a first-load deep link sees
+// the same state a click would.
 function go(r,h){var S=topSections().filter(function(s){return slugOf(s)===r.sec})[0];
   if(!S){console.warn('No section "'+r.sec+'" (address '+h+'); staying where we are.');var C=findSection(st.sec);if(C)try{history.replaceState(null,'',routeOf(C))}catch(e){}return false}
   var V=r.view?viewsOf(S.id).filter(function(v){return slugOf(v)===r.view})[0]:null;
   if(r.view&&!V)console.warn('No view "'+r.view+'" in '+S.label+' (address '+h+'); showing its current view.');
-  guard(S,'select',[V?V.id:null,r.params||{}]);showSec(S.id);return true}
+  whenReady(S,function(){guard(S,'select',[V?V.id:null,r.params||{}]);showSec(S.id)});return true}
 function syncHash(){if(!ROUTING)return;var S=findSection(st.sec);if(!S)return;var h=routeOf(S);
   if(h!==location.hash)try{history.replaceState(null,'',h)}catch(e){}}
 function startRouter(){ROUTING=true;if(location.hash&&location.hash!=='#')go(parseRoute(location.hash),location.hash);

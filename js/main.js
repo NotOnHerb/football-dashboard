@@ -1,6 +1,8 @@
-// Boot: draws the nav, loads data.json, prepares the shared rows, then runs every registered section's init in
-// registration order (script order), each in its own try/catch (guard), and finally applies the address-bar route.
-// VER is the build stamp on this script's own URL (build.py writes it into index.html), used to cache-bust data.json.
+// Boot: draws the nav, loads data/index.json and data/core.json (the part of data.json every view needs at start;
+// see "data shards" in registry.js), prepares the shared rows, then runs the init of every section whose data is all
+// in core (registration order, each in its own try/catch: guard), and finally applies the address-bar route. Other
+// sections load their data and run their init on first visit.
+// VER is the build stamp on this script's own URL (build.py writes it into index.html), used to cache-bust the data.
 var VER=(function(){var s=document.currentScript,m=s&&/[?&]v=([^&#]*)/.exec(s.src);return m?m[1]:''})();
 var HLN={schedule:'this week’s games',injuries:'injuries',rosters:'injured reserve list',depth:'depth charts',weekly:'game-by-game stats',snaps:'snap counts',dynasty:'dynasty values',college_prospects:'college prospects',player_cards:'player cards',odds:'NFL betting lines',college_betting:'college betting lines'};
 function fresh(){var s=D.META&&D.META.sources;if(D.META&&D.META.built)$('upd').textContent='Updated '+D.META.built.replace(/ at .*/,'');
@@ -10,16 +12,13 @@ function fresh(){var s=D.META&&D.META.sources;if(D.META&&D.META.built)$('upd').t
   if(s.weekly_stats)x.push('Game stats through week '+s.weekly_stats.week);if(s.depth)x.push('depth chart from '+s.depth.asof);if(s.injuries)x.push('injury report from week '+s.injuries.week);
   $('fr').textContent=x.length?x.join(', ')+'.':''}
 async function load(){
-  try{
-    var res=await fetch('data.json?v='+VER,{cache:'no-cache'});
-    if(!res.ok)throw new Error(res.status);
-    D=await res.json();
-  }catch(err){bootFailed();return}
+  try{D={};setShards((await Promise.all([fetchData('data/index.json'),loadShard('core')]))[0])}
+  catch(err){console.error('Couldn’t load the core data:',err);bootFailed();return}
   // Without the player rows every section would show plausible but wrong numbers, so this one is fatal.
   try{prepRows()}catch(err){console.error('Couldn’t prepare the player rows (P, X, OLP):',err);bootFailed();return}
   guard({label:'Update notes',dataKeys:['META'],init:fresh},'init');
   $('ld').hidden=true;
-  SECTIONS.forEach(function(s){guard(s,'init')});
+  bootSections();
   wireNav();wireChrome();
   guard({label:'Glossary and colors',init:function(){initGloss();setColors(COLORS);$('clr').onclick=function(){setColors(!COLORS)}}},'init');
   startRouter();

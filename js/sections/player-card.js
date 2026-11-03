@@ -1,8 +1,10 @@
 // The player card (modal): bio, this week, game log, key stats, dynasty value, news and props.
-// Data: PL, LOG, DY.P, ODD.P, P, X.
+// Data: PL, LOG, DY.P, ODD.P, P, X, and through the start/sit model (weekLine) PRI, ALW, G.
+// It isn't in the nav, so its data loads the first time a card opens (openCard), with Betting's (its prop table).
 // ---------------- Player cards
-var PIX=null,PCLAST=null;
-function pIndex(){PIX={};var add=function(n,o){(PIX[n]=PIX[n]||[]).push(o)};
+var PIX=null,PIXDY=null,PCLAST=null;
+// The name index covers the dynasty list once it has loaded (PIXDY: the D.DY it was built from).
+function pIndex(){PIX={};PIXDY=D.DY;var add=function(n,o){(PIX[n]=PIX[n]||[]).push(o)};
   A.forEach(function(r){add(r[0],{t:'o',r:r,team:r[1],id:D.P[r[2]]&&r.gid})});
   D.X.forEach(function(r){add(r[0],{t:'d',r:r,team:r[1]})});
   if(D.DY)D.DY.P.forEach(function(r){var n=r[0];if(!PIX[n])add(n,{t:'y',r:r,team:r[2]})})}
@@ -15,7 +17,13 @@ function logChart(log,avg){var w=Math.max(log.length*44,220),h=120,mx=Math.max.a
   log.forEach(function(x,i){var bh=Math.max(2,x.p/mx*h),xx=i*44+9,c=avg!=null&&x.p>=avg?'#2e9e5b':'#d9534f';s+='<rect x="'+xx+'" y="'+(h-bh+4)+'" width="'+bw+'" height="'+bh+'" rx="4" fill="'+c+'" opacity=".85"><title>Week '+esc(x.w)+' vs '+esc(x.o)+': '+esc(x.p)+' pts</title></rect><text x="'+(xx+bw/2)+'" y="'+(h-bh)+'" text-anchor="middle">'+esc(x.p)+'</text><text x="'+(xx+bw/2)+'" y="'+(h+20)+'" text-anchor="middle">W'+esc(x.w)+'</text>'});
   if(avg!=null){var ay=h-avg/mx*h+4;s+='<line x1="0" x2="'+w+'" y1="'+ay+'" y2="'+ay+'" stroke="currentColor" stroke-dasharray="4 4" opacity=".5"/>'}
   return s+'</svg>'}
-function openCard(name,team){if(!PIX)pIndex();var c=PIX[name];if(!c)return false;var e=c.filter(function(x){return x.team===team})[0]||c[0],r=e.r,gid,pos,tm,h='',tl=[];
+function cardRows(name){if(!PIX||PIXDY!==D.DY)pIndex();return PIX[name]}
+// openCard(name, team): opens the card for that player, or returns false when no player has that name. The first
+// time, the card's data loads first, so the card opens a moment after the click.
+function openCard(name,team){if(!cardRows(name))return false;
+  if(CARD.ready)drawCard(name,team);else need(CARD).then(function(){drawCard(name,team)},function(e){sectionFailed(CARD,'load',e)});
+  return true}
+function drawCard(name,team){var c=cardRows(name);if(!c)return;var e=c.filter(function(x){return x.team===team})[0]||c[0],r=e.r,gid,pos,tm,h='',tl=[];
   if(e.t==='o'){gid=r.gid;pos=r[2];tm=r[1]}else if(e.t==='d'){gid=r[20];pos=r[2];tm=r[1]}else{gid=r[16];pos=r[1];tm=r[2]}
   var P=(D.PL&&gid&&D.PL[gid])||[],dy=D.DY?D.DY.P.filter(function(x){return x[0]===name&&(x[16]===gid||!gid)})[0]:null,inj=r.inj||(dy&&dy[14]),dl=r.dl||(dy&&dy[15]),a=age(P[4])||(dy&&dy[3]);
   var bio=[D.N[tm]?tm+' '+D.N[tm]:tm,a?'Age '+a:null,P[2]?Math.floor(P[2]/12)+'′'+(P[2]%12)+'″':null,P[3]?P[3]+' lb':null,dy&&dy[4]?'Drafted '+dy[4]+(dy[5]?' round '+dy[5]:''):null,dy&&dy[6]?dy[6]:null].filter(Boolean).join(' · ');
@@ -51,4 +59,4 @@ function initCards(){$('pcx').onclick=closeCard;$('pc').addEventListener('click'
     var tr=el.closest('tr'),team=null;if(tr)[].forEach.call(tr.cells,function(c){var t=c.textContent.trim();if(D.N[t])team=t});
     if(openCard(nm,team)){e.stopPropagation()}},true);
   document.querySelector('main').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var el=e.target.closest&&e.target.closest('td.nm');if(el){el.click();e.preventDefault()}})}
-register({id:'card',label:'Player card',dataKeys:['PL','LOG','DY','ODD','P','X'],init:initCards});
+var CARD=register({id:'card',label:'Player card',dataKeys:['PL','LOG','DY','PRI','ODD','P','X','N','PC','ALW','G'],needs:['bet'],init:initCards});

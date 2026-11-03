@@ -49,7 +49,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add index.html data.json
+          git add index.html data.json data
           if [ -f model.json ]; then git add model.json; fi
           if [ -d cfb ]; then git add cfb; fi
           if [ -d odds ]; then git add odds; fi

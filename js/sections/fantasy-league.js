@@ -147,4 +147,4 @@ register({id:'fan',label:'Fantasy',icon:'<svg viewBox="0 0 24 24" aria-hidden="t
     $('fv').addEventListener('click',function(e){var x=e.target.dataset.x;if(!x)return;FV=x;fShow()});
     $('fmt').addEventListener('click',function(e){var x=e.target.dataset.f;if(!x)return;FMT=x;try{store.set('fmt',x)}catch(err){}fShow();if(RL.M)leagueRender()})},
   select:function(v,p){if(v)FV=v;if((p.fmt==='dyn'||p.fmt==='red')&&p.fmt!==FMT){FMT=p.fmt;if(RL.M)leagueRender()}},render:fShow,current:function(){return {view:FV,params:{fmt:FMT}}}});
-register({id:'m',parent:'fan',label:'My league',dataKeys:['DY','ALW','G','PRI'],init:initFM,render:leagueRender});
+register({id:'m',parent:'fan',label:'My league',dataKeys:['DY','ALW','G','PRI','META'],init:initFM,render:leagueRender});

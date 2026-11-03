@@ -762,9 +762,12 @@ try:
     PRI={g:[v[_c.index('PPR')],v[_c.index('Std')]] for g,v in _m['priors'].items() if g in _ids}
     META['model']={'fit_at':_m['fit_at'],'w':_m['w'],'k0':_m['k0'],'blend':_m['blend']}
 except Exception as ex: print('no model priors:',ex)
-import schema.fields
-data=json.dumps(clean({'META':META,'PRI':PRI,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'CFB':CFB,'G':G,'SCHEMA':schema.fields.export(PCout,TC)}),separators=(',',':'),ensure_ascii=False,allow_nan=False)
+import schema.fields, schema.shards
+out=clean({'META':META,'PRI':PRI,'P':P,'PC':PCout,'T':T,'TC':[list(x) for x in TC],'N':names,'X':X,'DEP':DEP,'PL':PL,'LOG':LOG,'OLP':OLP,'ALW':ALW,'DY':DY,'CF':CF,'ODD':ODD,'CFB':CFB,'G':G,'SCHEMA':schema.fields.export(PCout,TC)})
+data=json.dumps(out,separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
+# The same data split by top-level key into data/<shard>.json, which the page loads (schema/shards.py).
+print('data/',schema.shards.write(out))
 ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
 html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)
 open('index.html','w').write(html)

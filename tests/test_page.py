@@ -28,6 +28,7 @@ sys.path.insert(0, ROOT)
 import page_views  # noqa: E402
 import runner  # noqa: E402  (tests/golden/runner.py: CODE_DIRS)
 from schema.fields import FIELDS  # noqa: E402
+from schema import shards  # noqa: E402
 
 RUNNER = os.path.join(HERE, 'golden', 'runner.py')
 EXPECTED = os.path.join(HERE, 'golden', 'expected_page.json.gz')
@@ -63,17 +64,19 @@ def serve(directory):
 
 
 def variant(base, name, edit):
-    """Copy of the built site (top-level files plus the code directories the build copies) whose data.json went
-    through edit(data). Returns its directory."""
+    """Copy of the built site (top-level files, the code directories the build copies and the build's data/) whose
+    data.json went through edit(data). The page loads data/, so the edited data is split into it again the way
+    build.py splits it (schema/shards.py). Returns its directory."""
     out = os.path.join(os.path.dirname(str(base)), name)
     os.makedirs(out, exist_ok=True)
     for f in os.listdir(base):
         if f != 'data.json' and os.path.isfile(os.path.join(base, f)): shutil.copy(os.path.join(base, f), os.path.join(out, f))
-    for d in runner.CODE_DIRS:
+    for d in runner.CODE_DIRS + [shards.DIR]:
         shutil.copytree(os.path.join(base, d), os.path.join(out, d), dirs_exist_ok=True)
     data = json.load(open(os.path.join(base, 'data.json'), encoding='utf-8'))
     edit(data)
     with open(os.path.join(out, 'data.json'), 'w', encoding='utf-8') as f: json.dump(data, f, separators=(',', ':'), ensure_ascii=False)
+    shards.write(data, out)
     return out
 
 
@@ -276,7 +279,9 @@ def new_page(browser, mocks):
 
 
 def settle(page):
-    """Lets the page's own async work (fetches, the MutationObserver that colors tables) finish."""
+    """Lets the page's own async work (a section's data files, fetches, the MutationObserver that colors tables)
+    finish. <main> is aria-busy while a section's data loads (js/registry.js)."""
+    page.wait_for_function("!document.querySelector('main').hasAttribute('aria-busy')", timeout=10000)
     page.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
     page.wait_for_timeout(120)
 
@@ -551,15 +556,17 @@ def test_deep_link_unknown(sites, browser, built):
 
 
 def test_broken_section_is_isolated(built, browser):
-    """A section whose init throws (here Fantasy -> College, on a malformed CF block) is reported on the page and in
-    the console, and every other section still loads and works."""
+    """A section whose init throws (here Fantasy -> College, on a malformed CF block, when Fantasy is first opened and
+    its data loads) is reported on the page and in the console, and every other section still loads and works."""
     def edit(d): d['CF'] = {'P': 'not a list'}
     url, srv = serve(variant(built, 'site_broken', edit))
     try:
-        page, log = open_view(browser, url, mocks_for(site_data(built)), [page_views.BET])
+        page, log = open_view(browser, url, mocks_for(site_data(built)), [page_views.FAN])
         try:
             assert 'Fantasy → College' in page.inner_text('#hlerr')
             assert len(log['errors']) == 1 and 'Fantasy → College' in log['errors'][0], log['errors']
+            assert page.is_visible('#sf') and 'Load my leagues' in page.inner_text('#sf')
+            do(page, page_views.BET); settle(page)
             assert page.is_visible('#sb') and page.locator('#bo .bc, #bo .card').count() > 0
             do(page, page_views.NFL); do(page, page_views.tab('p'))
             assert page.locator('#pt tr').count() > 50
@@ -603,6 +610,59 @@ def test_player_rows_failure_is_fatal(built, browser):
             log['ctx'].close()
     finally:
         srv.shutdown()
+
+
+def test_data_loads_by_section(sites, browser, built):
+    """The default view needs only data/index.json and data/core.json. A section's data files load the first time it
+    opens (once), the player card loads its own, data.json itself is never fetched, and every data URL carries the
+    build stamp."""
+    stamp = re.search(r'js/main\.js\?v=(\d+)', open(os.path.join(built, 'index.html'), encoding='utf-8').read()).group(1)
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    got = []
+    def seen(r):
+        u = urlparse(r.url)
+        if u.hostname == '127.0.0.1' and u.path.endswith('.json'): got.append(u.path.lstrip('/') + '?' + u.query)
+    page.on('request', seen)
+    def new(): out = sorted(got); got.clear(); return out
+    want = lambda *names: sorted('data/%s.json?v=%s' % (n, stamp) for n in names)
+    try:
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000); settle(page)
+        assert new() == want('index', 'core')
+        do(page, page_views.FAN); settle(page)
+        assert new() == want('dynasty', 'college')
+        do(page, page_views.BET); settle(page)
+        assert new() == want('odds')
+        for a in (page_views.FAN, page_views.BET, page_views.NFL, page_views.tab('p'), '#pt td.nm', *page_views.CARD_OPEN): do(page, a)
+        settle(page)
+        assert new() == want('players')
+        assert not log['errors'], (log['errors'], log['blocked'])
+    finally:
+        log['ctx'].close()
+
+
+def test_failed_data_file_is_isolated(sites, browser, built):
+    """A data file that doesn't load (here data/odds.json) is reported for the section that needed it, which opens
+    empty; the rest of the page keeps working, and opening the section again tries the file again."""
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    down = {'odds': True}
+    page.route('**/data/odds.json*', lambda r: r.fulfill(status=503, body='') if down['odds'] else r.fallback())
+    try:
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        do(page, page_views.BET); settle(page)
+        assert 'Part of the page didn’t load: Betting → Picks.' in page.inner_text('#hlerr')
+        mine = [e for e in log['errors'] if 'Section "' in e]
+        assert len(mine) == 1 and 'Betting → Picks" failed in load' in mine[0], log['errors']
+        assert all('Section "' in e or '503' in e for e in log['errors']), log['errors']
+        assert page.is_visible('#sb') and page.locator('#bo > *').count() == 0
+        do(page, page_views.NFL); do(page, page_views.tab('p'))
+        assert page.locator('#pt tr').count() > 50
+        down['odds'] = False
+        do(page, page_views.BET); settle(page)
+        assert page.is_visible('#sb') and page.locator('#bo .bc, #bo .card').count() > 0
+    finally:
+        log['ctx'].close()
 
 
 def test_format_route_redraws_league(sites, browser, built):
@@ -676,6 +736,7 @@ def test_saved_bets_survive(sites, browser, built):
         assert moved == [[k, old[k], old[k]] for k in sorted(old)], moved
         assert page.evaluate("localStorage.getItem(store.NS + 'migrated')")
         assert page.evaluate("document.documentElement.dataset.scene") == 'snow'
+        do(page, page_views.FAN); settle(page)  # Fantasy fills its forms from the settings when it first opens
         assert page.input_value('#bbk') == old['book'] and page.input_value('#fsu') == old['sleeper_user']
         assert my_bets(page, reload=True) == {bet['id']: '25'}, 'a reload must not duplicate or lose the bet'
         assert not log['errors'], (log['errors'], log['blocked'])
