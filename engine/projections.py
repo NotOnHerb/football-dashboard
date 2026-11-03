@@ -3,8 +3,8 @@ going over a line from the fitted swing pattern, and the anytime-TD chance from 
 
 model.json supplies the inputs: w and k0 for the recipe, q (quantiles of actual / projection) and cal for p_over,
 td for td_chance. model_fit.py fits them.
+Importing this module needs only the standard library (analyst/snapshot.py runs without numpy); td_chance uses numpy.
 """
-import numpy as np
 
 
 def base_projection(hist, prior, w, k0):
@@ -15,7 +15,7 @@ def base_projection(hist, prior, w, k0):
         c = w * hist.mean() + (1 - w) * hist[-3:].mean()
     else:
         avg = sum(hist) / len(hist); l3 = sum(hist[-3:]) / len(hist[-3:]); c = w * avg + (1 - w) * l3
-    if prior is not None and k0 and not np.isnan(prior):
+    if prior is not None and k0 and prior == prior:   # prior != prior only for NaN
         c = (len(hist) * c + k0 * prior) / (len(hist) + k0)
     return c
 
@@ -36,6 +36,7 @@ def p_over(q, cal, mu, line):
 def td_chance(td_model, usage, pos):
     """Anytime-TD chance from usage (carries/g, targets/g, games) and position, with the logistic model TD_MODEL
     (model.json 'td'). None without a model, under 4 games or 5 touches a game, or for non RB/WR/TE."""
+    import numpy as np   # here, not at the top, so the module imports without numpy
     u = usage
     if not td_model or not u or u[2] < 4 or u[0] + u[1] < 5 or pos not in ('RB', 'WR', 'TE'): return None
     t = td_model; x = [u[0], u[1], 1.0 if pos == 'RB' else 0.0, 1.0 if pos == 'TE' else 0.0]

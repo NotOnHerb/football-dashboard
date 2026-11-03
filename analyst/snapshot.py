@@ -5,12 +5,9 @@ Writes OUT_DIR/snap/<doc>.json (each under ~200 KB): meta, picks, log, games, pr
 The weekly analyst and the daily sync upload these with ArtifactData (collection "snap", doc id = file name).
 """
 import json, os, sys, datetime
-
-def i2p(a):
-    a = float(a); return 100 / (a + 100) if a > 0 else -a / (-a + 100)
-
-def novig(a, b):
-    x, y = i2p(a), i2p(b); return x / (x + y)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from engine.odds import implied, no_vig_proportional
+from engine.projections import p_over
 
 def main(out):
     D = json.load(open('data.json')); O = D.get('ODD') or {}
@@ -20,16 +17,13 @@ def main(out):
     MQ, MC, MB = O.get('MQ') or {}, O.get('MC') or {}, O.get('MB', .5)
 
     def pover(mk, mu, L):
-        q = MQ.get(mk)
-        if not q or not mu or mu <= 0: return None
-        x = L / mu; p = sum(1 for v in q if v > x) / len(q) + (MC or {}).get(mk, 0)
-        return min(.99, max(.01, p))
+        return p_over(MQ.get(mk), (MC or {}).get(mk, 0), mu, L)
 
     # price movement on locked/graded picks: did the market move toward our side after we first posted it?
     def move(r):
         f = r.get('first')
         if not f or f.get('pr') is None or r.get('pr') is None: return None
-        d = i2p(r['pr']) - i2p(f['pr'])          # + = price got worse for a new bettor = we beat the later price
+        d = implied(r['pr']) - implied(f['pr'])          # + = price got worse for a new bettor = we beat the later price
         if r.get('pt') is not None and f.get('pt') is not None and r['pt'] != f['pt']:
             better_now = (r['pt'] < f['pt']) if r['sd'] in ('o', 'ov') else (r['pt'] > f['pt'])
             d += (-.02 if better_now else .02) * abs(r['pt'] - f['pt']) / .5
@@ -77,7 +71,7 @@ def main(out):
             fo = p['fair'][1] if p.get('fair') and p['fair'][0] == L else None
             if fo is None:
                 pr = [x for x in p['b'].values() if x[0] == L and x[2] == L and x[1] is not None and x[3] is not None]
-                fo = novig(pr[0][1], pr[0][3]) if pr else None
+                fo = no_vig_proportional(pr[0][1], pr[0][3]) if pr else None
             row['line'] = L; row['model_chance_over'] = po and round(po, 3); row['market_chance_over'] = fo and round(fo, 3)
             row['our_chance_over'] = None if po is None or fo is None else round(MB * po + (1 - MB) * fo, 3)
         props.append(row)

@@ -102,3 +102,18 @@ def test_fit_ridge_margins():
     assert set(R) == {'W', 'X', 'Y', 'Z'}
     assert R['X'] > R['Y'] > R['Z']
     assert math.isclose(R['W'], 2.0, abs_tol=1e-9)   # a team with no games keeps its prior
+
+
+def test_model_fit_and_lab_use_the_same_recipe(tmp_path, monkeypatch):
+    import json, os, sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    import model_fit
+    from analyst import lab
+    h, prior = np.array([3.0, 7.0, 1.0, 9.0, 4.0]), 6.5
+    c = model_fit.W * h.mean() + (1 - model_fit.W) * h[-3:].mean()
+    expected = (len(h) * c + model_fit.K0 * prior) / (len(h) + model_fit.K0)
+    assert projections.base_projection(h, prior, model_fit.W, model_fit.K0) == expected
+    json.dump({'w': model_fit.W, 'k0': model_fit.K0}, open(tmp_path / 'model.json', 'w'))
+    monkeypatch.chdir(tmp_path)
+    assert lab.current_recipe(h, prior) == expected
+    assert lab.current_recipe(h, np.nan) == c

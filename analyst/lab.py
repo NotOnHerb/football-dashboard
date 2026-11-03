@@ -12,6 +12,7 @@ A row: pid, pos, season, week, team, opp, att/car/tgt (per-game usage before thi
 import json, numpy as np, pandas as pd, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import sources, model_fit
+from engine.projections import base_projection
 
 MK = model_fit.MK
 _cache = {}
@@ -41,10 +42,8 @@ def rows(seasons, min_prior_games=3):
 def relevant(r, k): return model_fit.relevant(r['pos'], r['att'], r['car'], r['tgt'], k)
 
 def current_recipe(h, prior):
-    m = json.load(open('model.json')); w, k0 = m['w'], m['k0']
-    c = w * h.mean() + (1 - w) * h[-3:].mean()
-    if prior is not None and not np.isnan(prior): c = (len(h) * c + k0 * prior) / (len(h) + k0)
-    return c
+    m = json.load(open('model.json'))
+    return base_projection(h, prior, m['w'], m['k0'])
 
 def mae(R, k, recipe=current_recipe):
     xs = [(recipe(r[k + '|hist'], r[k + '|prior']), r[k + '|act']) for r in R if relevant(r, k)]
