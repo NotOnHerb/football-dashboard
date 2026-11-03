@@ -2,13 +2,16 @@ import pandas as pd, numpy as np, json, gzip, base64
 import os, datetime
 import sources
 SEASON=sources.SEASON
-META={'schema':2,'season':SEASON,'sources':{}}
+META={'schema':2,'season':SEASON,'sources':{},'health':{}}
+# section health: 'ok', 'skipped: ...' (a secret simply isn't set) or 'failed: ...'; check_health.py reads it
+def ok(sec): META['health'][sec]='ok'
+def bad(sec,ex,key=None): META['health'][sec]='skipped: no %s secret'%key if key and not os.environ.get(key) else 'failed: '+('%s: %s'%(type(ex).__name__,ex)).split('\n')[0][:160]
 def load(name):
     df,info=sources.load(name); META['sources'][name]=info; return df
 ALIAS={'JAX':'JAC','JAC':'JAX','LA':'LAR','LAR':'LA','OAK':'LV'}
 def games_from(s,teams):
     s=s[(s.season==SEASON)&(s.game_type=='REG')&s.away_score.isna()]
-    if s.empty: return None
+    if s.empty: return []
     s=s[s.week==s.week.min()].sort_values(['gameday','gametime']); out=[]
     for _,r in s.iterrows():
         fx=lambda t:t if t in teams else ALIAS.get(t,t)
@@ -17,12 +20,13 @@ def games_from(s,teams):
         dt=pd.to_datetime(str(r.gameday)+' '+str(r.gametime))
         out.append([a,h,'Wk %d, %s, %d:%s ET'%(r.week,dt.strftime('%a %b %d'),int(dt.strftime('%I')),dt.strftime('%M %p'))])   # %-I is Linux-only
     return out
-def get_games(fb,teams):
+def get_games(teams):
     try:
         g=games_from(load('schedule'),teams)
-        if g: print('schedule ok:',len(g),'games'); return g
-    except Exception as e: print('schedule fetch failed, using saved list:',e)
-    return fb
+        if g is None: raise ValueError('schedule team codes not recognized')
+        if not g: print('schedule: no upcoming regular-season games'); META['health']['schedule']='skipped: no upcoming regular-season games'; return []
+        print('schedule ok:',len(g),'games'); ok('schedule'); return g
+    except Exception as e: print('schedule fetch failed, no games this week:',e); bad('schedule',e); return []
 DATE=datetime.datetime.now(datetime.timezone.utc).strftime('%b %d, %Y at %H:%M UTC')
 raw=load('season_stats')
 print('rows downloaded:',len(raw))
@@ -100,8 +104,7 @@ dd['k']=dd.def_sacks+dd.def_qb_hits; dd=dd.sort_values('k',ascending=False)
 DL=[[r.player_display_name,r.recent_team,r.position,int(r.games),round(float(r.def_sacks),1),round(float(r.def_sacks/r.games),2),int(r.def_qb_hits),round(float(r.def_qb_hits/r.games),2),int(r.def_tackles_for_loss),int(r.def_tackles_solo),int(r.def_tackles_solo+r.def_tackle_assists),int(r.def_pass_defended),int(r.def_fumbles_forced),round(float(r.k/r.games),2)] for _,r in dd.iterrows()]
 oo=df[df.position_group=='OL'].sort_values('penalties',ascending=False)
 OL=[[r.player_display_name,r.recent_team,r.position,int(r.penalties),int(r.penalty_yards),int(r.fumbles_lost_total)] for _,r in oo.iterrows()]
-G_FALLBACK=[['NE','CHI','Thu Oct 22, 7:15 PM CT (live now)'],['PIT','NO','Sun Oct 25, 8:30 AM CT'],['IND','MIN','Sun Oct 25, 12:00 PM CT'],['MIA','NYJ','Sun Oct 25, 12:00 PM CT'],['CIN','BAL','Sun Oct 25, 12:00 PM CT'],['CLE','TEN','Sun Oct 25, 12:00 PM CT'],['TB','CAR','Sun Oct 25, 12:00 PM CT'],['SF','ATL','Sun Oct 25, 12:00 PM CT'],['NYG','HOU','Sun Oct 25, 12:00 PM CT'],['DEN','ARI','Sun Oct 25, 3:05 PM CT'],['LA','LV','Sun Oct 25, 3:25 PM CT'],['GB','DET','Sun Oct 25, 3:25 PM CT'],['KC','SEA','Sun Oct 25, 7:20 PM CT'],['DAL','PHI','Mon Oct 26, 7:15 PM CT']]
-G=get_games(G_FALLBACK,{t[0] for t in T})
+G=get_games({t[0] for t in T})
 print('game teams missing from data:',sorted({x for g in G for x in g[:2]}-{t[0] for t in T}),'| DL',len(DL),'OL',len(OL))
 dx=df[df.position_group.isin(['DL','LB','DB'])].copy()
 for cc in ['def_sacks','def_qb_hits','def_interceptions','def_pass_defended','def_fumbles_forced','fumble_recovery_opp','def_tds','def_tackles_for_loss','def_tackles_solo','def_tackle_assists','def_safeties']: dx[cc]=dx[cc].fillna(0)
@@ -125,18 +128,18 @@ def load_inj():
     try:
         i=load('injuries')
         i=i[(i.season==SEASON)&(i.week==i.week.max())&i.report_status.notna()]
-        print('injury report ok: week',int(i.week.max()) if len(i) else '-','|',len(i),'players listed')
+        print('injury report ok: week',int(i.week.max()) if len(i) else '-','|',len(i),'players listed'); ok('injuries')
         out={r.gsis_id:[str(r.report_status),str(r.report_primary_injury) if pd.notna(r.report_primary_injury) else '',int(r.week)] for _,r in i.iterrows()}
         try:
             ro=load('rosters'); ro=ro[(ro.week==ro.week.max())&(ro.status=='RES')]
             for _,r in ro.iterrows():
                 ir=str(r.status_description_abbr) in ('R01','R48')
                 out[r.gsis_id]=['IR' if ir else 'Reserve','Injured reserve' if ir else 'Reserve list',int(r.week)]
-            print('reserve list ok:',len(ro),'players')
-        except Exception as ex: print('roster status fetch failed:',ex)
+            print('reserve list ok:',len(ro),'players'); ok('rosters')
+        except Exception as ex: print('roster status fetch failed:',ex); bad('rosters',ex)
         return out
     except Exception as ex:
-        print('injury fetch failed:',ex); return {}
+        print('injury fetch failed:',ex); bad('injuries',ex); META['health'].setdefault('rosters','failed: injury report failed first'); return {}
 INJ=load_inj()
 def load_depth(teams):
     try:
@@ -196,9 +199,9 @@ def load_depth(teams):
         for v in out.values():
             for x in v['fr']: x[5]=4 if x[6]>=p90 else 3 if x[6]>=p75 else 2 if x[6]>=p50 else 1
         print('depth charts ok:',len(out),'teams | as of',dt,'| 3-4 teams',sum(1 for v in out.values() if v['s']=='3-4'),'| thresholds',round(p90,2),round(p75,2),round(p50,2))
-        return {'dt':dt,'T':out}
+        ok('depth'); return {'dt':dt,'T':out}
     except Exception as ex:
-        print('depth chart fetch failed, matchups will use stats only:',ex); return None
+        print('depth chart fetch failed, matchups will use stats only:',ex); bad('depth',ex); return None
 DEP=load_depth({t[0] for t in T})
 OLP={}
 for _,r in df[df.position_group=='OL'].iterrows():
@@ -242,9 +245,9 @@ def load_allowed():
         print('SOS check (league avg of adjusted should equal plain avg): RB',round(float(np.mean([v['aa']['RB'][0] for v in out.values()])),2),'vs',LGAVG['RB'][0])
         tot_a=sum(v['a'][p][0]*v['g'] for v in out.values() for p in v['a']); tot_s=sum(v['s'][p][0]*v['g'] for v in out.values() for p in v['s'])
         print('allowed ok: weeks',int(w.week.min()),'-',int(w.week.max()),'| teams',len(out),'| PPR allowed',round(tot_a),'vs scored',round(tot_s))
-        return {'wk':int(w.week.max()),'T':out,'lg':LGAVG}
+        ok('weekly'); return {'wk':int(w.week.max()),'T':out,'lg':LGAVG}
     except Exception as ex:
-        print('weekly stats fetch failed, skill matchups hidden:',ex); return None
+        print('weekly stats fetch failed, skill matchups hidden:',ex); bad('weekly',ex); return None
 ALW=load_allowed()
 # ---- recent form (last 3 games played) and snap share
 FORM={}
@@ -257,9 +260,9 @@ try:
     sn=sn.merge(pl[['pfr_id','gsis_id']].dropna().drop_duplicates('pfr_id'),left_on='pfr_player_id',right_on='pfr_id',how='inner')
     sn['pct']=np.where(sn.offense_pct.fillna(0)>=sn.defense_pct.fillna(0),sn.offense_pct.fillna(0),sn.defense_pct.fillna(0))*100
     for gid,g in sn.sort_values('week').groupby('gsis_id'): SNAP[gid]=[round(float(g.pct.mean())),round(float(g.tail(3).pct.mean()))]
-    print('snap shares ok:',len(SNAP),'players')
+    print('snap shares ok:',len(SNAP),'players'); ok('snaps')
 except Exception as ex:
-    pl=None; print('snap counts failed:',ex)
+    pl=None; print('snap counts failed:',ex); bad('snaps',ex)
 # ---- dynasty board
 DY=None
 try:
@@ -305,9 +308,9 @@ try:
         if pd.notna(r.espn_id): EM[str(int(float(r.espn_id)))]=list(LK)[-1]
     DY['L']=LK;DY['E']=EM
     print('sleeper lookup ok:',len(LK),'players | with value',sum(1 for x in LK.values() if x[4] is not None),'| espn ids',len(EM))
-    print('dynasty ok:',len(rows),'players |',len(picks),'future picks | matched to stats',sum(1 for x in rows if x[9] is not None))
+    print('dynasty ok:',len(rows),'players |',len(picks),'future picks | matched to stats',sum(1 for x in rows if x[9] is not None)); ok('dynasty')
 except Exception as ex:
-    print('dynasty values failed:',ex)
+    print('dynasty values failed:',ex); bad('dynasty',ex)
 # ---- college prospects (CollegeFootballData.com)
 CF=None
 try:
@@ -421,9 +424,9 @@ try:
         for r in rows: r+=[None]*5
     CF={'P':rows,'draft':SEASON+1,'tg':bool(TGP),'CB':CB}
     top_=sorted(rows,key=lambda r:-r[30])[:5]; print('college top dynasty scores:',[(r[0],r[1],r[2],r[30],r[31]) for r in top_])
-    print('college ok:',len(rows),'players | draft-eligible',sum(1 for x in rows if x[11]),'| with recruiting stars',sum(1 for x in rows if x[5]))
+    print('college ok:',len(rows),'players | draft-eligible',sum(1 for x in rows if x[11]),'| with recruiting stars',sum(1 for x in rows if x[5])); ok('college_prospects')
 except Exception as ex:
-    print('college data skipped:',ex)
+    print('college data skipped:',ex); bad('college_prospects',ex,'CFBD_KEY')
 names={t:N[t] for t in set(df.recent_team)}
 def clean(o):
     if isinstance(o,float) and (o!=o or o in (float('inf'),float('-inf'))): return None
@@ -453,7 +456,8 @@ try:
                (int(b_['height']) if b_ is not None and pd.notna(b_.get('height')) else None),(int(b_['weight']) if b_ is not None and pd.notna(b_.get('weight')) else None),
                (str(b_['birth_date'])[:10] if b_ is not None and pd.notna(b_.get('birth_date')) else None)]
     print('player cards ok:',len(PL),'players | with photo',sum(1 for v in PL.values() if v[0]),'| with ESPN id',sum(1 for v in PL.values() if v[1]),'| game logs',len(LOG))
-except Exception as ex: print('player card extras failed:',ex)
+    ok('player_cards')
+except Exception as ex: print('player card extras failed:',ex); bad('player_cards',ex)
 print('tags: injured on lists',sum(1 for p in P for r in P[p] if r[5])+sum(1 for r in X if r[17]),'| with depth label',sum(1 for p in P for r in P[p] if r[6])+sum(1 for r in X if r[18]))
 # ---- betting: lines and props (The Odds API, needs the ODDS_API_KEY secret)
 ODD=None
@@ -936,9 +940,9 @@ try:
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
     books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
     ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
-    print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| parlays',[(x['kind'],len(x['legs']),x['pr'],x['bk'],x['pc']) for x in PX],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
+    ok('odds'); print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| parlays',[(x['kind'],len(x['legs']),x['pr'],x['bk'],x['pc']) for x in PX],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
-    print('odds skipped:',ex)
+    print('odds skipped:',ex); bad('odds',ex,'ODDS_API_KEY')
 # ---- college football: lines from several books (CollegeFootballData, free), our ratings as context, "best number" picks
 CFB=None
 try:
@@ -1040,8 +1044,8 @@ try:
          'REC':{'w':sum(r['res']=='W' for r in cd),'l':sum(r['res']=='L' for r in cd),'p':sum(r['res']=='P' for r in cd),'u':round(sum(r['u'] for r in cd),2)},
          'BT':{'rule':'with 3+ books, one book 1 to 3 points off the others','record':[314,249],'l2':[150,115],'l1':[164,134],'seasons':'2023-25','by_season':{'2023':'75-64','2024':'43-33','2025':'32-18'},'model_vs_close':'about 50% (context only)'},
          'at':open('cfb/fetch_log.txt').read().split('\n')[0]}
-    print('college ok: games',len(CG),'weeks',wks,'| picks',[(x['a'],x['h'],x['sd'],x['pt'],x['bk'],x['gap']) for x in CP],'| record',CFB['REC'])
-except Exception as ex: print('college skipped:',ex)
+    ok('college_betting'); print('college ok: games',len(CG),'weeks',wks,'| picks',[(x['a'],x['h'],x['sd'],x['pt'],x['bk'],x['gap']) for x in CP],'| record',CFB['REC'])
+except Exception as ex: print('college skipped:',ex); bad('college_betting',ex,'ODDS_API_KEY')
 META['built']=DATE
 PRI={}
 try:
