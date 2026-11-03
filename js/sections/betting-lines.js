@@ -69,6 +69,25 @@ function whyP(p,x){var w=[],b=x.b,noun=esc(NOUN[p.mk]||p.mk.toLowerCase());
     if(b.vs>0)w.push('<b>Better price:</b> '+am(b.q.pr)+' at '+esc(b.q.bk)+' is worth about <b>'+(b.v*100).toFixed(1)+'% more</b> than a fair bet over time.')}
   if(Math.abs(p.fac-1)>=.04)w.push('<b>Matchup:</b> '+esc(p.opp)+' gives up about '+Math.abs(Math.round((p.fac-1)*200))+'% '+(p.fac>1?'more':'fewer')+' '+(/TD/.test(p.mk)?'touchdowns':p.mk==='Receptions'?'catches':'yards')+' to '+esc(p.pos)+'s than an average defense '+bgrade(p.fac));
   return w}
+// The picks to show for the book shown: the build's ODD.PK (best available) or ODD.PKB[book], in the build's order,
+// minus games already started. Each becomes a card row {t,g|p,x,s}: x is its ODD.G / ODD.P row scored by gside / pa
+// for display, s the build's level. A pick whose row is not in this week's lines is skipped with a console warning; a
+// card whose quote differs from the pick's, or that had to use another player's row, is shown with a warning. Returns
+// null (with a warning) when this data has no pick list for the book shown.
+function pickList(){var O=D.ODD,src=BS.book==='best'?O.PK:(O.PKB||{})[BS.book],G={},P={},used=[],L=[];
+  if(!src){console.warn('No pick list for '+(BS.book==='best'?'best available':BS.book)+' in this update');return null}
+  O.G.forEach(function(g){G[g.id]=g});
+  O.P.forEach(function(p){var id='p|'+p.eid+'|'+p.gid+'|'+p.mk;(P[id]=P[id]||[]).push(p)});
+  function free(p){return used.indexOf(p)<0}
+  src.forEach(function(k){if(past(k.t))return;var c=null,x,q;
+    if(k.k==='g'){var g=G[k.eid];x=g&&gside(g,k.sd);if(x){c={t:'g',g:g,x:x,s:k.s};q=x.q}}
+    else{var M=(P['p|'+k.eid+'|'+k.gid+'|'+k.mk]||[]).filter(free),p=M.filter(function(r){return r.n===k.n})[0]||M[0];x=p&&pa(p);
+      if(p&&p.n!==k.n&&M.length>1)console.warn('Pick '+k.id+': no row for '+k.n+'; showing '+p.n);
+      if(x&&!x.td)x=(x.b=k.sd==='o'?x.o:x.u)?x:null;if(x){used.push(p);c={t:'p',p:p,x:x,s:k.s};q=x.b.q}}
+    if(!c){console.warn('Pick '+k.id+' is not in this week’s lines; skipped');return}
+    if(q.pt!==k.pt||q.pr!==k.pr||q.bk!==k.bk)console.warn('Pick '+k.id+': the page quotes '+[q.pt,q.pr,q.bk].join(' ')+', the build '+[k.pt,k.pr,k.bk].join(' '));
+    L.push(c)});
+  return L}
 function pickCard(c,hero){var h;
   if(c.t==='g'){var g=c.g,x=c.x;h='<div class="bc l'+Math.min(3,c.s)+(hero?' hero':'')+'">'+(hero?'<div class="bck">Pick of the week</div>':'')+'<div class="bch">'+lvl(c.s)+'<span class="bct">'+esc(gname(g,x.k,x.q))+'</span></div><div class="bcp"><b>'+am(x.q.pr)+'</b> '+esc(x.q.bk)+' · '+esc(g.a)+' at '+esc(g.h)+' · '+kick(g.t)+'</div><ul class="bcw">'+whyG(g,x).map(function(w){return '<li>'+w+'</li>'}).join('')+'</ul>'+saveBtn(gBet(g,x.k,x.q))+'</div>'}
   else{var p=c.p,x=c.x,b=x.b;h='<div class="bc l'+Math.min(3,c.s)+(hero?' hero':'')+'">'+(hero?'<div class="bck">Pick of the week</div>':'')+'<div class="bch">'+lvl(c.s)+'<span class="bct"><a href="#" class="pn" data-n="'+esc(p.n)+'" data-t="'+esc(p.t)+'">'+esc(p.n)+'</a> '+esc(pname(p,x))+'</span></div><div class="bcp"><b>'+am(b.q.pr)+'</b> '+esc(b.q.bk)+' · '+esc(p.t)+' vs '+esc(p.opp)+(gameOf(p.t)?' · '+kick(gameOf(p.t).t):'')+'</div><ul class="bcw">'+whyP(p,x).map(function(w){return '<li>'+w+'</li>'}).join('')+'</ul>'+saveBtn(pBet(p,x.td?'y':(b.dir>0?'o':'u'),b.q))+'</div>'}
@@ -117,9 +136,9 @@ function renderB(){var O=D.ODD;if(!O||!O.G){$('bfr').textContent='';$('bo').inne
   [].forEach.call($('bv').children,function(b){b.setAttribute('aria-pressed',b.dataset.v===BS.v)});$('bctl').hidden=BS.v!=='props';$('bbk').value=BS.book;
   var bnote=BS.book==='best'?'':'<p class="sub">Showing '+esc(BS.book)+' only. Switch to “Best available” to shop every book.</p>';
   if(BS.lg==='cfb'&&BS.v!=='mine'){var part=BS.v==='games'?'games':BS.v==='results'?'results':'picks';$('bo').innerHTML=part==='results'?cfbResults():collegeView(part);var cc=$('cconf');if(cc)cc.onchange=function(){CBS.conf=this.value;renderB()};var cpo=$('cpo');if(cpo)cpo.onchange=function(){CBS2.po=this.checked;renderB()};var cq=$('cq');if(cq)cq.oninput=function(){CBS.q=this.value;var p=this.selectionStart;renderB();var n=$('cq');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};return}
-  if(BS.v==='picks'){var L=picks(),G_=L.filter(function(c){return c.t==='g'}),P_=L.filter(function(c){return c.t==='p'}),top=L[0],mr=O.MR||{};
+  if(BS.v==='picks'){var L=pickList(),na=!L;if(na)L=[];var G_=L.filter(function(c){return c.t==='g'}),P_=L.filter(function(c){return c.t==='p'}),top=L[0],mr=O.MR||{};
     if(top){G_=G_.filter(function(c){return c!==top});P_=P_.filter(function(c){return c!==top})}
-    var h=bnote+(top?pickCard(top,true):'<div class="card">No picks clear the bar right now'+(BS.book==='best'?'':' at '+esc(BS.book))+'. Props usually post Thursday and Friday.</div>');
+    var h=bnote+(top?pickCard(top,true):na?'<div class="card">Picks aren’t available in this update. They come back with the next refresh.</div>':'<div class="card">No picks clear the bar right now'+(BS.book==='best'?'':' at '+esc(BS.book))+'. Props usually post Thursday and Friday.</div>');
     h=recordStrip()+h;
     var CL=G_.length?[]:closest();
     h+='<h3>Game lines <span class="pcm">spreads, totals, moneylines</span></h3>'+(G_.length?'<div class="bgrid">'+G_.slice(0,BS.more?30:6).map(function(c){return pickCard(c)}).join('')+'</div>':'<p class="sub">No game line clears the bar right now. That’s normal: spreads and totals are what sportsbooks price most carefully. The closest ones'+(BS.book==='best'?'':' at '+esc(BS.book))+':</p>'+(CL.length?'<ul class="bcw" style="color:var(--ink)">'+CL.map(function(c){return '<li><b>'+esc(gname(c.g,c.x.k,c.x.q))+'</b> '+am(c.x.q.pr)+' '+esc(c.x.q.bk)+' <span class="pcm">('+esc(c.g.a)+' at '+esc(c.g.h)+'; '+(c.x.v>=0?'about '+(c.x.v*100).toFixed(1)+'% better than':'about')+' a fair bet)</span></li>'}).join('')+'</ul>':''));

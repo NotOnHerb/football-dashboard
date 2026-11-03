@@ -1,5 +1,6 @@
-// The betting pick engine, as the page runs it: prices, fair odds, value, prop chances and the pick list.
-// Moved unchanged from template.html; build.py has its own copy (engine/). Data: ODD.
+// Betting display helpers: prices, fair odds, value and prop chances for one game side or prop, at the book shown.
+// Cards, tables, combos and near misses use them; which picks show is the build's (ODD.PK / ODD.PKB, engine/picks.py).
+// Data: ODD.
 var MINL={'Pass yds':150,'Rush yds':25,'Rec yds':25,'Receptions':2.5,'Pass TDs':.5};
 var AG=null;function ag(gid){if(!AG){AG={};A.forEach(function(a){if(a.gid)AG[a.gid]=a})}return AG[gid]||{}}
 function hurt(gid){var a=ag(gid);return a.inj&&(OUTS[a.inj[0]]||a.inj[0]==='Doubtful')}
@@ -45,9 +46,5 @@ function pa(p){var td=p.mk==='Anytime TD',n=p.v.length,o={p:p,td:td,n:n},MB=D.OD
     return {q:q,P:P,po:dir>0?po:(po==null?null:1-po),fo:dir>0?fo:(fo==null?null:1-fo),e:e||0,h:h,ls:ls,v:v,vs:vs,s:Math.min(ls,2)+vs,dir:dir}}
   var qo=pq(p,'o'),qu=pq(p,'u');if(!qo&&!qu)return null;o.o=side(qo,1);o.u=side(qu,-1);
   o.b=(o.o&&o.u)?((o.u.s>o.o.s||(o.u.s===o.o.s&&o.u.e>o.o.e))?o.u:o.o):(o.o||o.u);o.s=o.b.s;o.line=(qo||qu).pt;return o}
-// ---- picks
+// ---- lookups
 function gameOf(team){return (D.ODD.G.filter(function(g){return g.a===team||g.h===team})[0])}
-function picks(){var O=D.ODD,L=[];
-  O.G.forEach(function(g){if(past(g.t))return;[['hs','as'],['ov','un'],['mh','ma']].forEach(function(pr){var a=gside(g,pr[0]),b=gside(g,pr[1]),x=a&&b?(b.s>a.s?b:a):(a||b);if(x&&x.s>=RU().pick)L.push({t:'g',g:g,x:x,s:x.s,sort:x.s+(x.v||0)*5})})});
-  O.P.forEach(function(p){if(hurt(p.gid)||past(p.ko))return;var x=pa(p);if(x&&x.s>=RU().pick)L.push({t:'p',p:p,x:x,s:x.s,sort:x.s+(x.b.e||0)+(x.b.v||0)*5})});
-  return L.sort(function(a,b){return b.sort-a.sort})}
