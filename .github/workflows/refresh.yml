@@ -41,6 +41,9 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_PLAN: ${{ vars.ODDS_PLAN || 'free' }}
           ODDS_PROPS: ${{ github.event.inputs.props || 'auto' }}
+      # Named-field JSON for agents (api/v1/). Standard library only; a failure keeps the previous files.
+      - name: Export the API files
+        run: python api_export.py || echo "::warning::API export failed, keeping the previous api files"
       - name: Save the new site
         run: |
           git config user.name "github-actions"
@@ -49,6 +52,7 @@ jobs:
           if [ -f model.json ]; then git add model.json; fi
           if [ -d cfb ]; then git add cfb; fi
           if [ -d odds ]; then git add odds; fi
+          if [ -d api ]; then git add api; fi
           git diff --staged --quiet || git commit -m "Refresh data"
           git push
       # Runs after the save, so the site and pick ledgers are kept even when a section failed.
