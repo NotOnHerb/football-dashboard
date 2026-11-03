@@ -1,9 +1,11 @@
 """Player projections (recipe, matchup, chance of over, TD chance) and the team ratings models."""
-import math
+import math, os, sys
 import numpy as np
 import pandas as pd
+import pytest
 
-from engine import projections, team_model
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))   # repo root
+from engine import projections, team_model  # noqa: E402
 
 
 def test_base_projection_mixes_season_and_last_three():
@@ -46,6 +48,16 @@ def test_p_over_counts_quantiles_and_nudges():
     assert projections.p_over(q, 0, 0, 50) is None
     assert projections.p_over(q, 0, None, 50) is None
     assert projections.p_over(None, 0, 100, 50) is None
+
+
+def test_p_over_with_empty_quantiles_fails_loudly():
+    # a model.json with no quantiles for a prop type is broken: the build's odds section must fail, not say "no chance"
+    from engine import picks
+    with pytest.raises(ZeroDivisionError):
+        projections.p_over([], 0, 100, 50)
+    with pytest.raises(ZeroDivisionError):
+        picks.model_p_over({'q': {'Rec yds': []}}, 'Rec yds', 70.0, 60.5)
+    assert projections.p_over([], 0, 0, 50) is None   # no projection: checked first, as before
 
 
 TD = {'w': [-1.0, .5, .3, .2, -.1], 'mu': [10, 4, .3, .1], 'sd': [5, 2, .5, .3]}
@@ -105,8 +117,7 @@ def test_fit_ridge_margins():
 
 
 def test_model_fit_and_lab_use_the_same_recipe(tmp_path, monkeypatch):
-    import json, os, sys
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    import json
     import model_fit
     from analyst import lab
     h, prior = np.array([3.0, 7.0, 1.0, 9.0, 4.0]), 6.5

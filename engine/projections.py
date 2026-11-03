@@ -27,8 +27,9 @@ def matchup_factor(opp_allowed, league_avg):
 
 def p_over(q, cal, mu, line):
     """Chance of going over LINE when the projection is MU: the share of quantiles Q (actual / projection) above
-    line / mu, plus the calibration nudge CAL, kept to 0.01-0.99. None without quantiles or a positive projection."""
-    if not q or not mu or mu <= 0: return None
+    line / mu, plus the calibration nudge CAL, kept to 0.01-0.99. None without a model (Q is None) or a positive
+    projection. An empty Q is a broken model.json and raises ZeroDivisionError, so the build's odds section fails loudly."""
+    if q is None or not mu or mu <= 0: return None
     x = line / mu; p_ = sum(1 for v in q if v > x) / len(q)
     return min(.99, max(.01, p_ + cal))
 

@@ -1,9 +1,9 @@
 """Game and prop sides, the official pick list, and parlays."""
-import datetime
-import math
+import datetime, math, os, sys
 
-from engine import odds, parlays, picks
-from engine.rules import RULES
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))   # repo root
+from engine import odds, parlays, picks  # noqa: E402
+from engine.rules import RULES  # noqa: E402
 
 NOW = datetime.datetime(2026, 11, 2, 12, tzinfo=datetime.timezone.utc)
 LATER = '2026-11-08T18:00:00Z'

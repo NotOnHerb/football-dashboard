@@ -17,7 +17,7 @@ def main(out):
     MQ, MC, MB = O.get('MQ') or {}, O.get('MC') or {}, O.get('MB', .5)
 
     def pover(mk, mu, L):
-        return p_over(MQ.get(mk), (MC or {}).get(mk, 0), mu, L)
+        return p_over(MQ.get(mk) or None, (MC or {}).get(mk, 0), mu, L)   # no or empty quantiles: no model chance
 
     # price movement on locked/graded picks: did the market move toward our side after we first posted it?
     def move(r):

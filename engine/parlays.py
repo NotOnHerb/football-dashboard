@@ -88,8 +88,12 @@ def make_parlay(kind, title, legs, note, books, games, joint=None):
 
 def build_parlays(picks, props, games, books, model, blend, now, injured):
     """Parlay of the week (from PICKS), anytime TD parlay and parlay of the game (from PROPS), for games not started by
-    NOW and players not hurt. BOOKS is the books seen on the board, in order. If one fails, it prints why and returns the
-    parlays built so far, as the build always has."""
+    NOW and players not hurt. If one fails, it prints why and returns the parlays built so far, as the build always has.
+
+    BOOKS here is required and means something different from picks' optional books filter: it is the ordered list (or
+    dict, iterated in order) of every book to price parlays at, the books seen on the board. The first book wins ties."""
+    if books is None:
+        raise ValueError('build_parlays needs the ordered list of books to price at (BOOKS), not None')
     weeks = {g['id']: g['wk'] for g in games}
     PK, PR = picks, props
     PX = []

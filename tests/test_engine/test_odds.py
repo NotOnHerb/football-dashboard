@@ -1,8 +1,9 @@
 """Odds math: implied chances, decimal prices, removing the bookmaker's cut, consensus lines."""
-import math
+import math, os, sys
 import pytest
 
-from engine import odds
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))   # repo root
+from engine import odds  # noqa: E402
 
 
 def test_implied_minus110():

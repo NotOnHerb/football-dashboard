@@ -15,6 +15,7 @@ on:
       - check_health.py
       - 'analyst/**'
       - 'schema/**'
+      - 'engine/**'
       - 'tests/**'
       - 'requirements*.txt'
       - .github/workflows/test.yml

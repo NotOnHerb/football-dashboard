@@ -1,7 +1,8 @@
 """Grading the pick log from final scores and weekly stats: wins, losses, pushes, voids, parlays."""
-import datetime
+import datetime, os, sys
 
-from engine import grading, odds
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))   # repo root
+from engine import grading, odds  # noqa: E402
 
 NOW = datetime.datetime(2026, 11, 2, 12, tzinfo=datetime.timezone.utc)
 PLAYED = '2026-10-26T17:00:00Z'
