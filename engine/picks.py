@@ -171,3 +171,17 @@ def prop_picks(props, model, blend, now, injured, books=None, weeks=None):
             q = x['q']; PK.append({'id': 'p|%s|%s|%s|%s' % (p['eid'], p['gid'], p['mk'], x['sd']), 'k': 'p', 'eid': p['eid'], 'wk': weeks.get(p['eid']), 't': p['ko'], 'n': p['n'], 'gid': p['gid'], 'tm': p['t'], 'opp': p['opp'], 'mk': p['mk'], 'sd': x['sd'], 'pt': q['pt'], 'pr': q['pr'], 'bk': q['bk'], 's': x['s'], 'v': None if x['v'] is None else round(x['v'], 4), 'ls': x['ls'], 'vs': x['vs'], 'pj': p['pj'], 'pc': None if x.get('P') is None else round(x['P'], 4), 'srt': x['s'] + x['srt'] + (x['v'] or 0) * 5})
     PK.sort(key=lambda x: -x['srt'])
     return PK
+
+
+def official_picks(games, props, model, blend, now, injured, books=None, weeks=None):
+    """Every official pick, games and props together, strongest first (ODD.PK). BOOKS=None prices each side at the best
+    quote across all books; a set of book names only looks at those books."""
+    pk = game_picks(games, now, books) + prop_picks(props, model, blend, now, injured, books, weeks)
+    pk.sort(key=lambda x: -x['srt'])
+    return pk
+
+
+def picks_by_book(book_names, games, props, model, blend, now, injured, weeks=None):
+    """{book: official picks when only that book's quotes are available} for each name in BOOK_NAMES (ODD.PKB). The page's
+    sportsbook selector shows these lists."""
+    return {b: official_picks(games, props, model, blend, now, injured, {b}, weeks) for b in book_names}

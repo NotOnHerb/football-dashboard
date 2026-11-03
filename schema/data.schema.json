@@ -84,6 +84,7 @@
         "books": {"type": "array", "items": {"type": "string"}},
         "MR": {"type": "object"},
         "PK": {"type": "array", "items": {"type": "object"}},
+        "PKB": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "object"}}},
         "PX": {"type": "array", "items": {"type": "object"}},
         "LG": {"type": "array", "items": {"type": "object"}},
         "REC": {"type": "object"},

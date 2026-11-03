@@ -5,7 +5,7 @@ from engine.odds import implied, decimal, no_vig_shin, no_vig_proportional, cons
 from engine.rules import RULES
 from engine.projections import base_projection, matchup_factor, td_chance
 from engine.team_model import fit_nfl, project, fit_ridge_margins
-from engine.picks import game_picks, prop_picks, started as kicked_off
+from engine.picks import official_picks, picks_by_book, started as kicked_off
 from engine.parlays import build_parlays
 from engine.grading import grade_log, summarize
 SEASON=sources.SEASON
@@ -632,8 +632,7 @@ try:
     nowu=datetime.datetime.now(datetime.timezone.utc)
     started=lambda iso:kicked_off(iso,nowu)
     WKOF={g['id']:g['wk'] for g in GL}
-    PK=game_picks(GL,nowu)+prop_picks(PR,MODEL,MB,nowu,INJ,weeks=WKOF)
-    PK.sort(key=lambda x:-x['srt'])
+    PK=official_picks(GL,PR,MODEL,MB,nowu,INJ,weeks=WKOF)
     # ---- parlays (for fun, tracked as their own record): of the week, of the game (same-game combo), anytime TD
     PX=build_parlays(PK,PR,GL,BKS,MODEL,MB,nowu,INJ)
     # ---- pick log: a pick counts if it was a pick at the last refresh before kickoff; graded from final scores and weekly stats
@@ -657,7 +656,8 @@ try:
     FIN=[[int(r.week),r.away_team,r.home_team,int(r.away_score),int(r.home_score)] for r in cur.itertuples()]
     order=['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET','Fanatics','BetRivers','Hard Rock','Bovada','BetOnline','Pinnacle','LowVig','BetUS','MyBookie','Bally Bet']
     books=sorted(BKS,key=lambda k:(order.index(k) if k in order else 99,k))
-    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
+    PKB=picks_by_book(books,GL,PR,MODEL,MB,nowu,INJ,weeks=WKOF)   # PK again for each sportsbook, using only that book's quotes (ODD.PKB)
+    ODD={'MQ':(MODEL['q'] if MODEL else None),'MC':(MODEL.get('cal') if MODEL else None),'MB':MB,'G':GL,'P':PR,'books':books,'MR':MR,'PK':PK,'PKB':PKB,'PX':PX,'LG':LGL,'REC':REC2,'RU':RU,'FIN':FIN,'at':oinfo['lines_at'],'pat':pat,'left':oinfo['credits_left'],'plan':oinfo['plan']}
     ok('odds'); print('odds ok: games',len(GL),'| props',len(PR),'| books',books,'| picks',len(PK),[(x.get('n') or x['h'],x['mk'],x['sd'],x['pr'],x['s']) for x in PK[:6]],'| parlays',[(x['kind'],len(x['legs']),x['pr'],x['bk'],x['pc']) for x in PX],'| log',len(PLOG),REC2['all'],'| model record',MR,'| credits used now',oinfo['credits_used_now'],'left',oinfo['credits_left'])
 except Exception as ex:
     print('odds skipped:',ex); bad('odds',ex,'ODDS_API_KEY')
