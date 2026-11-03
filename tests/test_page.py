@@ -451,6 +451,27 @@ def test_empty_week(built, browser):
         srv.shutdown()
 
 
+def test_assets_are_versioned(built):
+    """Every local script and stylesheet the page loads carries the build stamp (?v=<stamp>), so a browser never mixes
+    a new index.html with cached old code; every file under js/ and assets/ is loaded, and nothing loaded is missing."""
+    page = open(os.path.join(built, 'index.html'), encoding='utf-8').read()
+    assert '__VER__' not in page
+    refs = re.findall(r'<script\b[^>]*\bsrc="([^"]+)"|<link\b[^>]*\bhref="([^"]+)"', page)
+    local = [a or b for a, b in refs if not re.match(r'https?://', a or b)]
+    assert any(u.startswith('js/') for u in local) and any(u.startswith('assets/') for u in local), local
+    stamps, paths = set(), []
+    for u in local:
+        m = re.fullmatch(r'([^?#]+)\?v=(\d{12})', u)
+        assert m, 'not versioned with the build stamp: ' + u
+        stamps.add(m.group(2)); paths.append(m.group(1))
+        assert os.path.isfile(os.path.join(built, m.group(1))), 'loaded but not shipped: ' + m.group(1)
+    assert len(stamps) == 1, stamps
+    assert len(paths) == len(set(paths)), 'loaded twice: %s' % paths
+    shipped = {os.path.relpath(os.path.join(d, f), built).replace(os.sep, '/')
+               for top in ('js', 'assets') for d, _, fs in os.walk(os.path.join(built, top)) for f in fs}
+    assert shipped == set(paths), 'shipped but not loaded: %s' % sorted(shipped - set(paths))
+
+
 SCAN = """() => {
   const out = new Set();
   if (window.__x !== undefined) out.add('window.__x set');

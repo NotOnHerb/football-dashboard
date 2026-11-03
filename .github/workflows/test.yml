@@ -16,6 +16,8 @@ on:
       - 'analyst/**'
       - 'schema/**'
       - 'engine/**'
+      - 'js/**'
+      - 'assets/**'
       - 'tests/**'
       - 'requirements*.txt'
       - .github/workflows/test.yml
