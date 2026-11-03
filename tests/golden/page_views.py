@@ -16,7 +16,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 EXPECTED_DATA = os.path.join(HERE, 'expected_data.json.gz')
 
 SLEEPER_USER = 'mockuser'  # the test's Sleeper mock answers for this user (see tests/test_page.py)
+ESPN_LEAGUE = '12345'  # likewise for the ESPN league mock
 LOAD_LEAGUE = [('fill', '#fsu', SLEEPER_USER), '#fsgo', ('wait', '#fmo .wrap')]
+LOAD_ESPN = ['#fpl [data-p="e"]', ('fill', '#fei', ESPN_LEAGUE), ('fill', '#fet', '2'), '#fego', ('wait', '#fmo .wrap')]
+CARD_OPEN = [('wait', '#pc:not([hidden])'), ('wait', '#pcnews:not(:has-text("Loading"))')]  # modal up and its news call answered
 
 NFL = '#sec [data-s="nfl"]'
 FAN = '#sec [data-s="fan"]'
@@ -56,7 +59,9 @@ def build_views():
     add('nfl/players/offense/ALL/search', tab('p'), ('fill', '#q', 'jo'))
     for g in ('ALL', 'DL', 'LB', 'CB', 'S'):
         add('nfl/players/defense/' + g, tab('p'), '#side [data-d="D"]', '#xg [data-g="%s"]' % g)
-    add('nfl/players/card', tab('p'), '#pt td.nm', ('wait', '#pc:not([hidden])'))
+    add('nfl/players/card', tab('p'), '#pt td.nm', *CARD_OPEN)
+    add('nfl/players/defense/card', tab('p'), '#side [data-d="D"]', '#pt td.nm', *CARD_OPEN)
+    add('nfl/players/offense/ALL/sorted-by-column-3', tab('p'), '#pt th:nth-child(3)')
     add('nfl/matchups/trenches', tab('n'))
     add('nfl/matchups/skill', tab('n'), '#mv [data-m="s"]')
     for p in ('QB', 'RB', 'WR', 'TE'):
@@ -69,6 +74,7 @@ def build_views():
         add('fantasy/%s/my-league/sleeper-form' % label, *base)
         add('fantasy/%s/my-league/espn-form' % label, *base, '#fpl [data-p="e"]')
         add('fantasy/%s/my-league/sleeper-loaded' % label, *base, *LOAD_LEAGUE)
+        add('fantasy/%s/my-league/espn-loaded' % label, *base, *LOAD_ESPN)
         add('fantasy/%s/start-sit/no-league' % label, *base, fan('s'))
         add('fantasy/%s/start-sit/all-starters' % label, *base, fan('s'), '#fsm [data-m="all"]')
         for p in ('QB', 'RB', 'WR', 'TE'):
@@ -81,6 +87,7 @@ def build_views():
     for p in ('QB', 'RB', 'WR', 'TE'):
         add('fantasy/rankings/value-board/1qb/' + p, FAN, fan('r'), '#dpos [data-p="%s"]' % p)
     add('fantasy/rankings/value-board/1qb/search', FAN, fan('r'), ('fill', '#dq', 'jo'))
+    add('fantasy/rankings/value-board/card', FAN, fan('r'), '#dt td.nm', *CARD_OPEN)
     for c, label in (('d', 'draft-prospects'), ('g', 'big-board'), ('b', 'breakouts'), ('f', 'college-fantasy')):
         add('fantasy/college/' + label, FAN, fan('c'), '#cv2 [data-c="%s"]' % c)
     add('fantasy/college/college-fantasy/std', FAN, fan('c'), '#cv2 [data-c="f"]', '#csc [data-s="std"]')
@@ -103,7 +110,7 @@ def build_views():
     add('betting/nfl/my-bets/empty', BET, bet('mine'))
     add('betting/nfl/my-bets/one-saved', BET, '#bo [data-bet]', bet('mine'))
     add('betting/nfl/results', BET, bet('results'))
-    add('betting/nfl/picks/player-card', BET, '#bo a.pn', ('wait', '#pc:not([hidden])'))
+    add('betting/nfl/picks/player-card', BET, '#bo a.pn', *CARD_OPEN)
 
     # ---- Betting, college
     cfb = '#blg [data-l="cfb"]'
@@ -114,6 +121,24 @@ def build_views():
     add('betting/college/games/search', BET, cfb, bet('games'), ('fill', '#cq', 'ohio'))
     add('betting/college/results', BET, cfb, bet('results'))
     add('betting/college/my-bets', BET, cfb, bet('mine'))
+
+    # ---- "rich" views: served from the golden data plus extra NFL games, many prop picks and college picks
+    # (tests/test_page.py with_rich_week). The golden clock leaves one NFL game and no college picks, so these pin
+    # the multi-game Games grid, the Props game filter, the Matchups selector, "Show all picks" and the college pick card.
+    r = 'rich/'
+    add(r + 'nfl/matchups/game-1-trenches', tab('n'), ('select', '#gm', '1'))
+    add(r + 'nfl/matchups/game-1-skill', tab('n'), ('select', '#gm', '1'), '#mv [data-m="s"]')
+    add(r + 'nfl/matchups/game-2-trenches', tab('n'), ('select', '#gm', '2'))
+    add(r + 'fantasy/dynasty/start-sit/all-starters', FAN, fan('s'), '#fsm [data-m="all"]')
+    add(r + 'betting/nfl/picks', BET)
+    add(r + 'betting/nfl/picks/show-all', BET, '#bmore')
+    add(r + 'betting/nfl/games', BET, bet('games'))
+    add(r + 'betting/nfl/props/best-available', BET, bet('props'))
+    add(r + 'betting/nfl/props/game-BUF-at-KC', BET, bet('props'), ('select', '#bgm', 'KC'))
+    add(r + 'betting/nfl/props/game-DAL-at-PHI', BET, bet('props'), ('select', '#bgm', 'PHI'))
+    add(r + 'betting/college/picks', BET, cfb)
+    add(r + 'betting/college/games', BET, cfb, bet('games'))
+    add(r + 'betting/college/games/picks-only', BET, cfb, bet('games'), 'label:has(#cpo)')
     return V
 
 
