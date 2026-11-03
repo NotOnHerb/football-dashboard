@@ -85,7 +85,8 @@ def built(tmp_path_factory):
 
 
 def open_site(browser, built, name, edit):
-    """Serves a variant of the build made by edit(data) and opens its page. Returns (data, page, log, warnings, server)."""
+    """Serves a variant of the build made by edit(data) and opens its page on Betting (whose data, ODD included, loads
+    when it first opens: js/registry.js). Returns (data, page, log, warnings, server)."""
     site = tp.variant(built, name, edit)
     data = json.load(open(os.path.join(site, 'data.json'), encoding='utf-8'))
     url, srv = tp.serve(site)
@@ -94,6 +95,7 @@ def open_site(browser, built, name, edit):
     page.on('console', lambda m: warns.append(m.text) if m.type == 'warning' else None)
     page.goto(url + 'index.html', wait_until='load')
     page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+    tp.do(page, tp.page_views.BET); tp.settle(page)
     return data, page, log, warns, srv
 
 
