@@ -1,9 +1,9 @@
 // The animated page background (night ocean, day grassland, snowy peak) and the scene and motion settings.
-var SCENE=(function(){var s=null,m=null;try{s=localStorage.getItem('scene');m=localStorage.getItem('theme')}catch(e){}return s||(m==='light'?'grass':'ocean')})();
+var SCENE=(function(){var s=null,m=null;try{s=store.get('scene');m=store.get('theme')}catch(e){}return s||(m==='light'?'grass':'ocean')})();
 document.documentElement.setAttribute('data-theme',SCENE==='ocean'?'dark':'light');document.documentElement.setAttribute('data-scene',SCENE);
-var MOTION=(function(){var v=null;try{v=localStorage.getItem('motion')}catch(e){}if(v)return v==='on';if(window.matchMedia&&matchMedia('(max-width: 600px)').matches)return false;return !(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)})();
-function setScene(s){SCENE=s;document.documentElement.setAttribute('data-theme',s==='ocean'?'dark':'light');document.documentElement.setAttribute('data-scene',s);try{localStorage.setItem('scene',s)}catch(e){}var b=document.getElementById('scn');if(b)b.value=s;SC.reset()}
-function setMotion(on){MOTION=on;try{localStorage.setItem('motion',on?'on':'off')}catch(e){}var b=document.getElementById('mot');if(b)b.textContent=on?'Motion on':'Motion off';SC.reset()}
+var MOTION=(function(){var v=null;try{v=store.get('motion')}catch(e){}if(v)return v==='on';if(window.matchMedia&&matchMedia('(max-width: 600px)').matches)return false;return !(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)})();
+function setScene(s){SCENE=s;document.documentElement.setAttribute('data-theme',s==='ocean'?'dark':'light');document.documentElement.setAttribute('data-scene',s);try{store.set('scene',s)}catch(e){}var b=document.getElementById('scn');if(b)b.value=s;SC.reset()}
+function setMotion(on){MOTION=on;try{store.set('motion',on?'on':'off')}catch(e){}var b=document.getElementById('mot');if(b)b.textContent=on?'Motion on':'Motion off';SC.reset()}
 // ---------------- animated scenes: night ocean, day grassland
 var SC=(function(){
   var cv,cx,W,H,dpr,stars=[],blades=[],clouds=[],ranges=[],flakes=[],raf=0,last=0;

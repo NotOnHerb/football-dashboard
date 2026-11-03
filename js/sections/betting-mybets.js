@@ -3,8 +3,8 @@
 var BETREG={};
 function gBet(g,k,q){var mk=gmk(k),b={id:'g|'+g.id+'|'+mk+'|'+k,k:'g',label:gname(g,k,q),sub:g.a+' at '+g.h,wk:g.wk,t:g.t,a:g.a,h:g.h,mk:mk,sd:k,pt:q.pt,pr:q.pr,bk:q.bk};BETREG[b.id]=b;return b}
 function pBet(p,sd,q){var g=gameOf(p.t)||{},b={id:'p|'+p.eid+'|'+p.gid+'|'+p.mk+'|'+sd,k:'p',label:p.n+' '+(sd==='y'?'anytime TD':(sd==='o'?'over ':'under ')+q.pt+' '+p.mk.toLowerCase()),sub:p.t+' vs '+p.opp,wk:g.wk,t:p.ko,gid:p.gid,tm:p.t,mk:p.mk,sd:sd,pt:q.pt,pr:q.pr,bk:q.bk};BETREG[b.id]=b;return b}
-function mbLoad(){try{return JSON.parse(localStorage.getItem('mybets')||'[]')}catch(e){return []}}
-function mbSave(L){try{localStorage.setItem('mybets',JSON.stringify(L))}catch(e){}}
+function mbLoad(){try{return JSON.parse(store.get('mybets')||'[]')}catch(e){return []}}
+function mbSave(L){try{store.set('mybets',JSON.stringify(L))}catch(e){}}
 function mbHas(id){return mbLoad().some(function(b){return b.id===id})}
 function saveBtn(b,small){var on=mbHas(b.id);return small?' <button class="sv'+(on?' on':'')+'" data-bet="'+b.id+'" title="'+(on?'Saved to My bets':'Save to My bets')+'" aria-label="Save '+b.label.replace(/"/g,'')+' to My bets">'+(on?'✓':'+')+'</button>':'<button class="back sv2'+(on?' on':'')+'" data-bet="'+b.id+'">'+(on?'✓ In My bets':'+ Save to My bets')+'</button>'}
 var LOGMAX=null;function logMax(){if(LOGMAX==null){LOGMAX=0;Object.keys(D.LOG||{}).forEach(function(k){D.LOG[k].forEach(function(r){if(r[0]>LOGMAX)LOGMAX=r[0]})})}return LOGMAX}
@@ -36,3 +36,5 @@ function toggleBet(e){var sv=e.target.closest('[data-bet]');if(!sv)return false;
   if(i>-1)L.splice(i,1);else if(bt)L.unshift(Object.assign({saved:new Date().toISOString(),stake:''},bt));mbSave(L);var on=i<0;
   document.querySelectorAll('[data-bet="'+id.replace(/"/g,'\\"')+'"]').forEach(function(b){b.classList.toggle('on',on);b.textContent=b.classList.contains('sv2')?(on?'✓ In My bets':'+ Save to My bets'):(on?'✓':'+')});
   if(BS.v==='mine'&&!$('sb').hidden)renderB();return true}
+register({id:'mine',parent:'bet',label:'My bets',dataKeys:['ODD','LOG'],render:renderB});
+register({id:'results',parent:'bet',label:'Results',dataKeys:['ODD'],render:renderB});

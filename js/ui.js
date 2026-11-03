@@ -19,7 +19,7 @@ function glFor(t,el){var cx=el&&el.closest&&el.closest('[data-gl]');if(cx){var g
 var glTip,glT;
 function gloss(){document.querySelectorAll('td.nm:not([tabindex])').forEach(function(el){if(!el.closest('tr.go'))el.setAttribute('tabindex','0')});document.querySelectorAll('th:not([data-g]),td:not([data-g])').forEach(function(el){el.setAttribute('data-g','');var t=el.textContent.replace(/[▲▼]/g,'').trim();if(el.tagName==='TD'&&(t.length<4||el.children.length))return;var d=el.dataset.tip||glFor(t,el);if(d){el.setAttribute('aria-label',t+': '+d);el.dataset.tip=d;el.classList.add('gl')}})}
 // ---------------- colored stat cells
-var COLORS=(function(){try{return localStorage.getItem('colors')!=='off'}catch(e){return true}})();
+var COLORS=(function(){try{return store.get('colors')!=='off'}catch(e){return true}})();
 var LOWB=['INT','Sack %','Fum lost','Fumbles lost','Giveaways','Penalties','Penalty yds','Penalties/g','Penalty yds/g','Sack % allowed','OL penalties','OL penalty yds','FG missed','Missed','Missed 40+','Punts blocked against','Kicks blocked against','Flags','Interceptions thrown','Consensus','Avg rank','Pos rank','Prod rank','Recruit rank','Rank','Week rank','#'];
 var NEUT=['GP','Age','Team games','Pass att/g','Rush att/g','Dropbacks/g','Pass rate % (approx)','Run rate % (approx)','Pass yds share %','Pass TD share %','Drafted','Class','Ht / Wt','Long','Long FG','Spot','Starting spot','Depth spot','Record','Points for','Players','Picks','Vs yours','Season ','Snap % L3 ','Att','Car','Rec','Pick','Range','Boards'];
 function cnum(s){s=s.replace(/[▲▼,×%+]/g,'').replace('−','-').trim();var m=s.match(/^(-?\d+(?:\.\d+)?)(?:st|nd|rd|th)?(?: of \d+)?$/);return m?parseFloat(m[1]):null}
@@ -50,7 +50,7 @@ function reSort(){document.querySelectorAll('main table:not([data-sorted]), #pc 
 document.addEventListener('click',function(e){var th=e.target.closest('th');if(!th||th.dataset.c!=null)return;var tb=th.closest('table');if(!tb||th.parentNode!==tb.rows[0]||!sortable(tb))return;
   var ci=[].indexOf.call(th.parentNode.cells,th),sig=tblSig(tb),cur=SORTS[sig],first=sortVal(tb.rows[1].cells[ci]);
   var dir=cur&&cur[0]===ci?-cur[1]:(typeof first==='number'?-1:1);SORTS[sig]=[ci,dir];applySort(tb,ci,dir)});
-function setColors(on){COLORS=on;try{localStorage.setItem('colors',on?'on':'off')}catch(e){}var b=$('clr');if(b)b.textContent=on?'Colors on':'Colors off';document.querySelectorAll('main table').forEach(function(tb){delete tb.dataset.cz});colorize()}
+function setColors(on){COLORS=on;try{store.set('colors',on?'on':'off')}catch(e){}var b=$('clr');if(b)b.textContent=on?'Colors on':'Colors off';document.querySelectorAll('main table').forEach(function(tb){delete tb.dataset.cz});colorize()}
 function initGloss(){glTip=document.createElement('div');glTip.className='tip';glTip.hidden=true;document.body.appendChild(glTip);
   new MutationObserver(function(){clearTimeout(glT);glT=setTimeout(function(){gloss();reSort();colorize()},30)}).observe(document.querySelector('main'),{childList:true,subtree:true});gloss();
   document.addEventListener('mouseover',function(e){var el=e.target.closest('.gl');if(!el){glTip.hidden=true;return}glTip.textContent=el.dataset.tip;glTip.hidden=false;var r=el.getBoundingClientRect(),w=Math.min(300,innerWidth-24);glTip.style.maxWidth=w+'px';var x=Math.max(12,Math.min(r.left,innerWidth-w-12));glTip.style.left=x+'px';glTip.style.top=(r.bottom+window.scrollY+6)+'px'});

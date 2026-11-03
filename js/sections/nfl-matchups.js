@@ -68,3 +68,4 @@ function initN(){
   $('mv').addEventListener('click',function(e){var m=e.target.dataset.m;if(!m)return;st.mv=m;[].forEach.call($('mv').children,function(x){x.setAttribute('aria-pressed',x.dataset.m===m)});$('mt').hidden=m!=='t';$('ms').hidden=m!=='s'});
   teamTbl('ou');teamTbl('du');matchup();
 }
+register({id:'n',parent:'nfl',label:'Matchups',dataKeys:['G','T','X','DEP','ALW'],init:initN,render:matchup});

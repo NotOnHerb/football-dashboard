@@ -1,7 +1,7 @@
 // Betting -> Picks, Games and Props, the Betting view switch (renderB, initB) and their cards and tables.
 // Data: ODD.
 // ---------------- Betting
-var BS={lg:(function(){try{return localStorage.getItem('blg')||'nfl'}catch(e){return 'nfl'}})(),v:'picks',book:(function(){try{return localStorage.getItem('book')||'best'}catch(e){return 'best'}})(),mk:'ALL',gm:'ALL',q:'',lo:false,more:false};
+var BS={lg:(function(){try{return store.get('blg')||'nfl'}catch(e){return 'nfl'}})(),v:'picks',book:(function(){try{return store.get('book')||'best'}catch(e){return 'best'}})(),mk:'ALL',gm:'ALL',q:'',lo:false,more:false};
 var BK={Pinnacle:'PIN',DraftKings:'DK',FanDuel:'FD',BetMGM:'MGM',Caesars:'CZR','ESPN BET':'ESPN',Fanatics:'FAN',BetRivers:'BR','Hard Rock':'HR',Bovada:'BOV',BetOnline:'BOL',LowVig:'LV',BetUS:'BUS',MyBookie:'MB','Bally Bet':'BAL'};
 function am(x){return x==null?'–':(x>0?'+':'')+x}
 function spf(x){return x==null?'–':x===0?'PK':(x>0?'+':'')+x}
@@ -111,7 +111,7 @@ function movesHTML(){var M=moves();var some=D.ODD.G.some(function(g){return (g.m
 function closest(){var L=[];D.ODD.G.forEach(function(g){if(past(g.t))return;['hs','as','ov','un','mh','ma'].forEach(function(k){var x=gside(g,k);if(x&&x.v!=null&&!x.flag&&x.v>-.01)L.push({g:g,x:x})})});return L.sort(function(a,b){return b.x.v-a.x.v}).slice(0,3)}
 function renderB(){var O=D.ODD;if(!O||!O.G){$('bfr').textContent='';$('bo').innerHTML='<div class="card"><b>Odds aren’t loaded right now.</b> They come back with the next refresh.</div>';return}
   $('bfr').innerHTML='Lines updated '+ago(O.at)+' · props updated '+ago(O.pat)+(O.left!=null?' · '+O.left+' odds credits left':'');
-  var cfb=BS.lg==='cfb';if(cfb&&BS.v==='props')BS.v='picks';
+  var cfb=BS.lg==='cfb';if(cfb&&BS.v==='props')BS.v='picks';syncHash();
   [].forEach.call($('blg').children,function(b){b.setAttribute('aria-pressed',b.dataset.l===BS.lg)});$('bv').querySelector('[data-v="props"]').hidden=cfb;$('bselw').hidden=cfb;
   if(cfb&&D.CFB){var nc=META_CFB();$('bfr').innerHTML=nc}
   [].forEach.call($('bv').children,function(b){b.setAttribute('aria-pressed',b.dataset.v===BS.v)});$('bctl').hidden=BS.v!=='props';$('bbk').value=BS.book;
@@ -141,12 +141,18 @@ var MKS=['ALL','Pass yds','Rush yds','Rec yds','Receptions','Pass TDs','Anytime 
   $('bgm').innerHTML='<option value="ALL">All games</option>'+(O&&O.G?O.G.map(function(g){return '<option value="'+g.h+'">'+g.a+' at '+g.h+'</option>'}).join(''):'');
   $('bbk').innerHTML='<option value="best">Best available (all books)</option>'+(O&&O.books?O.books.map(function(b){return '<option>'+b+'</option>'}).join(''):'');
   if(O&&O.books&&BS.book!=='best'&&O.books.indexOf(BS.book)<0)BS.book='best';
-  $('bbk').onchange=function(){BS.book=this.value;try{localStorage.setItem('book',BS.book)}catch(e){}renderB()};
+  $('bbk').onchange=function(){BS.book=this.value;try{store.set('book',BS.book)}catch(e){}renderB()};
   $('bgm').onchange=function(){BS.gm=this.value;renderB()};$('bq').oninput=function(){BS.q=this.value;renderB()};$('blo').onchange=function(){BS.lo=this.checked;renderB()};
-  $('blg').addEventListener('click',function(e){var l=e.target.dataset.l;if(!l)return;BS.lg=l;try{localStorage.setItem('blg',l)}catch(x){}if(BS.v==='props')BS.v='picks';renderB()});
+  $('blg').addEventListener('click',function(e){var l=e.target.dataset.l;if(!l)return;BS.lg=l;try{store.set('blg',l)}catch(x){}if(BS.v==='props')BS.v='picks';renderB()});
   $('bv').addEventListener('click',function(e){var v=e.target.dataset.v;if(!v)return;BS.v=v;BS.more=false;renderB()});
   $('bo').addEventListener('click',function(e){var a=e.target.closest('a.pn');if(a){e.preventDefault();openCard(a.dataset.n,a.dataset.t);return}
     if(toggleBet(e))return;
     var dl=e.target.closest('[data-del]');if(dl){mbSave(mbLoad().filter(function(x){return x.id!==dl.dataset.del}));renderB();return}
     var gt=e.target.closest('[data-goto]');if(gt){e.preventDefault();BS.v=gt.dataset.goto;renderB();return}
     var b=e.target.closest('.gprop');if(b){BS.v='props';BS.gm=b.dataset.gm;$('bgm').value=BS.gm;renderB();$('sb').scrollIntoView({behavior:'smooth'})}})}
+register({id:'bet',label:'Betting',icon:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10h3M8 14h8M14 10h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',panels:['sb'],wide:true,dataKeys:['ODD','CFB'],init:initB,
+  select:function(v,p){if(p.lg==='nfl'||p.lg==='cfb')BS.lg=p.lg;if(v==='college'){BS.lg='cfb';v='picks'}if(v){BS.v=v;BS.more=false}},
+  render:renderB,current:function(){return {view:BS.v,params:BS.lg==='cfb'?{lg:'cfb'}:{}}}});
+register({id:'picks',parent:'bet',label:'Picks',dataKeys:['ODD'],render:renderB});
+register({id:'games',parent:'bet',label:'Games',dataKeys:['ODD'],render:renderB});
+register({id:'props',parent:'bet',label:'Props',dataKeys:['ODD'],render:renderB});

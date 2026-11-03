@@ -60,21 +60,22 @@ function tFind(){var id=$('tfp').value,me=ML.me,o=me.ps.filter(function(x){retur
   out.sort(function(a,b){return Math.abs(a[3]-v)-Math.abs(b[3]-v)});
   $('tfo').innerHTML=out.length?'<div class="wrap"><table class="olt"><tr><th>Player or pick</th><th>Pos</th><th>Age</th><th>Value</th><th>Vs yours</th><th>Producing like</th><th>Owner</th></tr>'+out.slice(0,25).map(function(r){var d=r[3]-v,p=r[5];return '<tr><td class="nm">'+r[0]+'</td><td>'+(r[1]==='PICK'?'Pick':'<span class="tag '+r[1]+'">'+r[1]+'</span>')+'</td><td>'+f(r[2],1)+'</td><td>'+r[3].toLocaleString()+'</td><td><span class="'+(d>0?'up':d<0?'dn':'')+'">'+(d>0?'+':'')+d.toLocaleString()+'</span></td><td>'+(p&&ML.PR[p.id]?p.x[1]+ML.PR[p.id]:'–')+'</td><td>'+r[4].replace(/</g,'&lt;')+'</td></tr>'}).join('')+'</table></div>':'<p class="sub">Nothing within 15% of that value at this position. Try All.</p>'}
 // ---------------- Fantasy tab layout
-var FMT=(function(){try{return localStorage.getItem('fmt')||'dyn'}catch(e){return 'dyn'}})(),FV='m';
+var FMT=(function(){try{return store.get('fmt')||'dyn'}catch(e){return 'dyn'}})(),FV='m';
 function fShow(){if(FMT==='red'&&(FV==='r'||FV==='c'))FV='m';
   [].forEach.call($('fmt').children,function(b){b.setAttribute('aria-pressed',b.dataset.f===FMT)});
   [].forEach.call($('fv').children,function(b){b.hidden=FMT==='red'&&(b.dataset.x==='r'||b.dataset.x==='c');b.setAttribute('aria-pressed',b.dataset.x===FV)});
   $('fm').hidden=FV!=='m';$('fs').hidden=FV!=='s';$('sd').hidden=!(FV==='r'||FV==='c');$('dv').hidden=FV==='c';
   if(FV==='s')renderF();
   if(FV==='r'){if(['b','g','k'].indexOf(DS.v)<0){DS.v='b';[].forEach.call($('dv').children,function(b){b.setAttribute('aria-pressed',b.dataset.x==='b')})}renderD()}
-  if(FV==='c'){DS.v='c';renderD()}}
+  if(FV==='c'){DS.v='c';renderD()}
+  syncHash()}
 // ---------------- My league (Sleeper + ESPN, dynasty or redraft)
 var RL={};
 function fMsg(x){$('fms').textContent=x}
 var ESPOS={1:'QB',2:'RB',3:'WR',4:'TE',5:'K',16:'DEF'},ESLOT={0:'QB',2:'RB',4:'WR',6:'TE',23:'FLEX',7:'SF',16:'DEF',17:'K',20:'BN',21:'IR'};
 var ELIG={QB:['QB'],RB:['RB'],WR:['WR'],TE:['TE'],FLEX:['RB','WR','TE'],SF:['QB','RB','WR','TE'],WRTE:['WR','TE'],WRRB:['RB','WR']};
 function slotsFrom(list){var s={};list.forEach(function(x){var k={QB:'QB',RB:'RB',WR:'WR',TE:'TE',FLEX:'FLEX',SUPER_FLEX:'SF',REC_FLEX:'WRTE',WRRB_FLEX:'WRRB',SF:'SF'}[x];if(k)s[k]=(s[k]||0)+1});return s}
-async function fSleeper(){var u=$('fsu').value.trim();if(!u){fMsg('Type your Sleeper username first.');return}try{localStorage.setItem('sleeper_user',u)}catch(e){}
+async function fSleeper(){var u=$('fsu').value.trim();if(!u){fMsg('Type your Sleeper username first.');return}try{store.set('sleeper_user',u)}catch(e){}
   fMsg('Looking up '+u+'…');$('fmo').innerHTML='';
   try{var user=await slp('user/'+encodeURIComponent(u));if(!user||!user.user_id){fMsg('No Sleeper account found for “'+u+'”.');return}
     var stt=await slp('state/nfl'),S=+(stt.league_season||stt.season),lg=await slp('user/'+user.user_id+'/leagues/nfl/'+S);
@@ -85,14 +86,14 @@ async function fSleeper(){var u=$('fsu').value.trim();if(!u){fMsg('Type your Sle
   catch(e){fMsg('Couldn’t reach Sleeper ('+e.message+'). Try again in a minute.')}}
 async function fSleeperLeague(id){fMsg('Loading league…');
   try{var r=await Promise.all([slp('league/'+id),slp('league/'+id+'/rosters'),slp('league/'+id+'/users'),slp('league/'+id+'/traded_picks')]),lg=r[0],nm={};
-    ML={lg:lg,ro:r[1],us:r[2],tp:r[3],user:RL.user};try{localStorage.setItem('last_league',JSON.stringify({p:'s',u:RL.user.username||$('fsu').value.trim(),id:id}))}catch(e){}
+    ML={lg:lg,ro:r[1],us:r[2],tp:r[3],user:RL.user};try{store.set('last_league',JSON.stringify({p:'s',u:RL.user.username||$('fsu').value.trim(),id:id}))}catch(e){}
     r[2].forEach(function(u){nm[u.user_id]=(u.metadata&&u.metadata.team_name)||u.display_name});
     var M={platform:'Sleeper',ltype:lg.settings&&lg.settings.type,name:lg.name,rec:(lg.scoring_settings||{}).rec||0,type:({0:'Redraft',1:'Keeper',2:'Dynasty'})[lg.settings&&lg.settings.type]||'',slots:slotsFrom(lg.roster_positions||[]),
       teams:r[1].map(function(ro){var st=ro.starters||[],ir=ro.reserve||[],tx=ro.taxi||[];return {name:nm[ro.owner_id]||('Team '+ro.roster_id),me:ro.owner_id===RL.user.user_id||(ro.co_owners||[]).indexOf(RL.user.user_id)>-1,w:(ro.settings||{}).wins||0,l:(ro.settings||{}).losses||0,pf:((ro.settings||{}).fpts||0)+((ro.settings||{}).fpts_decimal||0)/100,
         ps:(ro.players||[]).map(function(k){return {k:k,st:ir.indexOf(k)>-1?'IR':tx.indexOf(k)>-1?'Taxi':st.indexOf(k)>-1?'S':'B'}})}})};
     fMsg('');RL.M=M;leagueRender()}catch(e){fMsg('Couldn’t load that league ('+e.message+').')}}
 async function fEspn(){var id=$('fei').value.replace(/\D/g,''),tm=$('fet').value.replace(/\D/g,'');if(!id){fMsg('Type your ESPN league ID first. It’s the number after leagueId= in your league’s web address.');return}
-  try{localStorage.setItem('espn_league',id);localStorage.setItem('espn_team',tm);localStorage.setItem('last_league',JSON.stringify({p:'e',id:id,t:tm}))}catch(e){}
+  try{store.set('espn_league',id);store.set('espn_team',tm);store.set('last_league',JSON.stringify({p:'e',id:id,t:tm}))}catch(e){}
   fMsg('Loading ESPN league…');$('fmo').innerHTML='';var S=(D.META&&D.META.season)||new Date().getFullYear();
   try{var res=await fetch('https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/'+S+'/segments/0/leagues/'+id+'?view=mTeam&view=mRoster&view=mSettings');
     if(res.status===401){fMsg('This ESPN league is private. The commissioner can turn on League Settings → Basic Settings → “Make league viewable to public”, then try again.');return}
@@ -138,6 +139,9 @@ function fRender(M){var rec=M.rec,me=M.teams.filter(function(T){return T.me})[0]
 function fWaiver(){var rows=RL.fa.filter(function(e){return RL.fap==='ALL'||e.w.pos===RL.fap}).slice(0,20);
   $('fwo').innerHTML=rows.length?'<div class="wrap"><table class="olt bt"><tr><th>Player</th><th>Team</th><th>Opponent</th><th>Season</th><th>Last 3</th><th>Grade</th><th>Adj. pts</th></tr>'+rows.map(function(e){var w=e.w,x=w.x;return '<tr><td class="nm">'+x[0]+' <span class="tag '+w.pos+'">'+w.pos+'</span>'+tags({inj:w.inj,dl:w.dl})+'</td><td>'+x[2]+'</td><td>'+w.opp+'</td><td>'+f(w.ppg,1)+'</td><td>'+f(w.l3,1)+'</td><td><span class="gr g'+w.g+'">'+w.g+'</span></td><td><b>'+f(w.pts,1)+'</b></td></tr>'}).join('')+'</table></div>':'<p class="sub">No available players at that position with a game this week.</p>'}
 function initFM(){$('fsm').addEventListener('click',function(e){var m=e.target.dataset.m;if(!m)return;FSM=m;[].forEach.call($('fsm').children,function(b){b.setAttribute('aria-pressed',b.dataset.m===m)});renderF()});
-try{var su=localStorage.getItem('sleeper_user');if(su)$('fsu').value=su;var el=localStorage.getItem('espn_league');if(el)$('fei').value=el;var et=localStorage.getItem('espn_team');if(et)$('fet').value=et}catch(e){}
+try{var su=store.get('sleeper_user');if(su)$('fsu').value=su;var el=store.get('espn_league');if(el)$('fei').value=el;var et=store.get('espn_team');if(et)$('fet').value=et}catch(e){}
   $('fpl').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;[].forEach.call($('fpl').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});$('fsl').hidden=p!=='s';$('fel').hidden=p!=='e';fMsg('');$('fmo').innerHTML=''});
   $('fsgo').onclick=fSleeper;$('fsu').addEventListener('keydown',function(e){if(e.key==='Enter')fSleeper()});$('fego').onclick=fEspn;['fei','fet'].forEach(function(id){$(id).addEventListener('keydown',function(e){if(e.key==='Enter')fEspn()})})}
+register({id:'fan',label:'Fantasy',icon:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',panels:['sf'],dataKeys:[],
+  select:function(v,p){if(p.fmt==='dyn'||p.fmt==='red')FMT=p.fmt;if(v)FV=v},render:fShow,current:function(){return {view:FV,params:{fmt:FMT}}}});
+register({id:'m',parent:'fan',label:'My league',dataKeys:['DY','ALW','G','PRI'],init:initFM,render:leagueRender});

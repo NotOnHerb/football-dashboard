@@ -19,7 +19,7 @@ function openCard(name,team){if(!PIX)pIndex();var c=PIX[name];if(!c)return false
   if(e.t==='o'){gid=r.gid;pos=r[2];tm=r[1]}else if(e.t==='d'){gid=r[20];pos=r[2];tm=r[1]}else{gid=r[16];pos=r[1];tm=r[2]}
   var P=(D.PL&&gid&&D.PL[gid])||[],dy=D.DY?D.DY.P.filter(function(x){return x[0]===name&&(x[16]===gid||!gid)})[0]:null,inj=r.inj||(dy&&dy[14]),dl=r.dl||(dy&&dy[15]),a=age(P[4])||(dy&&dy[3]);
   var bio=[D.N[tm]?tm+' '+D.N[tm]:tm,a?'Age '+a:null,P[2]?Math.floor(P[2]/12)+'′'+(P[2]%12)+'″':null,P[3]?P[3]+' lb':null,dy&&dy[4]?'Drafted '+dy[4]+(dy[5]?' round '+dy[5]:''):null,dy&&dy[6]?dy[6]:null].filter(Boolean).join(' · ');
-  h+='<div class="pch">'+(P[0]?'<img src="'+P[0]+'" alt="'+esc(name)+'" loading="lazy" onerror="this.style.visibility=\'hidden\'">':'')+'<div><h2 id="pcn">'+esc(name)+'</h2><div><span class="tag '+pos+'">'+pos+'</span>'+tags({inj:inj,dl:dl})+'</div><div class="pcm">'+bio+'</div></div></div>';
+  h+='<div class="pch">'+(P[0]?'<img src="'+P[0]+'" alt="'+esc(name)+'" loading="lazy">':'')+'<div><h2 id="pcn">'+esc(name)+'</h2><div><span class="tag '+pos+'">'+pos+'</span>'+tags({inj:inj,dl:dl})+'</div><div class="pcm">'+bio+'</div></div></div>';
   if(e.t==='o'&&pos!=='K'){var rank=1+A.filter(function(x){return x[2]===pos&&x[3]>=3&&x[4]>r[4]}).length,wk=weekLine(tm,pos,r[4],r.l3,r[3],r.gid);
     tl=[[f(r[4],1),SCL[st.sc]],[f(r.l3,1),'Last 3'],[r.tr==null?'–':(r.tr>0?'+':'')+r.tr.toFixed(1),'Trend'],[r.sn!=null?r.sn+'%':'–','Snap share'],[pos+rank,'Rank at '+pos+' (3+ GP)'],[r[3],'Games']];
     h+='<div class="tiles2">'+tl.map(function(x){return '<div class="tl"><b>'+x[0]+'</b><span>'+x[1]+'</span></div>'}).join('')+'</div>';
@@ -34,7 +34,7 @@ function openCard(name,team){if(!PIX)pIndex();var c=PIX[name];if(!c)return false
   h+='<div class="pcs"><h3>Latest news</h3><div id="pcnews"><p class="sub">'+(P[1]?'Loading news from ESPN…':'No news source linked for this player yet.')+'</p></div></div>';
   var myp=(D.ODD&&D.ODD.P&&gid)?D.ODD.P.filter(function(x){return x.gid===gid}):[];
   h+='<div class="pcs"><h3>Betting</h3>'+(myp.length?propTable(myp,false):'<p class="sub">No props posted for him yet this week. Yardage props usually show up midweek.</p>')+'</div>';
-  $('pcb').innerHTML=h;PCLAST=document.activeElement;$('pc').hidden=false;document.body.style.overflow='hidden';$('pcx').focus();
+  $('pcb').innerHTML=h;var im=$('pcb').querySelector('.pch img');if(im)im.addEventListener('error',function(){this.style.visibility='hidden'});PCLAST=document.activeElement;$('pc').hidden=false;document.body.style.overflow='hidden';$('pcx').focus();
   if(P[1])cardNews(P[1],name);return true}
 async function cardNews(eid,name){var el=$('pcnews');try{var res=await fetch('https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/'+eid+'/overview');if(!res.ok)throw new Error(res.status);var o=await res.json();if(!$('pcnews')||$('pcn').textContent!==name)return;
   var rw=o.rotowire,nw=(o.news||[]).slice(0,6),fz=o.fantasy||{},h='';
@@ -51,3 +51,4 @@ function initCards(){$('pcx').onclick=closeCard;$('pc').addEventListener('click'
     var tr=el.closest('tr'),team=null;if(tr)[].forEach.call(tr.cells,function(c){var t=c.textContent.trim();if(D.N[t])team=t});
     if(openCard(nm,team)){e.stopPropagation()}},true);
   document.querySelector('main').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var el=e.target.closest&&e.target.closest('td.nm');if(el){el.click();e.preventDefault()}})}
+register({id:'card',label:'Player card',dataKeys:['PL','LOG','DY','ODD','P','X'],init:initCards});

@@ -22,5 +22,7 @@ function cInit(){
   $('cpos').innerHTML=['QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='QB')+'">'+p+'</button>'}).join('');
   $('cpos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;CP.pos=p;[].forEach.call($('cpos').children,function(x){x.setAttribute('aria-pressed',x.dataset.p===p)});cSetup()});
   $('ca').oninput=function(){cPick('a',this)};$('cb').oninput=function(){cPick('b',this)};
+  ['ca','cb'].forEach(function(id){$(id).addEventListener('focus',function(){this.select()})});
   cSetup();
 }
+register({id:'c',parent:'nfl',label:'Compare',dataKeys:['P','PC'],init:cInit,render:cRender});

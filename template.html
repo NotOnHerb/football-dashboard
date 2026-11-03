@@ -7,7 +7,7 @@
 </head><body><canvas id="scene" aria-hidden="true"></canvas><main>
 <div class="top" id="top"><h1>Football dashboard</h1><button class="back dspb" id="dsp" aria-expanded="false" aria-controls="ctl">Display</button><div class="ctl" id="ctl"><select class="back" id="scn" aria-label="Background scene"><option value="ocean">Night ocean</option><option value="grass">Day grassland</option><option value="snow">Snowy peak</option></select><button class="back" id="mot" aria-label="Turn background motion on or off"></button><button class="back" id="clr" aria-label="Turn stat colors on or off"></button></div></div>
 <p class="sub">2026 regular season so far.<span class="upd" id="upd"></span></p><p class="hl" id="hl" hidden></p>
-<nav class="bar"><div class="seg sec" id="sec"><button data-s="nfl" aria-pressed="true">NFL</button><button data-s="fan" aria-pressed="false">Fantasy</button><button data-s="bet" aria-pressed="false">Betting</button></div></nav>
+<nav class="bar"><div class="seg sec" id="sec"></div></nav>
 <div class="bar" id="nflnav"><div class="seg" id="tabs"><button data-v="t" aria-pressed="true">Teams</button><button data-v="p" aria-pressed="false">Players</button><button data-v="n" aria-pressed="false">Matchups</button><button data-v="c" aria-pressed="false">Compare</button></div></div>
 <section id="vp" hidden>
  <div class="bar"><div class="seg" id="side"><button data-d="O" aria-pressed="true">Offense</button><button data-d="D" aria-pressed="false">Defense</button></div></div>
@@ -17,7 +17,7 @@
 </section>
 <section id="vt"><div class="bar"><div class="seg" id="tv"><button data-w="W" aria-pressed="true">Whole team</button><button data-w="O" aria-pressed="false">Offense</button><button data-w="D" aria-pressed="false">Defense</button><button data-w="S" aria-pressed="false">Special teams</button></div></div><div class="wrap" id="tt"></div><div id="td" hidden></div></section>
 <section id="vc" hidden><div class="bar"><div class="seg" id="cpos"></div></div>
-<div class="picks"><div class="pick a"><input id="ca" list="cl" aria-label="Player A" onfocus="this.select()"><div class="ptag" id="ia"></div></div><div class="pick b"><input id="cb" list="cl" aria-label="Player B" onfocus="this.select()"><div class="ptag" id="ib"></div></div></div><datalist id="cl"></datalist>
+<div class="picks"><div class="pick a"><input id="ca" list="cl" aria-label="Player A"><div class="ptag" id="ia"></div></div><div class="pick b"><input id="cb" list="cl" aria-label="Player B"><div class="ptag" id="ib"></div></div></div><datalist id="cl"></datalist>
 <div class="verdict" id="cv"></div><div class="tally" id="ct"></div><div id="cr"></div>
 <p class="sub">Tap a name box and start typing to search every player at that position.</p></section>
 
@@ -53,13 +53,14 @@
 <div class="note">Real stats from nflverse (CC-BY 4.0), updated __DATE__. <span id="fr"></span> Lists include every player with a few touches or targets. A traded player’s stats count toward his most recent team, so team totals can be slightly off for teams with trades. Pass rate is approximate. Roster order is by 2026 usage, not an official depth chart. Pick a position to see its advanced stats. Rates for players with few touches swing wildly, so use the usage filter. The PPR, Half PPR and Standard buttons change the fantasy points per game column. Kicker points use 3, 4 or 5 per field goal by distance (under 40, 40 to 49, 50 plus), 1 per extra point and minus 1 per miss, and ignore that toggle. Your league may score differently. Defense: players appear if they recorded a tackle, sack or interception. IDP fantasy points use a common setup: solo tackle 1, assist 0.5, tackle for loss 1, sack 3, QB hit 0.5, interception 3, pass defended 1, forced fumble 3, fumble recovery 2, TD 6, safety 2. A defender’s games count only weeks he recorded a stat, so per-game rates run high for part-timers. S also includes the file’s generic DB label. Offensive linemen: this data only grades them by penalties; starting spots come from the latest depth chart, and starters with no flag show no games played. Punters aren’t included.</div>
 <details id="gls"><summary>What every stat means</summary><dl id="glist"></dl></details>
 </main>
-<nav class="bnav" id="bnav" aria-label="Sections"><button data-s="nfl" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c-1-6 3-13 14-14-1 11-8 15-14 14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 15l6-6M10 11l3 3M12 9l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>NFL</button><button data-s="fan" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Fantasy</button><button data-s="bet" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10h3M8 14h8M14 10h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Betting</button></nav>
+<nav class="bnav" id="bnav" aria-label="Sections"></nav>
 <div id="pc" class="pcard" hidden><div class="pcw" role="dialog" aria-modal="true" aria-labelledby="pcn"><button class="back pcx" id="pcx" aria-label="Close player card">✕</button><div id="pcb"></div></div></div>
 <script src="js/core.js?v=__VER__"></script>
 <script src="js/glossary.js?v=__VER__"></script>
 <script src="js/scene.js?v=__VER__"></script>
 <script src="js/ui.js?v=__VER__"></script>
 <script src="js/registry.js?v=__VER__"></script>
+<script src="js/router.js?v=__VER__"></script>
 <script src="js/sections/nfl-teams.js?v=__VER__"></script>
 <script src="js/sections/nfl-players.js?v=__VER__"></script>
 <script src="js/sections/nfl-matchups.js?v=__VER__"></script>

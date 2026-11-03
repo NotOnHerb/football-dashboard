@@ -42,3 +42,4 @@ function initC(){var cs={};(D.CF?D.CF.P:[]).forEach(function(r){if(r[3])cs[r[3]]
   $('csc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
   $('cv2').addEventListener('click',function(e){var c=e.target.dataset.c;if(!c)return;CS.v=c;[].forEach.call($('cv2').children,function(b){b.setAttribute('aria-pressed',b.dataset.c===c)});renderD()});
   $('dt').addEventListener('click',function(e){if(DS.v!=='c')return;var th=e.target.closest('th');if(!th)return;var c=ck(th);if(CS.v==='g'){if(BBS.c===c)BBS.d*=-1;else{BBS.c=c;BBS.d=(c===5)?-1:1}renderD();e.stopImmediatePropagation();return}if(CS.c===c)CS.d*=-1;else{CS.c=c;CS.d=(c===0||c===2||c===3||c===6||c===1||c===31||c===35||c===36||c===38)?1:-1}renderD();e.stopImmediatePropagation()},true)}
+register({id:'c',parent:'fan',label:'College',dataKeys:['CF'],init:initC,render:renderD});

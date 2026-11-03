@@ -472,6 +472,86 @@ def test_assets_are_versioned(built):
     assert shipped == set(paths), 'shipped but not loaded: %s' % sorted(shipped - set(paths))
 
 
+def test_deep_link(sites, browser, built):
+    """#betting/props opens Betting -> Props straight away, showing what clicking there shows; moving around rewrites
+    the hash, and changing the hash moves the page."""
+    exp = json.load(gzip.open(EXPECTED, 'rt', encoding='utf-8'))
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    try:
+        page.goto(sites[''] + 'index.html#betting/props', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        settle(page)
+        assert page.is_visible('#sb') and page.is_visible('#bctl') and not page.is_visible('#vt')
+        assert page.get_attribute(page_views.bet('props'), 'aria-pressed') == 'true'
+        assert page_text(page) == exp['betting/nfl/props/best-available']
+        page.locator(page_views.bet('games')).click()
+        assert page.evaluate('location.hash') == '#betting/games'
+        page.evaluate("location.hash = '#nfl/matchups'")
+        page.wait_for_selector('#vn:not([hidden])', state='attached')
+        assert page.get_attribute(page_views.NFL, 'aria-pressed') == 'true' and not page.is_visible('#sb')
+        assert not log['errors'], (log['errors'], log['blocked'])
+    finally:
+        log['ctx'].close()
+
+
+def test_broken_section_is_isolated(built, browser):
+    """A section whose init throws (here Fantasy -> College, on a malformed CF block) is reported on the page and in
+    the console, and every other section still loads and works."""
+    def edit(d): d['CF'] = {'P': 'not a list'}
+    url, srv = serve(variant(built, 'site_broken', edit))
+    try:
+        page, log = open_view(browser, url, mocks_for(site_data(built)), [page_views.BET])
+        try:
+            assert 'Fantasy → College' in page.inner_text('#hlerr')
+            assert len(log['errors']) == 1 and 'Fantasy → College' in log['errors'][0], log['errors']
+            assert page.is_visible('#sb') and page.locator('#bo .bc, #bo .card').count() > 0
+            do(page, page_views.NFL); do(page, page_views.tab('p'))
+            assert page.locator('#pt tr').count() > 50
+        finally:
+            log['ctx'].close()
+    finally:
+        srv.shutdown()
+
+
+def num(x):
+    """A number as JavaScript prints it (45.0 -> '45')."""
+    return ('%r' % x)[:-2] if float(x).is_integer() else repr(x)
+
+
+def test_saved_bets_survive(sites, browser, built):
+    """A bet the old page saved under its bare localStorage key ('mybets') still shows in My bets, and every other
+    setting saved under a bare key moves under the store's namespace with its value (and still takes effect)."""
+    d = site_data(built)
+    p = next(x for x in d['ODD']['P'] if x['n'] == 'Colston Loveland' and x['mk'] == 'Rec yds')
+    bk, q = next((b, v) for b, v in sorted(p['b'].items()) if v[0] is not None and v[1] is not None)
+    g = next(x for x in d['ODD']['G'] if p['t'] in (x['a'], x['h']))
+    # the shape toggleBet saves: {saved, stake} + pBet(p, 'o', {pt, pr, bk})
+    bet = {'saved': '2026-11-01T15:00:00.000Z', 'stake': '25', 'id': 'p|%s|%s|%s|o' % (p['eid'], p['gid'], p['mk']), 'k': 'p',
+           'label': '%s over %s %s' % (p['n'], num(q[0]), p['mk'].lower()), 'sub': '%s vs %s' % (p['t'], p['opp']), 'wk': g.get('wk'),
+           't': p['ko'], 'gid': p['gid'], 'tm': p['t'], 'mk': p['mk'], 'sd': 'o', 'pt': q[0], 'pr': q[1], 'bk': bk}
+    old = {'mybets': json.dumps([bet]), 'book': page_views.books()[0], 'blg': 'nfl', 'fmt': 'dyn', 'colors': 'on', 'motion': 'off',
+           'scene': 'snow', 'theme': 'light', 'sleeper_user': page_views.SLEEPER_USER, 'espn_league': page_views.ESPN_LEAGUE,
+           'espn_team': '2', 'last_league': json.dumps({'p': 's', 'u': page_views.SLEEPER_USER, 'id': 'L1'})}
+    page, log = new_page(browser, mocks_for(d))
+    try:
+        page.add_init_script('(o => { if (!sessionStorage.seeded) { for (const k in o) localStorage.setItem(k, o[k]); sessionStorage.seeded = 1 } })(%s)' % json.dumps(old))
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        for a in (page_views.BET, page_views.bet('mine')): do(page, a)
+        settle(page)
+        text = page.inner_text('#bo')
+        assert bet['label'] in text and 'No saved bets yet' not in text, text[:500]
+        assert 'to win $' in text  # the $25 stake came along
+        ns = page.evaluate('store.NS')
+        moved = page.evaluate('ks => ks.map(k => [k, localStorage.getItem(k), localStorage.getItem(%s + k)])' % json.dumps(ns), sorted(old))
+        assert moved == [[k, None, old[k]] for k in sorted(old)], moved
+        assert page.evaluate("document.documentElement.dataset.scene") == 'snow'
+        assert page.input_value('#bbk') == old['book'] and page.input_value('#fsu') == old['sleeper_user']
+        assert not log['errors'], (log['errors'], log['blocked'])
+    finally:
+        log['ctx'].close()
+
+
 SCAN = """() => {
   const out = new Set();
   if (window.__x !== undefined) out.add('window.__x set');

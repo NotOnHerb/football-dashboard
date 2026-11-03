@@ -38,3 +38,4 @@ function initD(){
   $('dq').oninput=function(){DS.q=this.value;renderD()};
   $('dt').addEventListener('click',function(e){var th=e.target.closest('th');if(!th||th.dataset.c==null)return;var c=ck(th);if(DS.c===c)DS.d*=-1;else{DS.c=c;DS.d=(c==='vr'||c==='pr'||c===3||c===0||c===2)?1:-1}renderD()});
 }
+register({id:'r',parent:'fan',label:'Rankings',dataKeys:['DY'],init:initD,render:renderD});

@@ -1,4 +1,5 @@
-// Boot: loads data.json, prepares the shared rows and starts every section.
+// Boot: draws the nav, loads data.json, prepares the shared rows, then runs every registered section's init in
+// registration order (script order), each in its own try/catch (guard), and finally applies the address-bar route.
 // VER is the build stamp on this script's own URL (build.py writes it into index.html), used to cache-bust data.json.
 var VER=(function(){var s=document.currentScript,m=s&&/[?&]v=([^&#]*)/.exec(s.src);return m?m[1]:''})();
 var HLN={schedule:'this week’s games',injuries:'injuries',rosters:'injured reserve list',depth:'depth charts',weekly:'game-by-game stats',snaps:'snap counts',dynasty:'dynasty values',college_prospects:'college prospects',player_cards:'player cards',odds:'NFL betting lines',college_betting:'college betting lines'};
@@ -14,9 +15,24 @@ async function load(){
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
   }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
+  guard({label:'Player rows',dataKeys:['P','X','OLP'],init:prepRows},'init');
+  guard({label:'Update notes',dataKeys:['META'],init:fresh},'init');
+  $('ld').hidden=true;
+  SECTIONS.forEach(function(s){guard(s,'init')});
+  wireNav();wireChrome();
+  guard({label:'Glossary and colors',init:function(){initGloss();setColors(COLORS);$('clr').onclick=function(){setColors(!COLORS)}}},'init');
+  startRouter();
+}
+// The offensive rows A (one per player, every position) and the injury/depth/snap fields on D.X and D.OLP rows.
+function prepRows(){
   ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];a.inj=r[5];a.dl=r[6];a.fm=r[7];a.gid=r[8];if(r[7]){a.sn=r[7][2];a.sn3=r[7][3]}setForm(a);A.push(a)})});
   D.X.forEach(function(r){r.inj=r[17];r.dl=r[18];if(r[19]){r.sn=r[19][2];r.sn3=r[19][3]}});(D.OLP||[]).forEach(function(r){r.inj=r[7]});
-  fresh();
-  $('ld').hidden=true;wire();renderP();renderT();initN();cInit();initX();initD();initC();initF();initGloss();initFM();initCards();initB();setColors(COLORS);$('clr').onclick=function(){setColors(!COLORS)};
 }
+// The Display menu on phones, and tap-to-expand notes.
+function wireChrome(){
+  $('dsp').addEventListener('click',function(e){e.stopPropagation();var o=$('top').classList.toggle('open');this.setAttribute('aria-expanded',o)});
+  document.addEventListener('click',function(e){if($('top').classList.contains('open')&&!e.target.closest('#ctl')&&e.target!==$('dsp')){$('top').classList.remove('open');$('dsp').setAttribute('aria-expanded','false')}
+    var n=e.target.closest('.note');if(n&&!e.target.closest('a,button,input,select')&&window.matchMedia&&matchMedia('(max-width: 600px)').matches)n.classList.toggle('open')});
+}
+buildNav();
 load();
