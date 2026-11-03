@@ -9,6 +9,8 @@ Live site: https://notonherb.github.io/football-dashboard/
   columns, listed as a CONTRACT at the top of the file.
 - `build.py` turns those datasets into `data.json`, and stamps `index.html` from `template.html`.
 - `index.html` is the page. It loads `data.json` when it opens, so fresh data never needs a new page.
+  Its source is `template.html` plus `assets/site.css` and the scripts in `js/` (one file per section in
+  `js/sections/`); after changing any of them, run the Refresh workflow so `index.html` is restamped.
 - `.github/workflows/refresh.yml` runs the build every day at about 6 AM Eastern and saves the result.
 
 ## Plugging in a paid or live data feed later

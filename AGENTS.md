@@ -14,6 +14,9 @@ A static NFL and college football betting dashboard, published on GitHub Pages
   schema for the whole file.
 - `.github/workflows/refresh.yml` runs the whole thing daily and commits the result. Generated files (`data.json`,
   `index.html`, `model.json`, `odds/`, `cfb/`, `api/`) are committed by that workflow, not by hand.
+- The page's source is `template.html` (markup), `assets/site.css` and `js/` (classic scripts: `core.js`,
+  `registry.js`, `router.js`, one file per section in `js/sections/`, `main.js` boots). `build.py` stamps every
+  `?v=__VER__` in `template.html` into `index.html`.
 - `api_export.py` writes named-field JSON for agents to `api/v1/`; `mcp_server/` serves it over MCP. See `docs/api.md`.
 
 ## Knowledgebase
@@ -54,6 +57,8 @@ re-blessing, and the diff you commit should be limited to what you meant to chan
 - **Never push to `main`.** Work on a branch and open a PR; the owner merges. (The daily refresh workflow is the
   only thing that commits to `main` directly.)
 - The page stays static: no bundler, framework or new CDN.
+- A push that changes `template.html`, `js/` or `assets/` must be followed by a refresh dispatch (Actions → Refresh →
+  Run workflow) so `index.html` is restamped; until then the live `index.html` is the old one.
 - Keep every current top-level key in `data.json`; the analyst Desk sync (`analyst/snapshot.py`) depends on them.
 - Pin new dependencies exactly in `requirements.txt` (runtime) or `requirements-dev.txt` (tests only).
   `build.py` and `api_export.py` run in the refresh with only `requirements.txt` installed.

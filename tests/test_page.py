@@ -233,8 +233,16 @@ def espn_mock(data, inject=False):
             'members': [{'id': 'm%d' % i, 'firstName': 'Manager', 'lastName': str(i)} for i in range(1, 5)], 'teams': teams}
 
 
+def news_mock(inject=False):
+    """The ESPN player-news answer: empty, or (inject) a RotoWire note and a headline with hostile text and a
+    javascript: link."""
+    if not inject: return {}
+    return {'rotowire': {'headline': IMG, 'story': IMG}, 'fantasy': {'percentOwned': 50},
+            'news': [{'headline': IMG, 'published': '2026-11-01T12:00:00Z', 'links': {'web': {'href': JS_URL}}}]}
+
+
 def mocks_for(data, inject=False):
-    return {'sleeper': sleeper_mock(data, inject), 'espn': espn_mock(data, inject)}
+    return {'sleeper': sleeper_mock(data, inject), 'espn': espn_mock(data, inject), 'news': news_mock(inject)}
 
 
 # ---------------------------------------------------------------- browser
@@ -255,7 +263,7 @@ def new_page(browser, mocks):
             if u.path.rstrip('/').endswith('/leagues/' + page_views.ESPN_LEAGUE): return r.fulfill(json=mocks['espn'])
             return r.fulfill(status=404, json={})
         if u.hostname == 'fonts.googleapis.com': return r.fulfill(body='', content_type='text/css')
-        if u.hostname == 'site.web.api.espn.com': return r.fulfill(json={})
+        if u.hostname == 'site.web.api.espn.com': return r.fulfill(json=mocks.get('news', {}))
         if r.request.resource_type == 'image': return r.fulfill(body=PIXEL, content_type='image/gif')  # headshots
         log['blocked'].append(r.request.url); r.abort()
     ctx.route('**/*', route)
@@ -292,7 +300,11 @@ def page_text(page):
 def open_view(browser, url, mocks, actions):
     page, log = new_page(browser, mocks)
     page.goto(url + 'index.html', wait_until='load')
-    page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+    try:
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+    except Exception as e:  # say what the page was showing, so a slow or failed load can be told apart
+        raise AssertionError('page did not finish loading: #ld says %r; console errors %s; blocked %s (%s)' % (
+            page.evaluate("document.getElementById('ld').textContent"), log['errors'][:5], log['blocked'][:5], e)) from None
     for a in actions: do(page, a)
     settle(page)
     return page, log
@@ -451,6 +463,254 @@ def test_empty_week(built, browser):
         srv.shutdown()
 
 
+def test_assets_are_versioned(built):
+    """Every local script and stylesheet the page loads carries the build stamp (?v=<stamp>), so a browser never mixes
+    a new index.html with cached old code; every file under js/ and assets/ is loaded, and nothing loaded is missing."""
+    page = open(os.path.join(built, 'index.html'), encoding='utf-8').read()
+    assert '__VER__' not in page
+    refs = re.findall(r'<script\b[^>]*\bsrc="([^"]+)"|<link\b[^>]*\bhref="([^"]+)"', page)
+    local = [a or b for a, b in refs if not re.match(r'https?://', a or b)]
+    assert any(u.startswith('js/') for u in local) and any(u.startswith('assets/') for u in local), local
+    stamps, paths = set(), []
+    for u in local:
+        m = re.fullmatch(r'([^?#]+)\?v=(\d{12})', u)
+        assert m, 'not versioned with the build stamp: ' + u
+        stamps.add(m.group(2)); paths.append(m.group(1))
+        assert os.path.isfile(os.path.join(built, m.group(1))), 'loaded but not shipped: ' + m.group(1)
+    assert len(stamps) == 1, stamps
+    assert len(paths) == len(set(paths)), 'loaded twice: %s' % paths
+    shipped = {os.path.relpath(os.path.join(d, f), built).replace(os.sep, '/')
+               for top in ('js', 'assets') for d, _, fs in os.walk(os.path.join(built, top)) for f in fs}
+    assert shipped == set(paths), 'shipped but not loaded: %s' % sorted(shipped - set(paths))
+    head = page.split('</head>', 1)[0]
+    assert re.findall(r'<script\b[^>]*\bsrc="(js/[^"?]+)', head) == ['js/core.js', 'js/scene.js'], 'core.js then scene.js belong in <head>'
+    assert not re.search(r'<script\b(?![^>]*\bsrc=)', page), 'inline <script>'
+
+
+def test_deep_link(sites, browser, built):
+    """#betting/props opens Betting -> Props straight away, showing what clicking there shows; moving around rewrites
+    the hash, and changing the hash moves the page."""
+    exp = json.load(gzip.open(EXPECTED, 'rt', encoding='utf-8'))
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    try:
+        page.goto(sites[''] + 'index.html#betting/props', wait_until='load')
+        page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+        settle(page)
+        assert page.is_visible('#sb') and page.is_visible('#bctl') and not page.is_visible('#vt')
+        assert page.get_attribute(page_views.bet('props'), 'aria-pressed') == 'true'
+        assert page_text(page) == exp['betting/nfl/props/best-available']
+        page.locator(page_views.bet('games')).click()
+        assert page.evaluate('location.hash') == '#betting/games'
+        page.evaluate("location.hash = '#nfl/matchups'")
+        page.wait_for_selector('#vn:not([hidden])', state='attached')
+        assert page.get_attribute(page_views.NFL, 'aria-pressed') == 'true' and not page.is_visible('#sb')
+        assert not log['errors'], (log['errors'], log['blocked'])
+    finally:
+        log['ctx'].close()
+
+
+def open_hash(browser, url, built, h, seed=None):
+    """A fresh page opened at index.html + h (localStorage seeded with seed first). Returns (page, log, warnings)."""
+    page, log = new_page(browser, mocks_for(site_data(built)))
+    warns = []
+    page.on('console', lambda m: warns.append(m.text) if m.type == 'warning' else None)
+    if seed: page.add_init_script('(o => { for (const k in o) localStorage.setItem(k, o[k]) })(%s)' % json.dumps(seed))
+    page.goto(url + 'index.html' + h, wait_until='load')
+    page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+    settle(page)
+    return page, log, warns
+
+
+def test_deep_link_league(sites, browser, built):
+    """A betting route without ?lg= is NFL, even for a visitor whose saved league is college; ?lg=cfb is college."""
+    exp = json.load(gzip.open(EXPECTED, 'rt', encoding='utf-8'))
+    for h, view in (('#betting/games', 'betting/nfl/games/best-available'), ('#betting/games?lg=cfb', 'betting/college/games')):
+        page, log, _ = open_hash(browser, sites[''], built, h, seed={'fd:blg': 'cfb'})
+        try:
+            assert page_text(page) == exp[view], h
+            assert page.evaluate('location.hash') == h
+            assert not log['errors'], (log['errors'], log['blocked'])
+        finally:
+            log['ctx'].close()
+
+
+def test_deep_link_unknown(sites, browser, built):
+    """An unknown section leaves the page on its default view, warns in the console and puts the current route back
+    in the address; an unknown view opens its section on the current view."""
+    exp = json.load(gzip.open(EXPECTED, 'rt', encoding='utf-8'))
+    for h, want_hash, view in (('#nope/x', '#nfl/teams', None), ('#betting/nope', '#betting/picks', 'betting/nfl/picks/best-available')):
+        page, log, warns = open_hash(browser, sites[''], built, h)
+        try:
+            assert page.evaluate('location.hash') == want_hash, h
+            assert any('nope' in w for w in warns), warns
+            if view: assert page_text(page) == exp[view]
+            else: assert page.is_visible('#vt') and not page.is_visible('#sb')
+            assert not log['errors'], (log['errors'], log['blocked'])
+        finally:
+            log['ctx'].close()
+
+
+def test_broken_section_is_isolated(built, browser):
+    """A section whose init throws (here Fantasy -> College, on a malformed CF block) is reported on the page and in
+    the console, and every other section still loads and works."""
+    def edit(d): d['CF'] = {'P': 'not a list'}
+    url, srv = serve(variant(built, 'site_broken', edit))
+    try:
+        page, log = open_view(browser, url, mocks_for(site_data(built)), [page_views.BET])
+        try:
+            assert 'Fantasy → College' in page.inner_text('#hlerr')
+            assert len(log['errors']) == 1 and 'Fantasy → College' in log['errors'][0], log['errors']
+            assert page.is_visible('#sb') and page.locator('#bo .bc, #bo .card').count() > 0
+            do(page, page_views.NFL); do(page, page_views.tab('p'))
+            assert page.locator('#pt tr').count() > 50
+        finally:
+            log['ctx'].close()
+    finally:
+        srv.shutdown()
+
+
+def test_broken_top_section_names_its_view(built, browser):
+    """A top-level section that fails is named with its current view (here Betting, whose init and render throw on a
+    malformed ODD.G), and the rest of the page still works."""
+    def edit(d): d['ODD']['G'] = 'not a list'
+    url, srv = serve(variant(built, 'site_badodds', edit))
+    try:
+        page, log = open_view(browser, url, mocks_for(site_data(built)), [page_views.BET])
+        try:
+            assert 'Betting → Picks' in page.inner_text('#hlerr'), page.inner_text('#hlerr')
+            assert log['errors'] and all('Betting → Picks' in e for e in log['errors']), log['errors']
+            do(page, page_views.NFL); do(page, page_views.tab('p'))
+            assert page.locator('#pt tr').count() > 50
+        finally:
+            log['ctx'].close()
+    finally:
+        srv.shutdown()
+
+
+def test_player_rows_failure_is_fatal(built, browser):
+    """Without the player rows every section would show plausible but wrong numbers, so a failure there stops the
+    boot with the load-failure message instead."""
+    def edit(d): d['P']['QB'] = 'not a list'
+    url, srv = serve(variant(built, 'site_norows', edit))
+    try:
+        page, log = new_page(browser, mocks_for(site_data(built)))
+        try:
+            page.goto(url + 'index.html', wait_until='load')
+            page.wait_for_function("document.getElementById('ld').textContent.indexOf('Couldn’t load') === 0", timeout=20000)
+            assert page.is_visible('#hl') and page.inner_text('#hl').startswith('Couldn’t load') and page.locator('#tt tr').count() == 0
+            assert len(log['errors']) == 1 and 'player rows' in log['errors'][0], log['errors']
+        finally:
+            log['ctx'].close()
+    finally:
+        srv.shutdown()
+
+
+def test_format_route_redraws_league(sites, browser, built):
+    """With a league loaded in Dynasty, a ?fmt=red route redraws My league as redraft, like the Redraft button does."""
+    page, log = open_view(browser, sites[''], mocks_for(site_data(built)), [page_views.FAN, *page_views.LOAD_LEAGUE])
+    try:
+        assert 'Power rankings by roster value' in page.inner_text('#fmo')
+        page.evaluate("location.hash = '#fantasy/my-league?fmt=red'")
+        page.wait_for_function("document.getElementById('fmo').innerText.indexOf('Standings and this week') > -1", timeout=10000)
+        assert page.get_attribute('#fmt [data-f="red"]', 'aria-pressed') == 'true'
+        assert not log['errors'], (log['errors'], log['blocked'])
+    finally:
+        log['ctx'].close()
+
+
+def num(x):
+    """A number as JavaScript prints it (45.0 -> '45')."""
+    return ('%r' % x)[:-2] if float(x).is_integer() else repr(x)
+
+
+def saved_bet(d, p, stake='25'):
+    """A saved bet on the over of prop p, in the shape toggleBet saves: {saved, stake} + pBet(p, 'o', {pt, pr, bk})."""
+    bk, q = next((b, v) for b, v in sorted(p['b'].items()) if v[0] is not None and v[1] is not None)
+    g = next((x for x in d['ODD']['G'] if p['t'] in (x['a'], x['h'])), {})
+    return {'saved': '2026-11-01T15:00:00.000Z', 'stake': stake, 'id': 'p|%s|%s|%s|o' % (p['eid'], p['gid'], p['mk']), 'k': 'p',
+            'label': '%s over %s %s' % (p['n'], num(q[0]), p['mk'].lower()), 'sub': '%s vs %s' % (p['t'], p['opp']), 'wk': g.get('wk'),
+            't': p['ko'], 'gid': p['gid'], 'tm': p['t'], 'mk': p['mk'], 'sd': 'o', 'pt': q[0], 'pr': q[1], 'bk': bk}
+
+
+def over_props(d, n):
+    """n props from different players that have an over line and price."""
+    out, seen = [], set()
+    for p in d['ODD']['P']:
+        if p['n'] in seen or p['mk'] == 'Anytime TD' or not any(v[0] is not None and v[1] is not None for v in p['b'].values()): continue
+        seen.add(p['n']); out.append(p)
+    return out[:n]
+
+
+SEED_ONCE = '(o => { if (!sessionStorage.seeded) { for (const k in o) localStorage.setItem(k, o[k]); sessionStorage.seeded = 1 } })(%s)'
+
+
+def my_bets(page, reload=False):
+    """Opens Betting -> My bets (after a reload when asked). Returns {bet id: stake input value}."""
+    if reload: page.reload(wait_until='load')
+    page.wait_for_selector('#ld[hidden]', state='attached', timeout=20000)
+    for a in (page_views.BET, page_views.bet('mine')): do(page, a)
+    settle(page)
+    return page.evaluate("() => Object.fromEntries([...document.querySelectorAll('#bo .stk')].map(i => [i.dataset.id, i.value]))")
+
+
+def test_saved_bets_survive(sites, browser, built):
+    """A bet the old page saved under its bare localStorage key ('mybets') still shows in My bets, and every other
+    setting saved under a bare key is copied under the store's namespace with its value (and still takes effect).
+    The bare keys are left in place: the origin is shared with other pages, and an old tab may still use them."""
+    d = site_data(built)
+    p = next(x for x in d['ODD']['P'] if x['n'] == 'Colston Loveland' and x['mk'] == 'Rec yds')
+    bet = saved_bet(d, p)
+    old = {'mybets': json.dumps([bet]), 'book': page_views.books()[0], 'blg': 'nfl', 'fmt': 'dyn', 'colors': 'on', 'motion': 'off',
+           'scene': 'snow', 'theme': 'light', 'sleeper_user': page_views.SLEEPER_USER, 'espn_league': page_views.ESPN_LEAGUE,
+           'espn_team': '2', 'last_league': json.dumps({'p': 's', 'u': page_views.SLEEPER_USER, 'id': 'L1'})}
+    page, log = new_page(browser, mocks_for(d))
+    try:
+        page.add_init_script(SEED_ONCE % json.dumps(old))
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        assert my_bets(page) == {bet['id']: '25'}
+        text = page.inner_text('#bo')
+        assert bet['label'] in text and 'No saved bets yet' not in text, text[:500]
+        assert 'to win $' in text  # the $25 stake came along
+        ns = page.evaluate('store.NS')
+        moved = page.evaluate('ks => ks.map(k => [k, localStorage.getItem(k), localStorage.getItem(%s + k)])' % json.dumps(ns), sorted(old))
+        assert moved == [[k, old[k], old[k]] for k in sorted(old)], moved
+        assert page.evaluate("localStorage.getItem(store.NS + 'migrated')")
+        assert page.evaluate("document.documentElement.dataset.scene") == 'snow'
+        assert page.input_value('#bbk') == old['book'] and page.input_value('#fsu') == old['sleeper_user']
+        assert my_bets(page, reload=True) == {bet['id']: '25'}, 'a reload must not duplicate or lose the bet'
+        assert not log['errors'], (log['errors'], log['blocked'])
+    finally:
+        log['ctx'].close()
+
+
+def test_saved_bets_merge(sites, browser, built):
+    """With both a bare and a namespaced copy: settings saved by this page win; bets from the bare list are merged in
+    by id (this page's version of a bet it already has is kept); a bet removed here stays removed over reloads, and
+    when a stale old tab saves its list again (still holding that bet) only the bet it added shows up."""
+    d = site_data(built)
+    pa, pb, pc = over_props(d, 3)
+    A, B, C = saved_bet(d, pa, '10'), saved_bet(d, pb, '20'), saved_bet(d, pc, '30')
+    books = page_views.books()
+    seed = {'fd:mybets': json.dumps([A]), 'mybets': json.dumps([dict(A, stake='99'), B]), 'fd:book': books[1], 'book': books[0]}
+    page, log = new_page(browser, mocks_for(d))
+    try:
+        page.add_init_script(SEED_ONCE % json.dumps(seed))
+        page.goto(sites[''] + 'index.html', wait_until='load')
+        assert my_bets(page) == {A['id']: '10', B['id']: '20'}
+        assert page.input_value('#bbk') == books[1]
+        assert my_bets(page, reload=True) == {A['id']: '10', B['id']: '20'}, 'reload duplicated or lost bets'
+        page.locator('#bo [data-del="%s"]' % B['id']).click(); settle(page)
+        assert my_bets(page, reload=True) == {A['id']: '10'}, 'a removed bet came back'
+        page.evaluate('b => localStorage.setItem("mybets", JSON.stringify(b))', [dict(A, stake='99'), B, C])  # an old tab saves C
+        got = my_bets(page, reload=True)
+        assert got.get(A['id']) == '10' and got.get(C['id']) == '30', got
+        assert B['id'] not in got, 'a bet removed here came back from a stale bare list'
+        assert page.evaluate('localStorage.getItem("mybets")') is not None
+        assert not log['errors'], (log['errors'], log['blocked'])
+    finally:
+        log['ctx'].close()
+
+
 SCAN = """() => {
   const out = new Set();
   if (window.__x !== undefined) out.add('window.__x set');
@@ -462,11 +722,29 @@ SCAN = """() => {
 }"""
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='Task 5')
+def add_book(d, name):
+    """A made-up sportsbook `name` in ODD.books, pricing every NFL game and prop like the first book but 20 cents
+    better, so "best available" shows its name."""
+    d['ODD']['books'].append(name)
+    better = {'s': (1, 3), 'o': (1, 2), 'm': (0, 1)}
+    for g in d['ODD']['G']:
+        src = copy.deepcopy(next(iter(g['b'].values())))
+        for k, ix in better.items():
+            for i in ix:
+                if src.get(k) and src[k][i] is not None: src[k][i] += 20
+        g['b'][name] = src
+    for p in d['ODD']['P']:
+        src = list(next(iter(p['b'].values())))
+        for i in (1, 3):
+            if src[i] is not None: src[i] += 20
+        p['b'][name] = src
+
+
 def test_feed_names_are_escaped(built, browser):
     """Feed text must reach the page as text. The first three injections (an odds-feed player, a dynasty-list player,
     a college prospect) use an <img onerror>; the rest are attribute and URL break-outs in the fields the knowledgebase
-    names as the real injection path (league and team names typed by other people, board links placed in an href)."""
+    names as the real injection path (league and team names typed by other people, board links placed in an href).
+    Also hostile team names in NFL and college games, a sportsbook name, and ESPN news text with a javascript: link."""
     def edit(d):
         with_college(d); with_rich_week(d)
         d['ODD']['P'][0]['n'] = IMG
@@ -474,6 +752,9 @@ def test_feed_names_are_escaped(built, browser):
         d['DY']['L'][deal(skill_pool(d))[0][0]][0] = IMG  # a player on the Sleeper mock user's roster
         d['CF']['CB']['S'][0][1] = JS_URL
         d['CF']['CB']['S'][1][1] = 'https://example.invalid/b2' + attr('cf-board-url')
+        d['ODD']['G'][1]['a'] = IMG  # a rich-week game (the golden game keeps its teams, the views select it)
+        for g in d['CFB']['G']: g['a'] = IMG
+        add_book(d, IMG)
     out = variant(built, 'site_escape', edit)
     url, srv = serve(out)
     found = {}
