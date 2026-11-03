@@ -1,13 +1,13 @@
 """MCP server for the football dashboard: the week's games, picks, props, players, teams and the model, read-only.
 
 Run it from the repo root (see .mcp.json.example):   python -m mcp_server.server
-Tools only read, except add_idea, which appends one line to ideas/inbox.jsonl (a local file, never committed).
+Every tool only reads. Ideas for the owner go to the Desk's Ideas inbox (see analyst/README.md).
 Data comes from the repo's files, or from the published API when FD_API_URL is set (see mcp_server/data.py).
 Games, picks and props whose kickoff has passed are left out of the "current" tools, as the page leaves them out
 (the pick log keeps them). Picks are explained from what the pick itself stored plus engine.rules; nothing here
 recomputes a pick.
 """
-import datetime, difflib, json, os, re, sys
+import datetime, difflib, os, re, sys
 from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # the repo root, for engine/ and api_export
@@ -19,14 +19,13 @@ from engine.odds import implied  # noqa: E402
 from engine.picks import started  # noqa: E402
 from engine.projections import p_over  # noqa: E402
 from engine.rules import RULES  # noqa: E402
-from mcp_server.data import ROOT, Source  # noqa: E402
+from mcp_server.data import Source  # noqa: E402
 
 KINDS = {'g': 'g', 'game': 'g', 'p': 'p', 'prop': 'p', 'x': 'x', 'parlay': 'x', 'c': 'c', 'college': 'c'}
 RESULTS = {'w': 'W', 'win': 'W', 'l': 'L', 'loss': 'L', 'p': 'P', 'push': 'P', 'v': 'V', 'void': 'V'}
 SIDE_NAMES = {'hs': 'home spread', 'as': 'away spread', 'ov': 'over', 'un': 'under', 'mh': 'home moneyline',
               'ma': 'away moneyline', 'o': 'over', 'u': 'under', 'y': 'yes (anytime TD)'}
 Result = dict[str, Any]   # tools return a dict; this annotation makes the SDK send it as structured content too
-DEFAULT_IDEAS = os.path.join(ROOT, 'ideas', 'inbox.jsonl')
 
 
 def utcnow():
@@ -175,19 +174,17 @@ def book_prices(pick, props):
     return []
 
 
-def create_server(source=None, ideas_path=None, now=None):
-    """The MCP server. SOURCE is a mcp_server.data.Source (default: from the environment); IDEAS_PATH is where add_idea writes;
-    NOW is a function returning the current time as an aware datetime (tests pass a fixed one)."""
+def create_server(source=None, now=None):
+    """The MCP server. SOURCE is a mcp_server.data.Source (default: from the environment); NOW is a function returning
+    the current time as an aware datetime (tests pass a fixed one)."""
     src = source or Source.from_env()
-    ideas = ideas_path or DEFAULT_IDEAS
     clock = now or utcnow
     # The tools read files here, or the published API (a network read) when FD_API_URL is set.
     read_only = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=bool(src.base_url))
-    writes_local_file = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
     server = MCPServer('football-dashboard', instructions=(
         'NFL and college betting dashboard data. Start with health() to see how fresh it is, get_week_games() for the slate, '
         'get_picks() for official picks and explain_pick(pick_id) for the reasoning. All prices are American odds. '
-        'Games, picks and props already kicked off are left out of the current tools. Everything is read-only except add_idea.'))
+        'Games, picks and props already kicked off are left out of the current tools. Every tool is read-only.'))
 
     def doc(name):
         d = src.get(name)
@@ -358,15 +355,6 @@ def create_server(source=None, ideas_path=None, now=None):
         h.update(lines_at=ix.get('lines_at'), props_at=ix.get('props_at'), odds_plan=ix.get('odds_plan'), week=ix.get('week'),
                  data_from=src.where)
         return h
-
-    @server.tool(annotations=writes_local_file)
-    def add_idea(text: str, tags: list[str] | None = None) -> Result:
-        """Saves an idea or note for the owner to ideas/inbox.jsonl (one JSON line, local file, not committed). The only tool that writes."""
-        if not text.strip(): return {'error': 'text is empty'}
-        os.makedirs(os.path.dirname(ideas) or '.', exist_ok=True)
-        rec = {'at': clock().astimezone(datetime.timezone.utc).replace(microsecond=0).isoformat(), 'text': text.strip(), 'tags': tags or []}
-        with open(ideas, 'a', encoding='utf-8') as f: f.write(json.dumps(rec, ensure_ascii=False) + '\n')
-        return {'saved': True, 'file': ideas, 'idea': rec}
 
     return server
 

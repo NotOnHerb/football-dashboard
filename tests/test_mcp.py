@@ -1,5 +1,5 @@
 """The MCP server, called through the SDK's in-memory client against the golden replay's data. Offline: no network,
-FD_API_URL unset, add_idea writes under tmp_path."""
+FD_API_URL unset."""
 import asyncio, datetime, json, os, shutil, sys
 
 import pytest
@@ -18,13 +18,13 @@ UTC = datetime.timezone.utc
 NOW = datetime.datetime(2026, 11, 2, 12, tzinfo=UTC)   # the golden replay's frozen clock: before every kickoff in its data
 
 
-def create_server(source, ideas_path, now=NOW):
+def create_server(source, now=NOW):
     """The server with a fixed clock, so what counts as 'already kicked off' does not depend on the day the test runs."""
-    return server_module.create_server(source, ideas_path=str(ideas_path), now=lambda: now)
+    return server_module.create_server(source, now=lambda: now)
 
 
 TOOLS = {'get_week_games', 'get_picks', 'get_pick_log', 'get_player', 'get_props', 'explain_pick', 'get_team',
-         'calibration', 'health', 'add_idea'}
+         'calibration', 'health'}
 
 
 @pytest.fixture(autouse=True)
@@ -62,8 +62,8 @@ def call(server, name, **args):
 
 
 @pytest.fixture
-def server(work, tmp_path):
-    return create_server(Source(root=str(work)), tmp_path / 'ideas' / 'inbox.jsonl')
+def server(work):
+    return create_server(Source(root=str(work)))
 
 
 def test_mcp_tools_list(server):
@@ -72,8 +72,7 @@ def test_mcp_tools_list(server):
     tools = asyncio.run(go())
     assert {t.name for t in tools} == TOOLS
     assert all(t.description for t in tools)
-    writers = [t.name for t in tools if not t.annotations.read_only_hint]
-    assert writers == ['add_idea']
+    assert all(t.annotations.read_only_hint for t in tools)   # nothing writes
 
 
 def test_get_picks_matches_data(server, data):
@@ -107,7 +106,7 @@ def test_explain_pick_finds_book_only_picks_and_book_versions(data, tmp_path):
     pkb['DraftKings'] = [only, differs]
     d = tmp_path / 'root'; (d / 'api').mkdir(parents=True)
     api_export.export(dict(data, ODD=dict(data['ODD'], PKB=pkb)), str(d / 'api' / 'v1'))
-    s = create_server(Source(root=str(d)), tmp_path / 'i.jsonl')
+    s = create_server(Source(root=str(d)))
     assert only['id'] not in [p['id'] for p in data['ODD']['PK'] + data['ODD']['LG']]   # really absent from PK and the log
     listed = [p['id'] for p in call(s, 'get_picks', book='draftkings')['picks']]
     assert only['id'] in listed
@@ -124,9 +123,9 @@ def test_explain_pick_finds_book_only_picks_and_book_versions(data, tmp_path):
     assert 'error' in call(s, 'explain_pick', pick_id='p|nope', book='DraftKings')
 
 
-def test_get_picks_per_book_keeps_the_kickoff_filter(work, data, tmp_path):
+def test_get_picks_per_book_keeps_the_kickoff_filter(work, data):
     ko = datetime.datetime.fromisoformat(data['ODD']['G'][0]['t'].replace('Z', '+00:00'))
-    s = create_server(Source(root=str(work)), tmp_path / 'i.jsonl', now=ko + datetime.timedelta(minutes=1))
+    s = create_server(Source(root=str(work)), now=ko + datetime.timedelta(minutes=1))
     assert all(call(s, 'get_picks', book=bk)['picks'] == [] for bk in data['ODD']['PKB'])
 
 
@@ -135,7 +134,7 @@ def test_get_picks_without_pkb_falls_back_to_a_subset(data, tmp_path):
     d = tmp_path / 'root'; (d / 'api').mkdir(parents=True)
     api_export.export(without_pkb(data), str(d / 'api' / 'v1'))
     assert not (d / 'api' / 'v1' / 'picks_by_book.json').exists()
-    s = create_server(Source(root=str(d)), tmp_path / 'i.jsonl')
+    s = create_server(Source(root=str(d)))
     pk = data['ODD']['PK'][0]
     mine = call(s, 'get_picks', book=pk['bk'].lower())
     assert [p['id'] for p in mine['picks']] == [pk['id']] and 'no per-book picks' in mine['source'] and 'SUBSET' in mine['source']
@@ -148,7 +147,7 @@ def test_get_picks_uses_picks_by_book_when_present(work, data, tmp_path):
     other = dict(pk[0], pr=pk[0]['pr'] + 5, bk='DraftKings')
     d = tmp_path / 'root'; (d / 'api').mkdir(parents=True)
     api_export.export(dict(data, ODD=dict(data['ODD'], PKB={'DraftKings': [other], 'BetRivers': pk})), str(d / 'api' / 'v1'))
-    s = create_server(Source(root=str(d)), tmp_path / 'i.jsonl')
+    s = create_server(Source(root=str(d)))
     r = call(s, 'get_picks', book='draftkings')
     assert r['book'] == 'DraftKings' and 'picks_by_book' in r['source'] and r['picks'][0]['price'] == other['pr']
     assert call(s, 'get_picks', book='Nope')['error'] == 'no such book'
@@ -240,41 +239,22 @@ def test_calibration_health_and_missing_college_data(server, data):
 
 def test_source_builds_from_data_json_when_there_is_no_api_folder(work, tmp_path, data):
     shutil.copy(work / 'data.json', tmp_path / 'data.json')
-    s = create_server(Source(root=str(tmp_path)), tmp_path / 'i.jsonl')
+    s = create_server(Source(root=str(tmp_path)))
     assert call(s, 'get_picks')['count'] == len(data['ODD']['PK'])
     # no model.json here: calibration falls back to the summary in index.json
     assert call(s, 'calibration', prop='Rec yds')['source'].startswith('index.json')
-    empty = create_server(Source(root=str(tmp_path / 'nothing')), tmp_path / 'j.jsonl')
+    empty = create_server(Source(root=str(tmp_path / 'nothing')))
     async def go():
         async with Client(empty) as client: return await client.call_tool('get_picks', {})
     assert asyncio.run(go()).is_error
 
 
-def test_add_idea_writes_only_where_told(work, tmp_path):
-    before = repo_inbox()
-    inbox = tmp_path / 'ideas' / 'inbox.jsonl'
-    s = create_server(Source(root=str(work)), inbox)
-    r = call(s, 'add_idea', text='  fade backup QBs on the road  ', tags=['model'])
-    assert r['saved'] and inbox.exists()
-    call(s, 'add_idea', text='second')
-    lines = [json.loads(x) for x in inbox.read_text(encoding='utf-8').splitlines()]
-    assert [x['text'] for x in lines] == ['fade backup QBs on the road', 'second'] and lines[0]['tags'] == ['model']
-    assert call(s, 'add_idea', text='   ')['error']
-    assert repo_inbox() == before   # the repo's own inbox was not touched (it may exist: the owner's real ideas)
-
-
-def repo_inbox():
-    """(size, mtime) of the repo's own ideas/inbox.jsonl, or None if it does not exist."""
-    p = os.path.join(ROOT, 'ideas', 'inbox.jsonl')
-    return (os.path.getsize(p), os.path.getmtime(p)) if os.path.exists(p) else None
-
-
 # ---------------------------------------------------------------- already-kicked-off games are not current
 
-def test_started_games_picks_and_props_are_not_current(work, data, tmp_path):
+def test_started_games_picks_and_props_are_not_current(work, data):
     ko = data['ODD']['G'][0]['t']
     kickoff = datetime.datetime.fromisoformat(ko.replace('Z', '+00:00'))
-    s = create_server(Source(root=str(work)), tmp_path / 'i.jsonl', now=kickoff + datetime.timedelta(minutes=1))
+    s = create_server(Source(root=str(work)), now=kickoff + datetime.timedelta(minutes=1))
     assert call(s, 'get_picks')['picks'] == [] and call(s, 'get_picks', book='BetRivers')['picks'] == []
     w = call(s, 'get_week_games')
     assert w['games'] == [] and w['remaining'] == []
@@ -285,7 +265,7 @@ def test_started_games_picks_and_props_are_not_current(work, data, tmp_path):
     # history is kept: the log and explanations still work
     assert call(s, 'get_pick_log')['matching'] == len(data['ODD']['LG']) + len(data['CFB']['LG'])
     assert call(s, 'explain_pick', pick_id=data['ODD']['PK'][0]['id'])['reasons']
-    s = create_server(Source(root=str(work)), tmp_path / 'i.jsonl', now=kickoff - datetime.timedelta(minutes=1))
+    s = create_server(Source(root=str(work)), now=kickoff - datetime.timedelta(minutes=1))
     assert call(s, 'get_picks')['count'] == 1 and len(call(s, 'get_week_games')['games']) == 1
 
 
@@ -297,7 +277,7 @@ def server_with(data, tmp_path, odd_pk=(), cfb_pk=(), cfb_lg=()):
     full = dict(data, ODD=dict(data['ODD'], PK=list(odd_pk) + data['ODD']['PK']),
                 CFB=dict(data['CFB'], PK=list(cfb_pk), LG=list(cfb_lg) + data['CFB']['LG']))
     api_export.export(full, str(d / 'api' / 'v1'))
-    return create_server(Source(root=str(d)), tmp_path / 'i.jsonl')
+    return create_server(Source(root=str(d)))
 
 
 def college_pick(data, **kw):
@@ -359,7 +339,7 @@ def test_week_games_without_odds_lines_still_lists_the_schedule(data, tmp_path):
     """When the odds section failed (ODD.G empty) the schedule rows from G are still the week's games."""
     d = tmp_path / 'root'; (d / 'api').mkdir(parents=True)
     api_export.export(dict(data, ODD=dict(data['ODD'], G=[], PK=[], P=[])), str(d / 'api' / 'v1'))
-    w = call(create_server(Source(root=str(d)), tmp_path / 'i.jsonl'), 'get_week_games')
+    w = call(create_server(Source(root=str(d))), 'get_week_games')
     assert w['games'] == [] and [(r['away'], r['home']) for r in w['remaining']] == [tuple(data['G'][0][:2])]
 
 
@@ -415,10 +395,10 @@ def test_remote_source_caches_for_a_while_and_not_failures(monkeypatch):
     assert src.get('gone') is None and src.get('gone') is None and calls.count('https://example.test/api/v1/gone.json') == 1   # a real 404 is cached
 
 
-def test_tools_say_whether_they_reach_the_network(work, tmp_path):
+def test_tools_say_whether_they_reach_the_network(work):
     async def hints(srv):
         async with Client(srv) as client: return {t.name: t.annotations.open_world_hint for t in (await client.list_tools()).tools}
-    local = asyncio.run(hints(create_server(Source(root=str(work)), tmp_path / 'i.jsonl')))
-    remote = asyncio.run(hints(create_server(Source(base_url='https://example.test/api/v1'), tmp_path / 'i.jsonl')))
+    local = asyncio.run(hints(create_server(Source(root=str(work)))))
+    remote = asyncio.run(hints(create_server(Source(base_url='https://example.test/api/v1'))))
     assert not any(local.values())
-    assert remote['get_picks'] is True and remote['add_idea'] is False
+    assert all(remote.values())

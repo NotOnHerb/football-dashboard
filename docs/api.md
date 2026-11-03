@@ -83,7 +83,6 @@ The server never touches the network unless `FD_API_URL` is set; its tools are m
 | `get_team(code)` | a team by code or name: stats, depth chart, what it allows, this week's game, its picks |
 | `calibration(prop, projection=None, line=None)` | how the model's projections behave for a prop type (`model.json`): quantiles of actual over projection, the calibration nudge, sample size; with `projection` and `line`, the model's chance of going over |
 | `health()` | build health plus how fresh the lines and props are |
-| `add_idea(text, tags=None)` | the only write: appends a line to `ideas/inbox.jsonl` (local, git-ignored) |
 
-All tools except `add_idea` are marked read-only. Errors for an unknown player, team, pick id or prop type come back as
-`{"error": ...}` with hints, not as protocol errors.
+Every tool is read-only and marked so. Ideas for the owner go to the Desk's Ideas inbox (`analyst/README.md`).
+Errors for an unknown player, team, pick id or prop type come back as `{"error": ...}` with hints, not as protocol errors.

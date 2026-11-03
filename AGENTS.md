@@ -36,8 +36,8 @@ install the test packages; there the Test check on the PR runs the suite.)
 That runs everything, including the Playwright page test (about 2.5 minutes). While iterating, run one file
 (`... python -m pytest -q tests/test_mcp.py`) or use `-k`. Run the full suite once before committing.
 
-Never commit generated output from a local run: `data.json`, `data/`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`,
-`ideas/`. If a run rewrote them, `git checkout -- <path>` (or delete `api/`). Add files by name; avoid `git add -A`.
+Never commit generated output from a local run: `data.json`, `data/`, `index.html`, `model.json`, `odds/`, `cfb/`, `api/`.
+If a run rewrote them, `git checkout -- <path>` (or delete `api/`). Add files by name; avoid `git add -A`.
 
 ## Golden files
 
@@ -69,8 +69,8 @@ re-blessing, and the diff you commit should be limited to what you meant to chan
 ## MCP server
 
 `mcp_server/` lets an agent query the dashboard directly: the week's games, picks and why, props, players, teams,
-the pick log, model calibration and build health. It is read-only except `add_idea`, which appends to
-`ideas/inbox.jsonl` (a local file, git-ignored).
+the pick log, model calibration and build health. Every tool is read-only. Ideas for the owner have one inbox, the
+Desk's Ideas tab (collection `ideas` in the Desk database, `analyst/README.md`).
 
 Setup: copy `.mcp.json.example` to `.mcp.json` in the repo root (Claude Code reads it from the project folder) and
 approve the server. It starts with `python -m mcp_server.server`, which needs the pinned `mcp` package (in
