@@ -1,5 +1,7 @@
 # Football Dashboard — Knowledgebase
 
+> **Pre-refactor baseline.** This knowledgebase describes the code at `74fbe2d`, before the refactor in [PR #2](https://github.com/NotOnHerb/football-dashboard/pull/2). Once that merges, the line numbers in 03, 05 and 06 no longer match the code. For the current layout, start with `AGENTS.md` and `docs/refactor/phases-1-4.md`.
+
 A map of the repo as it stands, plus an assessment and a refactor plan, written to support new modules and agent access.
 Baseline: commit `74fbe2d` on `main`, 2026-11-02.
 
