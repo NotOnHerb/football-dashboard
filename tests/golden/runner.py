@@ -13,7 +13,7 @@ import glob, gzip, io, json, os, re, runpy, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FIX = os.path.join(ROOT, 'tests', 'golden', 'fixtures')
 EXPECTED = os.path.join(ROOT, 'tests', 'golden', 'expected_data.json.gz')
-CODE = ['build.py', 'sources.py', 'template.html']
+CODE = ['build.py', 'sources.py', 'restamp.py', 'template.html']
 CODE_DIRS = ['schema', 'engine', 'js', 'assets']   # packages build.py imports, and the page's scripts and styles
 # repo files the build reads (and the daily refresh keeps changing), frozen at record time
 STATE = ['model.json', 'boards/*.csv', 'odds/*.json', 'odds/props/*.json', 'cfb/fetch_log.txt',

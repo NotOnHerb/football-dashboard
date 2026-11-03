@@ -1,0 +1,40 @@
+name: Restamp page
+
+# A push that changes only the page's code goes live here: index.html is restamped from template.html for the data
+# already built. No build, no network, no Odds API credits, and only index.html is committed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - template.html
+      - 'js/**'
+      - 'assets/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Shares the refresh's group, so a restamp and a refresh never push at once. A second run waits its turn.
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  restamp:
+    runs-on: ubuntu-latest
+    steps:
+      # main as it is when this run starts, which may be newer than the push that queued it.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python restamp.py
+      - name: Save the new page
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "Restamp index.html"
+          git push

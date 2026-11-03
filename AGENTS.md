@@ -54,8 +54,11 @@ re-blessing, and the diff you commit should be limited to what you meant to chan
 - **Never push to `main`.** Work on a branch and open a PR; the owner merges. (The daily refresh workflow is the
   only thing that commits to `main` directly.)
 - The page stays static: no bundler, framework or new CDN.
-- A push that changes `template.html`, `js/` or `assets/` must be followed by a refresh dispatch (Actions → Refresh →
-  Run workflow) so `index.html` is restamped; until then the live `index.html` is the old one.
+- A push to `main` that changes `template.html`, `js/` or `assets/` goes live through the restamp workflow
+  (`.github/workflows/restamp.yml`), which restamps `index.html` from the data already built. It needs nothing from you.
+- **Odds API credits are scarce.** The free plan has 500 a month, and a full Refresh spends about 3. Never dispatch
+  Refresh just to restamp the page, and never run the build online locally: run it with `ODDS_OFFLINE=1`, or use the
+  golden runner (`tests/golden/runner.py`), which replays recorded inputs.
 - Keep every current top-level key in `data.json`; the analyst Desk sync (`analyst/snapshot.py`) depends on them.
 - Pin new dependencies exactly in `requirements.txt` (runtime) or `requirements-dev.txt` (tests only).
   `build.py` and `api_export.py` run in the refresh with only `requirements.txt` installed.

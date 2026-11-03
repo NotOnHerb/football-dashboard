@@ -1,9 +1,10 @@
-"""The build's outputs and the daily refresh that commits them.
+"""The build's outputs and the workflows that commit them.
 
 build.py writes data.json and the same data split into data/<shard>.json (schema/shards.py), which the page loads.
-refresh.yml must commit every output, or the site serves a stale or missing file.
+refresh.yml must commit every output, or the site serves a stale or missing file. restamp.yml restamps index.html
+alone, offline, after a push that changes only the page's code.
 """
-import glob, json, os, re, shlex, sys
+import glob, json, os, re, shlex, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -13,6 +14,7 @@ import replay_util  # noqa: E402
 from schema import shards  # noqa: E402
 
 REFRESH = os.path.join(ROOT, '.github', 'workflows', 'refresh.yml')
+RESTAMP = os.path.join(ROOT, '.github', 'workflows', 'restamp.yml')
 # What the refresh must commit: the page, its data (whole and split), the API files and the state files it keeps.
 OUTPUTS = {'index.html', 'data.json', 'data', 'api', 'model.json', 'cfb', 'odds'}
 
@@ -106,3 +108,30 @@ def test_data_keys_name_shard_keys():
     assert found
     unknown = [x for x in found if x[1] not in known]
     assert not unknown, unknown
+
+
+def concurrency_group(path):
+    return re.search(r'^concurrency:\s*\n\s+group:\s*(\S+)', open(path, encoding='utf-8').read(), re.M).group(1)
+
+
+def test_restamp_commits_only_the_page_offline():
+    """The restamp workflow runs restamp.py and nothing that spends credits or reaches the network, commits only
+    index.html, triggers on the page's code, and queues behind (never alongside) the refresh."""
+    text = open(RESTAMP, encoding='utf-8').read()
+    scripts = script_blocks(RESTAMP)
+    saves = [s for s in scripts if re.search(r'\bgit commit\b', s)]
+    assert len(saves) == 1 and git_adds(saves[0]) == ['index.html'], saves
+    assert [s for s in scripts if s not in saves] == ['python restamp.py']
+    assert 'secrets.' not in text and 'pip install' not in text
+    assert concurrency_group(RESTAMP) == concurrency_group(REFRESH) == 'refresh-data'
+    paths = re.search(r'^\s+paths:\s*\n((?:\s+- .*\n)+)', text, re.M).group(1)
+    assert [p.strip()[2:].strip("'") for p in paths.strip().split('\n')] == ['template.html', 'js/**', 'assets/**']
+
+
+def test_restamp_uses_the_built_date(tmp_path):
+    """python restamp.py stamps index.html from template.html with the date data.json was built, and a fresh version."""
+    (tmp_path / 'template.html').write_text('<script src="js/main.js?v=__VER__"></script> updated __DATE__', encoding='utf-8')
+    (tmp_path / 'data.json').write_text(json.dumps({'META': {'built': 'Nov 02, 2026 at 12:00 UTC'}}), encoding='utf-8')
+    subprocess.run([sys.executable, os.path.join(ROOT, 'restamp.py')], cwd=tmp_path, check=True, capture_output=True)
+    page = (tmp_path / 'index.html').read_text(encoding='utf-8')
+    assert re.fullmatch(r'<script src="js/main\.js\?v=\d{12}"></script> updated Nov 02, 2026 at 12:00 UTC', page), page

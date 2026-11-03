@@ -769,7 +769,6 @@ data=json.dumps(out,separators=(',',':'),ensure_ascii=False,allow_nan=False)
 open('data.json','w').write(data)
 # The same data split by top-level key into data/<shard>.json, which the page loads (schema/shards.py).
 print('data/',schema.shards.write(out))
-ver=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M')
-html=open('template.html').read().replace('__VER__',ver).replace('__DATE__',DATE)
-open('index.html','w').write(html)
+import restamp
+html=restamp.stamp(DATE)
 print(n,'players | data.json',len(data),'bytes | index.html',len(html.encode()),'bytes')
