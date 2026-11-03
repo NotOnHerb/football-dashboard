@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 FIX = os.path.join(ROOT, 'tests', 'golden', 'fixtures')
 EXPECTED = os.path.join(ROOT, 'tests', 'golden', 'expected_data.json.gz')
 CODE = ['build.py', 'sources.py', 'template.html']
+CODE_DIRS = ['schema']   # packages build.py imports
 # repo files the build reads (and the daily refresh keeps changing), frozen at record time
 STATE = ['model.json', 'boards/*.csv', 'odds/*.json', 'odds/props/*.json', 'cfb/fetch_log.txt',
          'cfb/games_{s}.json', 'cfb/games_{p}.json', 'cfb/lines_{s}.json']
@@ -60,6 +61,8 @@ def main(mode, work):
     shutil.rmtree(work, ignore_errors=True); os.makedirs(work)
     for f in CODE:
         shutil.copy(os.path.join(ROOT, f), os.path.join(work, f))
+    for d in CODE_DIRS:
+        shutil.copytree(os.path.join(ROOT, d), os.path.join(work, d), ignore=shutil.ignore_patterns('__pycache__'))
     if mode == 'record':
         for pat in STATE:
             for src in glob.glob(os.path.join(ROOT, pat.format(s=meta['season'], p=meta['season'] - 1))):

@@ -14,6 +14,7 @@ on:
       - cfb_fetch.py
       - check_health.py
       - 'analyst/**'
+      - 'schema/**'
       - 'tests/**'
       - 'requirements*.txt'
       - .github/workflows/test.yml

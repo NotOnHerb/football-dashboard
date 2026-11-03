@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "data.json",
+  "description": "Hand-written contract for the build output. Covers the top-level keys, their types and the ODD keys; row layouts are named in SCHEMA (schema/fields.py). A block that depends on an optional source is null when that source failed.",
+  "type": "object",
+  "required": ["META", "PRI", "P", "PC", "T", "TC", "N", "X", "DEP", "PL", "LOG", "OLP", "ALW", "DY", "CF", "ODD", "CFB", "G", "SCHEMA"],
+  "properties": {
+    "META": {
+      "type": "object",
+      "required": ["schema", "season", "sources", "health", "built"],
+      "properties": {
+        "schema": {"const": 2},
+        "season": {"type": "integer"},
+        "sources": {"type": "object"},
+        "health": {"type": "object"},
+        "built": {"type": "string"},
+        "model": {"type": "object"}
+      }
+    },
+    "PRI": {"type": "object", "additionalProperties": {"type": "array"}},
+    "P": {
+      "type": "object",
+      "required": ["QB", "RB", "WR", "TE", "K"],
+      "additionalProperties": {"type": "array", "items": {"type": "array"}}
+    },
+    "PC": {
+      "type": "object",
+      "required": ["QB", "RB", "WR", "TE", "K"],
+      "additionalProperties": {"type": "array", "items": {"type": "array"}}
+    },
+    "T": {"type": "array", "items": {"type": "array"}},
+    "TC": {"type": "array", "items": {"type": "array"}},
+    "N": {"type": "object", "additionalProperties": {"type": "string"}},
+    "X": {"type": "array", "items": {"type": "array"}},
+    "DEP": {
+      "type": ["object", "null"],
+      "required": ["dt", "T"],
+      "properties": {"dt": {"type": "string"}, "T": {"type": "object"}}
+    },
+    "PL": {"type": "object", "additionalProperties": {"type": "array"}},
+    "LOG": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "array"}}},
+    "OLP": {"type": "array", "items": {"type": "array"}},
+    "ALW": {
+      "type": ["object", "null"],
+      "required": ["wk", "T", "lg"],
+      "properties": {"wk": {"type": "integer"}, "T": {"type": "object"}, "lg": {"type": "object"}}
+    },
+    "DY": {
+      "type": ["object", "null"],
+      "required": ["P", "K"],
+      "properties": {
+        "P": {"type": "array", "items": {"type": "array"}},
+        "K": {"type": "array", "items": {"type": "array"}},
+        "L": {"type": "object", "additionalProperties": {"type": "array"}},
+        "E": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "CF": {
+      "type": ["object", "null"],
+      "required": ["P", "draft", "tg", "CB"],
+      "properties": {
+        "P": {"type": "array", "items": {"type": "array"}},
+        "draft": {"type": "integer"},
+        "tg": {"type": "boolean"},
+        "CB": {
+          "type": ["object", "null"],
+          "required": ["P", "S"],
+          "properties": {
+            "P": {"type": "array", "items": {"type": "array"}},
+            "S": {"type": "array", "items": {"type": "array"}}
+          }
+        }
+      }
+    },
+    "ODD": {
+      "type": ["object", "null"],
+      "required": ["MQ", "MC", "MB", "G", "P", "books", "MR", "PK", "PX", "LG", "REC", "RU", "FIN", "at", "pat", "left", "plan"],
+      "properties": {
+        "MQ": {"type": ["object", "null"]},
+        "MC": {"type": ["object", "null"]},
+        "MB": {"type": "number"},
+        "G": {"type": "array", "items": {"type": "object"}},
+        "P": {"type": "array", "items": {"type": "object"}},
+        "books": {"type": "array", "items": {"type": "string"}},
+        "MR": {"type": "object"},
+        "PK": {"type": "array", "items": {"type": "object"}},
+        "PX": {"type": "array", "items": {"type": "object"}},
+        "LG": {"type": "array", "items": {"type": "object"}},
+        "REC": {"type": "object"},
+        "RU": {"type": "object"},
+        "FIN": {"type": "array", "items": {"type": "array"}},
+        "at": {"type": ["string", "null"]},
+        "pat": {"type": ["string", "null"]},
+        "left": {"type": ["number", "null"]},
+        "plan": {"type": ["string", "null"]}
+      }
+    },
+    "CFB": {
+      "type": ["object", "null"],
+      "required": ["G", "PK", "LG", "REC", "BT", "at"],
+      "properties": {
+        "G": {"type": "array"},
+        "PK": {"type": "array"},
+        "LG": {"type": "array"},
+        "REC": {"type": "object"},
+        "BT": {"type": "object"},
+        "at": {"type": ["string", "null"]}
+      }
+    },
+    "G": {"type": "array", "items": {"type": "array"}},
+    "SCHEMA": {
+      "type": "object",
+      "required": ["P", "X", "LOG", "OLP", "DY.P", "DY.K", "DY.L", "CF.P", "CF.CB.P", "CF.CB.S", "T", "G", "ODD.FIN", "P.vals", "T.cols"],
+      "properties": {
+        "P.vals": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+        "T.cols": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": {"type": "array", "items": {"type": "string"}}
+    }
+  }
+}
