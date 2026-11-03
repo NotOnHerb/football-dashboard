@@ -20,12 +20,28 @@ function html(parts){var out=parts[0];for(var i=1;i<arguments.length;i++){var v=
 function safeUrl(u){u=String(u==null?'':u).trim();return /^https?:\/\//i.test(u)?u:null}
 
 // ---------------- saved settings
-// store: localStorage under one namespace ("fd:"). The page used to save its 12 settings under bare keys; on first
-// use every bare key that is still there is moved under the namespace, so no saved setting or bet is lost.
-// Every call is safe when storage is blocked (private mode): reads give null, writes are dropped.
+// store: localStorage under one namespace ("fd:"). The page used to save its 12 settings under bare keys. On each
+// load (first store call) they are copied in, never removed: the site shares its origin (notonherb.github.io) with
+// other pages that may use the same generic names, and an old tab or a rolled-back page still writes them.
+//   - a setting is copied only when its fd: copy is absent (a value saved by this page wins);
+//   - saved bets: when the bare "mybets" differs from the last one merged (fd:mybets.bare), its bets are merged into
+//     fd:mybets by id: bets missing from fd:mybets are added at the end, fd:mybets' own version of a bet is kept,
+//     nothing is dropped. A bet removed here stays removed unless the bare list changes again.
+// fd:migrated records when the first copy ran. Every call is safe when storage is blocked (private mode): reads give
+// null, writes are dropped.
 var store=(function(){var NS='fd:',OLD=['blg','book','colors','espn_league','espn_team','fmt','last_league','motion','mybets','scene','sleeper_user','theme'],moved=false;
   function ls(){try{return window.localStorage}catch(e){return null}}
-  function migrate(s){if(moved)return;moved=true;OLD.forEach(function(k){try{var v=s.getItem(k);if(v==null)return;if(s.getItem(NS+k)==null)s.setItem(NS+k,v);s.removeItem(k)}catch(e){}})}
+  function list(v){try{var x=JSON.parse(v||'[]');return Array.isArray(x)?x:[]}catch(e){return []}}
+  function mergeBets(s){var bare=s.getItem('mybets');if(bare==null||bare===s.getItem(NS+'mybets.bare'))return;
+    var mine=s.getItem(NS+'mybets');
+    if(mine==null)s.setItem(NS+'mybets',bare);
+    else{var L=list(mine),ids={};L.forEach(function(b){if(b&&b.id!=null)ids[b.id]=1});
+      list(bare).forEach(function(b){if(b&&b.id!=null&&!ids[b.id]){ids[b.id]=1;L.push(b)}});s.setItem(NS+'mybets',JSON.stringify(L))}
+    s.setItem(NS+'mybets.bare',bare)}
+  function migrate(s){if(moved)return;moved=true;
+    OLD.forEach(function(k){if(k==='mybets')return;try{var v=s.getItem(k);if(v!=null&&s.getItem(NS+k)==null)s.setItem(NS+k,v)}catch(e){}});
+    try{mergeBets(s)}catch(e){}
+    try{if(s.getItem(NS+'migrated')==null)s.setItem(NS+'migrated',new Date().toISOString())}catch(e){}}
   function get(k){var s=ls();if(!s)return null;migrate(s);try{return s.getItem(NS+k)}catch(e){return null}}
   function set(k,v){var s=ls();if(!s)return;migrate(s);try{s.setItem(NS+k,v)}catch(e){}}
   return {get:get,set:set,NS:NS,OLD:OLD}})();

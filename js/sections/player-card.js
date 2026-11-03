@@ -19,7 +19,7 @@ function openCard(name,team){if(!PIX)pIndex();var c=PIX[name];if(!c)return false
   if(e.t==='o'){gid=r.gid;pos=r[2];tm=r[1]}else if(e.t==='d'){gid=r[20];pos=r[2];tm=r[1]}else{gid=r[16];pos=r[1];tm=r[2]}
   var P=(D.PL&&gid&&D.PL[gid])||[],dy=D.DY?D.DY.P.filter(function(x){return x[0]===name&&(x[16]===gid||!gid)})[0]:null,inj=r.inj||(dy&&dy[14]),dl=r.dl||(dy&&dy[15]),a=age(P[4])||(dy&&dy[3]);
   var bio=[D.N[tm]?tm+' '+D.N[tm]:tm,a?'Age '+a:null,P[2]?Math.floor(P[2]/12)+'′'+(P[2]%12)+'″':null,P[3]?P[3]+' lb':null,dy&&dy[4]?'Drafted '+dy[4]+(dy[5]?' round '+dy[5]:''):null,dy&&dy[6]?dy[6]:null].filter(Boolean).join(' · ');
-  h+='<div class="pch">'+(P[0]?'<img src="'+esc(P[0])+'" alt="'+esc(name)+'" loading="lazy">':'')+'<div><h2 id="pcn">'+esc(name)+'</h2><div><span class="tag '+esc(pos)+'">'+esc(pos)+'</span>'+tags({inj:inj,dl:dl})+'</div><div class="pcm">'+esc(bio)+'</div></div></div>';
+  var hs=safeUrl(P[0]);h+='<div class="pch">'+(hs?'<img src="'+esc(hs)+'" alt="'+esc(name)+'" loading="lazy">':'')+'<div><h2 id="pcn">'+esc(name)+'</h2><div><span class="tag '+esc(pos)+'">'+esc(pos)+'</span>'+tags({inj:inj,dl:dl})+'</div><div class="pcm">'+esc(bio)+'</div></div></div>';
   if(e.t==='o'&&pos!=='K'){var rank=1+A.filter(function(x){return x[2]===pos&&x[3]>=3&&x[4]>r[4]}).length,wk=weekLine(tm,pos,r[4],r.l3,r[3],r.gid);
     tl=[[f(r[4],1),SCL[st.sc]],[f(r.l3,1),'Last 3'],[r.tr==null?'–':(r.tr>0?'+':'')+r.tr.toFixed(1),'Trend'],[r.sn!=null?r.sn+'%':'–','Snap share'],[pos+rank,'Rank at '+pos+' (3+ GP)'],[r[3],'Games']];
     h+='<div class="tiles2">'+tl.map(function(x){return '<div class="tl"><b>'+esc(x[0])+'</b><span>'+esc(x[1])+'</span></div>'}).join('')+'</div>';

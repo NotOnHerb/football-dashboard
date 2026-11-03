@@ -28,6 +28,7 @@ function teamTbl(id){
   $(id).innerHTML='<table><tr>'+cols.map(function(c){var on=c[1]===s[0];return '<th tabindex="0" data-c="'+esc(c[1])+'" class="'+(on?'on':'')+'">'+esc(c[0])+(on?(s[1]>0?' ▲':' ▼'):'')+'</th>'}).join('')+'</tr>'+sortRows(D.T,s[0],s[1]).map(function(r){return '<tr class="go" tabindex="0" data-t="'+esc(r[0])+'"><td class="nm">'+esc(r[0])+' '+esc(D.N[r[0]])+'</td>'+cols.slice(1).map(function(c){return '<td>'+f(r[c[1]],c[2])+'</td>'}).join('')+'</tr>'}).join('')+'</table>';
 }
 function renderT(){teamTbl('tt')}
-register({id:'nfl',label:'NFL',icon:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c-1-6 3-13 14-14-1 11-8 15-14 14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 15l6-6M10 11l3 3M12 9l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',panels:['nflnav','vp','vt','vn','vc'],dataKeys:[],
+register({id:'nfl',label:'NFL',icon:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c-1-6 3-13 14-14-1 11-8 15-14 14z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 15l6-6M10 11l3 3M12 9l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',panels:['nflnav'],viewPanels:['vp','vt','vn','vc'],dataKeys:[],
+  init:function(){$('tabs').addEventListener('click',function(e){var v=e.target.dataset.v;if(v)tab(v)})},
   select:function(v){if(v)st.v=v},render:function(){tab(st.v)},current:function(){return {view:st.v}}});
 register({id:'t',parent:'nfl',label:'Teams',dataKeys:['T','TC','N'],init:renderT,render:renderT});

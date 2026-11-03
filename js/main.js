@@ -14,8 +14,9 @@ async function load(){
     var res=await fetch('data.json?v='+VER,{cache:'no-cache'});
     if(!res.ok)throw new Error(res.status);
     D=await res.json();
-  }catch(err){$('ld').textContent='Couldn’t load the stats data. Check your connection and refresh the page.';return}
-  guard({label:'Player rows',dataKeys:['P','X','OLP'],init:prepRows},'init');
+  }catch(err){bootFailed();return}
+  // Without the player rows every section would show plausible but wrong numbers, so this one is fatal.
+  try{prepRows()}catch(err){console.error('Couldn’t prepare the player rows (P, X, OLP):',err);bootFailed();return}
   guard({label:'Update notes',dataKeys:['META'],init:fresh},'init');
   $('ld').hidden=true;
   SECTIONS.forEach(function(s){guard(s,'init')});
@@ -23,6 +24,8 @@ async function load(){
   guard({label:'Glossary and colors',init:function(){initGloss();setColors(COLORS);$('clr').onclick=function(){setColors(!COLORS)}}},'init');
   startRouter();
 }
+// The page can't start: say so in #ld (under Players) and in the header line, which shows whatever view is open.
+function bootFailed(){var m='Couldn’t load the stats data. Check your connection and refresh the page.';$('ld').textContent=m;$('hl').textContent=m;$('hl').hidden=false}
 // The offensive rows A (one per player, every position) and the injury/depth/snap fields on D.X and D.OLP rows.
 function prepRows(){
   ['QB','RB','WR','TE','K'].forEach(function(p){D.P[p].forEach(function(r){var a=[r[0],r[1],p,r[2]].concat(r[3]);a.pp=a[4];a.sd=r[4];a.inj=r[5];a.dl=r[6];a.fm=r[7];a.gid=r[8];if(r[7]){a.sn=r[7][2];a.sn3=r[7][3]}setForm(a);A.push(a)})});

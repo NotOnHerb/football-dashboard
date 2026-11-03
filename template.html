@@ -4,6 +4,8 @@
 <title>Football Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css?v=__VER__">
+<script src="js/core.js?v=__VER__"></script>
+<script src="js/scene.js?v=__VER__"></script>
 </head><body><canvas id="scene" aria-hidden="true"></canvas><main>
 <div class="top" id="top"><h1>Football dashboard</h1><button class="back dspb" id="dsp" aria-expanded="false" aria-controls="ctl">Display</button><div class="ctl" id="ctl"><select class="back" id="scn" aria-label="Background scene"><option value="ocean">Night ocean</option><option value="grass">Day grassland</option><option value="snow">Snowy peak</option></select><button class="back" id="mot" aria-label="Turn background motion on or off"></button><button class="back" id="clr" aria-label="Turn stat colors on or off"></button></div></div>
 <p class="sub">2026 regular season so far.<span class="upd" id="upd"></span></p><p class="hl" id="hl" hidden></p>
@@ -55,9 +57,7 @@
 </main>
 <nav class="bnav" id="bnav" aria-label="Sections"></nav>
 <div id="pc" class="pcard" hidden><div class="pcw" role="dialog" aria-modal="true" aria-labelledby="pcn"><button class="back pcx" id="pcx" aria-label="Close player card">✕</button><div id="pcb"></div></div></div>
-<script src="js/core.js?v=__VER__"></script>
 <script src="js/glossary.js?v=__VER__"></script>
-<script src="js/scene.js?v=__VER__"></script>
 <script src="js/ui.js?v=__VER__"></script>
 <script src="js/registry.js?v=__VER__"></script>
 <script src="js/router.js?v=__VER__"></script>

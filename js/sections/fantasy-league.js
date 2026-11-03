@@ -7,7 +7,7 @@ function slp(p){return fetch('https://api.sleeper.app/v1/'+p).then(function(r){i
 function nth(n){return n+(['th','st','nd','rd'][(n%100-20)%10]||['th','st','nd','rd'][n%100]||'th')}
 function sRender(){
   var L=D.DY.L,lg=ML.lg,rp=lg.roster_positions||[],cnt=function(p){return rp.filter(function(x){return x===p}).length};
-  var sf=cnt('SUPER_FLEX')>0||cnt('QB')>1,vi=sf?5:4,rec=(lg.scoring_settings||{}).rec||0,idp=rp.some(function(x){return /IDP|^DL$|^LB$|^DB$/.test(x)});
+  var sf=cnt('SUPER_FLEX')>0||cnt('QB')>1,vi=sf?5:4,rec=Number((lg.scoring_settings||{}).rec)||0,idp=rp.some(function(x){return /IDP|^DL$|^LB$|^DB$/.test(x)});
   var pp=function(x){return x[6]==null?null:rec>=1?x[6]:rec<=0?x[7]:Math.round((x[6]+x[7])*5)/10};
   // league-wide position ranks by value and production among players with a value
   var VR={},PR={};['QB','RB','WR','TE'].forEach(function(p){var ks=Object.keys(L).filter(function(k){return L[k][1]===p&&L[k][vi]!=null});
@@ -20,7 +20,7 @@ function sRender(){
   var pv=function(s,d){var lab=s+' '+['','1st','2nd','3rd','4th'][d],k=D.DY.K.filter(function(x){return x[0]===lab})[0];return k?k[sf?2:1]:0};
   var me=null,teams=ML.ro.map(function(r){var ps=(r.players||[]).map(function(id){var x=L[id];return {id:id,x:x,v:x&&x[vi]!=null?x[vi]:0,taxi:(r.taxi||[]).indexOf(id)>-1,ir:(r.reserve||[]).indexOf(id)>-1}});
     var pk=[];Object.keys(own).forEach(function(k){if(own[k]===r.roster_id){var a=k.split('-');pk.push({s:+a[0],d:+a[1],from:+a[2],v:pv(+a[0],+a[1])})}});
-    var T={r:r,name:nm[r.owner_id]||('Team '+r.roster_id),ps:ps,pk:pk,pv:ps.reduce(function(a,b){return a+b.v},0),kv:pk.reduce(function(a,b){return a+b.v},0),w:(r.settings||{}).wins||0,l:(r.settings||{}).losses||0};
+    var T={r:r,name:nm[r.owner_id]||('Team '+r.roster_id),ps:ps,pk:pk,pv:ps.reduce(function(a,b){return a+b.v},0),kv:pk.reduce(function(a,b){return a+b.v},0),w:Number((r.settings||{}).wins)||0,l:Number((r.settings||{}).losses)||0};
     T.tv=T.pv+T.kv;var N={QB:cnt('QB')+(sf?1:0),RB:cnt('RB')+1,WR:cnt('WR')+1,TE:Math.max(cnt('TE'),1)};T.pos={};
     ['QB','RB','WR','TE'].forEach(function(p){T.pos[p]=ps.filter(function(o){return o.x&&o.x[1]===p}).map(function(o){return o.v}).sort(function(a,b){return b-a}).slice(0,N[p]).reduce(function(a,b){return a+b},0)});
     if(r.owner_id===ML.user.user_id||(r.co_owners||[]).indexOf(ML.user.user_id)>-1)me=T;return T});
@@ -88,8 +88,8 @@ async function fSleeperLeague(id){fMsg('Loading league…');
   try{var r=await Promise.all([slp('league/'+id),slp('league/'+id+'/rosters'),slp('league/'+id+'/users'),slp('league/'+id+'/traded_picks')]),lg=r[0],nm={};
     ML={lg:lg,ro:r[1],us:r[2],tp:r[3],user:RL.user};try{store.set('last_league',JSON.stringify({p:'s',u:RL.user.username||$('fsu').value.trim(),id:id}))}catch(e){}
     r[2].forEach(function(u){nm[u.user_id]=(u.metadata&&u.metadata.team_name)||u.display_name});
-    var M={platform:'Sleeper',ltype:lg.settings&&lg.settings.type,name:lg.name,rec:(lg.scoring_settings||{}).rec||0,type:({0:'Redraft',1:'Keeper',2:'Dynasty'})[lg.settings&&lg.settings.type]||'',slots:slotsFrom(lg.roster_positions||[]),
-      teams:r[1].map(function(ro){var st=ro.starters||[],ir=ro.reserve||[],tx=ro.taxi||[];return {name:nm[ro.owner_id]||('Team '+ro.roster_id),me:ro.owner_id===RL.user.user_id||(ro.co_owners||[]).indexOf(RL.user.user_id)>-1,w:(ro.settings||{}).wins||0,l:(ro.settings||{}).losses||0,pf:((ro.settings||{}).fpts||0)+((ro.settings||{}).fpts_decimal||0)/100,
+    var M={platform:'Sleeper',ltype:lg.settings&&lg.settings.type,name:lg.name,rec:Number((lg.scoring_settings||{}).rec)||0,type:({0:'Redraft',1:'Keeper',2:'Dynasty'})[lg.settings&&lg.settings.type]||'',slots:slotsFrom(lg.roster_positions||[]),
+      teams:r[1].map(function(ro){var st=ro.starters||[],ir=ro.reserve||[],tx=ro.taxi||[];return {name:nm[ro.owner_id]||('Team '+ro.roster_id),me:ro.owner_id===RL.user.user_id||(ro.co_owners||[]).indexOf(RL.user.user_id)>-1,w:Number((ro.settings||{}).wins)||0,l:Number((ro.settings||{}).losses)||0,pf:(Number((ro.settings||{}).fpts)||0)+(Number((ro.settings||{}).fpts_decimal)||0)/100,
         ps:(ro.players||[]).map(function(k){return {k:k,st:ir.indexOf(k)>-1?'IR':tx.indexOf(k)>-1?'Taxi':st.indexOf(k)>-1?'S':'B'}})}})};
     fMsg('');RL.M=M;leagueRender()}catch(e){fMsg('Couldn’t load that league ('+e.message+').')}}
 async function fEspn(){var id=$('fei').value.replace(/\D/g,''),tm=$('fet').value.replace(/\D/g,'');if(!id){fMsg('Type your ESPN league ID first. It’s the number after leagueId= in your league’s web address.');return}
@@ -99,11 +99,11 @@ async function fEspn(){var id=$('fei').value.replace(/\D/g,''),tm=$('fet').value
     if(res.status===401){fMsg('This ESPN league is private. The commissioner can turn on League Settings → Basic Settings → “Make league viewable to public”, then try again.');return}
     if(res.status===404){fMsg('No ESPN league found with ID '+id+' for '+S+'. Check the number in your league’s web address.');return}
     if(!res.ok)throw new Error('ESPN said '+res.status);var L=await res.json(),st=L.settings||{},rs=(st.rosterSettings||{}).lineupSlotCounts||{},sl={},rec=0;
-    Object.keys(rs).forEach(function(k){var n=ESLOT[k];if(n&&ELIG[n])sl[n]=(sl[n]||0)+rs[k]});
-    ((st.scoringSettings||{}).scoringItems||[]).forEach(function(s){if(s.statId===53)rec=s.points});
+    Object.keys(rs).forEach(function(k){var n=ESLOT[k];if(n&&ELIG[n])sl[n]=(sl[n]||0)+(Number(rs[k])||0)});
+    ((st.scoringSettings||{}).scoringItems||[]).forEach(function(s){if(s.statId===53)rec=Number(s.points)||0});
     var mem={};(L.members||[]).forEach(function(m){mem[m.id]=((m.firstName||'')+' '+(m.lastName||'')).trim()||m.displayName});
     var M={platform:'ESPN',name:st.name||('League '+id),rec:rec,type:'',slots:sl,teams:(L.teams||[]).map(function(T){var rcd=(T.record||{}).overall||{};
-      return {name:T.name||((T.location||'')+' '+(T.nickname||'')).trim()||mem[(T.owners||[])[0]]||('Team '+T.id),me:tm?String(T.id)===tm:false,w:rcd.wins||0,l:rcd.losses||0,pf:rcd.pointsFor||0,
+      return {name:T.name||((T.location||'')+' '+(T.nickname||'')).trim()||mem[(T.owners||[])[0]]||('Team '+T.id),me:tm?String(T.id)===tm:false,w:Number(rcd.wins)||0,l:Number(rcd.losses)||0,pf:Number(rcd.pointsFor)||0,
         ps:((T.roster||{}).entries||[]).map(function(en){var pl=(en.playerPoolEntry||{}).player||{},k=D.DY.E[String(en.playerId)];return {k:k||('espn:'+en.playerId),nm:pl.fullName,pos:ESPOS[pl.defaultPositionId],st:en.lineupSlotId===21?'IR':en.lineupSlotId===20?'B':'S'}})}})};
     var rp=[];Object.keys(sl).forEach(function(s){for(var i=0;i<sl[s];i++)rp.push({SF:'SUPER_FLEX',WRTE:'REC_FLEX',WRRB:'WRRB_FLEX'}[s]||s)});
     ML={lg:{name:M.name,season:S,roster_positions:rp,scoring_settings:{rec:rec},settings:{draft_rounds:4}},user:{user_id:'me'},tp:[],
@@ -143,5 +143,8 @@ try{var su=store.get('sleeper_user');if(su)$('fsu').value=su;var el=store.get('e
   $('fpl').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;[].forEach.call($('fpl').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});$('fsl').hidden=p!=='s';$('fel').hidden=p!=='e';fMsg('');$('fmo').innerHTML=''});
   $('fsgo').onclick=fSleeper;$('fsu').addEventListener('keydown',function(e){if(e.key==='Enter')fSleeper()});$('fego').onclick=fEspn;['fei','fet'].forEach(function(id){$(id).addEventListener('keydown',function(e){if(e.key==='Enter')fEspn()})})}
 register({id:'fan',label:'Fantasy',icon:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',panels:['sf'],dataKeys:[],
-  select:function(v,p){if(p.fmt==='dyn'||p.fmt==='red')FMT=p.fmt;if(v)FV=v},render:fShow,current:function(){return {view:FV,params:{fmt:FMT}}}});
+  init:function(){
+    $('fv').addEventListener('click',function(e){var x=e.target.dataset.x;if(!x)return;FV=x;fShow()});
+    $('fmt').addEventListener('click',function(e){var x=e.target.dataset.f;if(!x)return;FMT=x;try{store.set('fmt',x)}catch(err){}fShow();if(RL.M)leagueRender()})},
+  select:function(v,p){if(v)FV=v;if((p.fmt==='dyn'||p.fmt==='red')&&p.fmt!==FMT){FMT=p.fmt;if(RL.M)leagueRender()}},render:fShow,current:function(){return {view:FV,params:{fmt:FMT}}}});
 register({id:'m',parent:'fan',label:'My league',dataKeys:['DY','ALW','G','PRI'],init:initFM,render:leagueRender});

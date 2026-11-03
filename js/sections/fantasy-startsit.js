@@ -54,8 +54,6 @@ function initF(){
   $('fpos').innerHTML=['ALL','QB','RB','WR','TE'].map(function(p){return '<button data-p="'+p+'" aria-pressed="'+(p==='ALL')+'">'+(p==='ALL'?'All':p)+'</button>'}).join('');
   $('fpos').addEventListener('click',function(e){var p=e.target.dataset.p;if(!p)return;FS.p=p;[].forEach.call($('fpos').children,function(b){b.setAttribute('aria-pressed',b.dataset.p===p)});renderF()});
   $('fsc').addEventListener('click',function(e){var s=e.target.dataset.s;if(s)setSc(s)});
-  $('fv').addEventListener('click',function(e){var x=e.target.dataset.x;if(!x)return;FV=x;fShow()});
-  $('fmt').addEventListener('click',function(e){var x=e.target.dataset.f;if(!x)return;FMT=x;try{store.set('fmt',x)}catch(err){}fShow();if(RL.M)leagueRender()});
   $('ft').addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=ck(th);if(FS.c===c)FS.d*=-1;else{FS.c=c;FS.d=(c===0||c===2||c===1||c==='opp'||c==='g')?1:-1}renderF()});
 }
 function fbase(ppg,l3,gp,gid,rec){if(ppg==null)return null;var c=l3!=null?.85*ppg+.15*l3:ppg,pr=D.PRI&&gid&&D.PRI[gid];

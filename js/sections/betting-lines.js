@@ -3,8 +3,8 @@
 // ---------------- Betting
 var BS={lg:(function(){try{return store.get('blg')||'nfl'}catch(e){return 'nfl'}})(),v:'picks',book:(function(){try{return store.get('book')||'best'}catch(e){return 'best'}})(),mk:'ALL',gm:'ALL',q:'',lo:false,more:false};
 var BK={Pinnacle:'PIN',DraftKings:'DK',FanDuel:'FD',BetMGM:'MGM',Caesars:'CZR','ESPN BET':'ESPN',Fanatics:'FAN',BetRivers:'BR','Hard Rock':'HR',Bovada:'BOV',BetOnline:'BOL',LowVig:'LV',BetUS:'BUS',MyBookie:'MB','Bally Bet':'BAL'};
-function am(x){return x==null?'–':(x>0?'+':'')+x}
-function spf(x){return x==null?'–':x===0?'PK':(x>0?'+':'')+x}
+function am(x){return x==null?'–':esc((x>0?'+':'')+x)}
+function spf(x){return x==null?'–':x===0?'PK':esc((x>0?'+':'')+x)}
 function pct(x,d){return x==null?'–':(x*100).toFixed(d||0)+'%'}
 function ago(iso){if(!iso)return 'not yet';var m=Math.round((Date.now()-new Date(iso))/60000);return m<2?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' hr ago':Math.round(m/1440)+' days ago'}
 function kick(iso){return new Date(iso).toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'})}
@@ -34,7 +34,7 @@ function rec(r){return r[0]+'-'+r[1]+(r[2]?'-'+r[2]:'')}
 var NOUN={'Pass yds':'passing yards','Rush yds':'rushing yards','Rec yds':'receiving yards','Receptions':'catches','Pass TDs':'passing TDs','Anytime TD':'touchdowns'};
 function nPts(x){var r=Math.round(Math.abs(x));return r<1?'less than a point':r===1?'about 1 point':'about '+r+' points'}
 function winsBy(m,g){return Math.abs(m)<1?'a toss-up':(m>0?g.h:g.a)+' winning by '+nPts(m)}
-function covered(r){var n=r[0]+r[1]+r[2];return r[0]+' of '+n+(r[2]?' ('+r[2]+(r[2]>1?' pushes':' push')+')':'')}
+function covered(r){var n=r[0]+r[1]+r[2];return esc(r[0]+' of '+n+(r[2]?' ('+r[2]+(r[2]>1?' pushes':' push')+')':''))}
 function bookLine(g){var s=g.fair&&g.fair.s?g.fair.s[0]:null,o=g.fair&&g.fair.o?g.fair.o[0]:null;return (s==null?'':(s===0?'even':s<0?g.h+' by '+(-s):g.a+' by '+s))+(o!=null?', '+o+' total points':'')}
 function needTxt(g,k,q){var t=k==='hs'||k==='mh'?g.h:g.a;
   if(k==='ov')return Math.floor(q.pt)+1+' or more total points';if(k==='un')return Math.ceil(q.pt)-1+' or fewer total points';if(k[0]==='m')return t+' wins the game';
@@ -62,9 +62,9 @@ function whyP(p,x){var w=[],b=x.b,noun=esc(NOUN[p.mk]||p.mk.toLowerCase());
     w.push('<b>Track record:</b> scored in '+x.hits+' of '+x.n+' games '+dots(p,null))}
   else{var ov=b.dir>0,need=ov?(Math.floor(b.q.pt)+1)+' or more':(Math.ceil(b.q.pt)-1)+' or fewer';
     w.push('<b>What you need:</b> '+need+' '+noun+'.');
-    if(b.P!=null)w.push('<b>Our chance:</b> about '+pct(b.P)+' he goes '+(ov?'over ':'under ')+b.q.pt+'. Our projection says '+pct(b.po)+', the sportsbooks’ fair odds say '+pct(b.fo)+', and we split the difference. At '+am(b.q.pr)+' you need '+pct(i2p(b.q.pr))+' to break even.');
+    if(b.P!=null)w.push('<b>Our chance:</b> about '+pct(b.P)+' he goes '+(ov?'over ':'under ')+esc(b.q.pt)+'. Our projection says '+pct(b.po)+', the sportsbooks’ fair odds say '+pct(b.fo)+', and we split the difference. At '+am(b.q.pr)+' you need '+pct(i2p(b.q.pr))+' to break even.');
     if(p.md!=null)w.push('<b>Typical game:</b> about '+f(p.md,1)+' '+noun+' (half his games land above, half below). He averages '+esc(p.avg)+' this season and '+esc(p.l3)+' over his last 3.');
-    w.push('<b>Track record:</b> went '+(ov?'over ':'under ')+b.q.pt+' in '+Math.round(b.h*x.n)+' of '+x.n+' games '+dots(p,b.q.pt));
+    w.push('<b>Track record:</b> went '+(ov?'over ':'under ')+esc(b.q.pt)+' in '+Math.round(b.h*x.n)+' of '+x.n+' games '+dots(p,b.q.pt));
     var g_=gameOf(p.t),wx=g_&&g_.ctx&&g_.ctx.wx;if(wx&&wx.w>=15&&/Pass|Rec/.test(p.mk))w.push('<b>Weather:</b> wind around '+wx.w+' mph at kickoff, which can cut down passing.');
     if(b.vs>0)w.push('<b>Better price:</b> '+am(b.q.pr)+' at '+esc(b.q.bk)+' is worth about <b>'+(b.v*100).toFixed(1)+'% more</b> than a fair bet over time.')}
   if(Math.abs(p.fac-1)>=.04)w.push('<b>Matchup:</b> '+esc(p.opp)+' gives up about '+Math.abs(Math.round((p.fac-1)*200))+'% '+(p.fac>1?'more':'fewer')+' '+(/TD/.test(p.mk)?'touchdowns':p.mk==='Receptions'?'catches':'yards')+' to '+esc(p.pos)+'s than an average defense '+bgrade(p.fac));
@@ -74,7 +74,7 @@ function pickCard(c,hero){var h;
   else{var p=c.p,x=c.x,b=x.b;h='<div class="bc l'+Math.min(3,c.s)+(hero?' hero':'')+'">'+(hero?'<div class="bck">Pick of the week</div>':'')+'<div class="bch">'+lvl(c.s)+'<span class="bct"><a href="#" class="pn" data-n="'+esc(p.n)+'" data-t="'+esc(p.t)+'">'+esc(p.n)+'</a> '+esc(pname(p,x))+'</span></div><div class="bcp"><b>'+am(b.q.pr)+'</b> '+esc(b.q.bk)+' · '+esc(p.t)+' vs '+esc(p.opp)+(gameOf(p.t)?' · '+kick(gameOf(p.t).t):'')+'</div><ul class="bcw">'+whyP(p,x).map(function(w){return '<li>'+w+'</li>'}).join('')+'</ul>'+saveBtn(pBet(p,x.td?'y':(b.dir>0?'o':'u'),b.q))+'</div>'}
   return h}
 function gameCard(g){var c=g.ctx||{},S={};['hs','as','ov','un','mh','ma'].forEach(function(k){S[k]=gside(g,k)});
-  function cell(k,lab){var x=S[k];if(!x)return '<td>–</td>';var q=x.q;return '<td'+heat(x.v!=null&&x.v>=.02?x.v:null,.06)+'>'+(lab?lab+' ':'')+(q.pt!=null&&k[0]!=='o'&&k[0]!=='u'?spf(q.pt)+' ':q.pt!=null?q.pt+' ':'')+'<b>'+am(q.pr)+'</b>'+bkn(q.bk,1)+vchip(x.vs>0?x.v:null)+(x.ms?' <span class="mch">model</span>':'')+saveBtn(gBet(g,k,q),1)+'</td>'}
+  function cell(k,lab){var x=S[k];if(!x)return '<td>–</td>';var q=x.q;return '<td'+heat(x.v!=null&&x.v>=.02?x.v:null,.06)+'>'+(lab?lab+' ':'')+(q.pt!=null&&k[0]!=='o'&&k[0]!=='u'?spf(q.pt)+' ':q.pt!=null?esc(q.pt)+' ':'')+'<b>'+am(q.pr)+'</b>'+bkn(q.bk,1)+vchip(x.vs>0?x.v:null)+(x.ms?' <span class="mch">model</span>':'')+saveBtn(gBet(g,k,q),1)+'</td>'}
   var wp=g.fair&&g.fair.m!=null?g.fair.m:null,mw=g.mod?g.mod.wp:null,np=D.ODD.P.filter(function(p){return p.t===g.a||p.t===g.h}).length;
   var tags_=[];if(c.div)tags_.push('Division game');if(c.rest&&(c.rest[0]!=null&&c.rest[0]<=5||c.rest[1]!=null&&c.rest[1]<=5))tags_.push('Short week');if(c.rest&&c.rest[0]!=null&&c.rest[1]!=null&&Math.abs(c.rest[0]-c.rest[1])>=3)tags_.push(esc(c.rest[0]>c.rest[1]?g.a:g.h)+' rested '+Math.abs(c.rest[0]-c.rest[1])+' more days');if(c.roof&&c.roof!=='outdoors')tags_.push(c.roof==='dome'?'Dome':esc(c.roof));var wx=wxTxt(g);if(wx)tags_.push(wx);
   return '<div class="gc"><div class="gch"><div><div class="gt">'+esc(g.a)+' <small>at</small> '+esc(g.h)+'</div><div class="pcm">'+kick(g.t)+(tags_.length?' · '+tags_.join(' · '):'')+'</div></div>'+
@@ -88,7 +88,7 @@ function parlayCard(x){return '<div class="bc l2"><div class="bck" style="color:
   x.legs.map(function(l){return '<li><b>'+esc(legNeed(l))+'</b> '+am(l.pr)+' <span class="pcm">(our chance '+pct(l.pc)+')</span></li>'}).join('')+'</ul><p class="sub" style="margin:8px 0 0;font-size:14px">'+esc(x.note)+'</p></div>'}
 function parlayHTML(){var X=(D.ODD&&D.ODD.PX)||[];X=X.filter(function(x){return !past(x.t)});if(!X.length)return '';
   return '<h3>Parlays <span class="pcm">for fun, tracked as their own record</span></h3><div class="bgrid">'+X.map(parlayCard).join('')+'</div><p class="sub" style="margin-top:8px">Every leg has to hit. Each leg’s price already includes the sportsbook’s cut, and a parlay stacks those cuts, so even good legs make a long shot. Prices are from the one book shown; check your app before betting.</p>'}
-function recLine(x){if(!x)return '';var n=x.w+x.l;return x.w+'-'+x.l+(x.p?'-'+x.p:'')+(n?' ('+Math.round(x.w/n*100)+'%)':'')+' · '+(x.u>=0?'+':'')+x.u.toFixed(1)+' units'}
+function recLine(x){if(!x)return '';var n=x.w+x.l;return esc(x.w+'-'+x.l+(x.p?'-'+x.p:'')+(n?' ('+Math.round(x.w/n*100)+'%)':'')+' · '+(x.u>=0?'+':'')+x.u.toFixed(1)+' units')}
 function recordStrip(){var R=(D.ODD||{}).REC,a=R&&R.all;if(!a||!(a.w+a.l+a.p))return '<div class="rstrip">Our picks are tracked from this week on: each one locks at the last update before kickoff and is graded automatically after the game. <a href="#" data-goto="results">See results</a></div>';
   return '<div class="rstrip"><b>Our record:</b> '+recLine(a)+' <span class="pcm">(1 unit per pick)</span> · <a href="#" data-goto="results">See every pick</a></div>'}
 function combos(){var O=D.ODD,C=[],byTeam={};
@@ -151,7 +151,7 @@ var MKS=['ALL','Pass yds','Rush yds','Rec yds','Receptions','Pass TDs','Anytime 
     var gt=e.target.closest('[data-goto]');if(gt){e.preventDefault();BS.v=gt.dataset.goto;renderB();return}
     var b=e.target.closest('.gprop');if(b){BS.v='props';BS.gm=b.dataset.gm;$('bgm').value=BS.gm;renderB();$('sb').scrollIntoView({behavior:'smooth'})}})}
 register({id:'bet',label:'Betting',icon:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10h3M8 14h8M14 10h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',panels:['sb'],wide:true,dataKeys:['ODD','CFB'],init:initB,
-  select:function(v,p){if(p.lg==='nfl'||p.lg==='cfb')BS.lg=p.lg;if(v==='college'){BS.lg='cfb';v='picks'}if(v){BS.v=v;BS.more=false}},
+  select:function(v,p){BS.lg=p.lg==='cfb'?'cfb':'nfl';if(v==='college'){BS.lg='cfb';v='picks'}if(v){BS.v=v;BS.more=false}},
   render:renderB,current:function(){return {view:BS.v,params:BS.lg==='cfb'?{lg:'cfb'}:{}}}});
 register({id:'picks',parent:'bet',label:'Picks',dataKeys:['ODD'],render:renderB});
 register({id:'games',parent:'bet',label:'Games',dataKeys:['ODD'],render:renderB});
