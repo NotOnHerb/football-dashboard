@@ -22,10 +22,25 @@ Parts of the pick logic are re-implemented in `template.html` (single-book views
   model differs by ≥ 2.5 (spread) or ≥ 3 (total). As of 2026-11-02: spreads 18-15-1, totals 11-19.
 - The model gives context on game cards, and adds one strength point to a spread pick when it agrees by ≥ 2.5.
 
-## Fair odds (`build.py:567-579`)
+## Fair odds (`build.py:539-551` games, `build.py:612-623` props)
 
-Fair odds are Pinnacle no-vig when Pinnacle posts the market. Otherwise they're the median no-vig of other books at
-the consensus line, which needs at least 3 books.
+The no-vig chances below use Shin's method (`engine/odds.py` `no_vig_shin`); Anytime TD and the blend's off-line
+fallback are the exceptions noted below.
+
+- **Game lines** (spread, total, moneyline): Pinnacle no-vig when Pinnacle posts the market, at Pinnacle's own line
+  (which can differ from the consensus line; `game_ev` then moves the chance to the line being priced). Otherwise
+  the median no-vig of the other books, which needs at least 3 books (at the consensus line for spreads and totals).
+  `fair.ref` records which source each market used (`Pinnacle` or `market`); for spreads and totals it says
+  `market` even when fewer than 3 books leave the chance empty.
+- **Props**: the median no-vig across every book quoting both sides at the consensus line, which needs at least
+  3 books. Pinnacle is one of those books when it posts the prop, with no special weight. Fewer than 3 books leaves
+  the prop with no fair chance.
+- **Anytime TD**: books post only "yes", so the fair chance is the median implied chance across books divided by
+  1.12 (a typical cut), capped at 0.95.
+
+The blend (step 4 below) prices each side at its best quote. When that quote's line isn't the prop's fair line, or
+the prop has no fair chance, the market chance comes from the first book (in the Odds API's book order) posting
+both sides of that line, with the cut split proportionally rather than by Shin (`engine/picks.py` `market_over`).
 
 ## Game-line picks (`build.py:654-756`)
 
