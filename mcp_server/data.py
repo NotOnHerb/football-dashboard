@@ -1,8 +1,8 @@
 """Where the MCP server gets its data: the repo's own files, or the published API.
 
-Default is the repo checkout: api/v1/<name>.json (the daily refresh writes it), or documents built on the spot from
-data.json with api_export.build when there is no api/v1/ or data.json was built more recently than it (so a fresh
-clone, or a local build.py run, is picked up without running api_export first).
+Default is the repo checkout, after a local build (git keeps no data files): api/v1/<name>.json, or documents built
+on the spot from data.json with api_export.build when there is no api/v1/ or data.json was built more recently than
+it (so a local build.py run is picked up without running api_export first).
 Setting FD_API_URL (for example https://notonherb.github.io/football-dashboard/api/v1) reads the published files
 instead. Files are re-read when they change on disk (local) or after REMOTE_TTL seconds (remote), so a long-running
 server does not go stale. Nothing here writes to the data.

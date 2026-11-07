@@ -9,10 +9,13 @@ on:
         description: 'Player props: auto (on schedule), all (fetch any missing this week), off'
         default: 'auto'
 
+# contents: write saves the ledgers; pages and id-token deploy the site.
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
-# One refresh at a time, so two runs never push at once. A second run waits its turn.
+# One refresh or deploy at a time, so two runs never push or deploy at once. A second run waits its turn.
 concurrency:
   group: refresh-data
   cancel-in-progress: false
@@ -20,6 +23,9 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,22 +47,34 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_PLAN: ${{ vars.ODDS_PLAN || 'free' }}
           ODDS_PROPS: ${{ github.event.inputs.props || 'auto' }}
-      # Named-field JSON for agents (api/v1/). Standard library only. A failure only warns so the site still saves and
-      # the previous api files stay; check_health.py (last step) then fails the run because api/v1 is older than data.json.
+      # Named-field JSON for agents (api/v1/). Standard library only. A failure only warns so the site still deploys
+      # (without api/v1 that day); check_health.py (last step) then fails the run.
       - name: Export the API files
-        run: python api_export.py || echo "::warning::API export failed, keeping the previous api files"
-      - name: Save the new site
+        run: python api_export.py || echo "::warning::API export failed, the site deploys without api/v1"
+      # Before the save, so a merge the save rebases onto can't mix its code into this build's site.
+      - name: Gather the site
+        run: python pages.py _site
+      # Git keeps only the ledgers; the site itself (index.html, data.json, data/, api/) deploys below. The git rm
+      # untracks any generated file main still tracks (from before the Pages deploy), so the rebase never meets one.
+      - name: Save the ledgers
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add index.html data.json data
+          git rm -r -q --cached --ignore-unmatch index.html data.json data api
           if [ -f model.json ]; then git add model.json; fi
           if [ -d cfb ]; then git add cfb; fi
           if [ -d odds ]; then git add odds; fi
-          if [ -d api ]; then git add api; fi
           git diff --staged --quiet || git commit -m "Refresh data"
+          # A merge can land during the build; the ledgers are only ever written here, so rebasing onto it is safe.
+          git pull --rebase origin main
           git push
-      # Runs after the save, so the site and pick ledgers are kept even when a section failed.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy the site
+        id: deploy
+        uses: actions/deploy-pages@v4
+      # Runs after the deploy, so the site and pick ledgers are kept even when a section failed.
       # A failure here fails the run, which notifies the owner.
       - name: Check every section built
         run: python check_health.py --require-api --require-shards

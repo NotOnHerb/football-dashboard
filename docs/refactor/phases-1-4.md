@@ -5,6 +5,11 @@ This PR is ready to merge once the Test check is green. Two things are on your s
 can merge themselves. The refresh and restamp workflows also push straight to `main`, so the required check needs to
 let them through. Let's set that one up together.
 
+**Since the Pages deploy (the PR stacked on this one):** the restamp workflow below became the deploy workflow
+(`.github/workflows/deploy.yml`), which redeploys the site with no Odds API calls. The refresh commits only the
+ledgers and deploys the rest through a Pages artifact, so after an offline build there's nothing to restore. The MCP
+example reads the published `api/v1/`. `AGENTS.md` describes the current flow.
+
 ## Where your review landed
 
 - **Knowledgebase:** `AGENTS.md` points at `docs/knowledgebase/` on `main`, and notes that it describes the
@@ -41,8 +46,8 @@ let them through. Let's set that one up together.
   first refresh builds `data/`. Until then the per-book pick lists show as unavailable; every other view works.
 - Watch the next daily refresh. It's the first time `main` builds `data/`, `api/v1/` and the section health checks.
 - To roll back: revert the merge, then dispatch Refresh once so `index.html` is restamped from the old template (the
-  restamp workflow leaves with the revert). That's the one Refresh worth its 3 credits outside the daily run. Bets saved on the new page are kept under `fd:mybets` and reappear when
-  the refactor comes back.
+  restamp workflow leaves with the revert). That's the one Refresh worth its 3 credits outside the daily run. Bets
+  saved on the new page are kept under `fd:mybets` and reappear when the refactor comes back.
 
 ## What changed
 

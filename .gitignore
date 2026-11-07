@@ -1,2 +1,9 @@
 analyst/__pycache__/
 __pycache__/
+
+# Built by the refresh and published through the Pages artifact (pages.py), never committed.
+/index.html
+/data.json
+/data/
+/api/
+/_site/

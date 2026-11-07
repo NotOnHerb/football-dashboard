@@ -1,8 +1,8 @@
-"""The build's outputs and the workflows that commit them.
+"""The build's outputs and the workflows that publish them.
 
 build.py writes data.json and the same data split into data/<shard>.json (schema/shards.py), which the page loads.
-refresh.yml must commit every output, or the site serves a stale or missing file. restamp.yml restamps index.html
-alone, offline, after a push that changes only the page's code.
+refresh.yml commits only the ledgers and deploys the site (pages.py) through a Pages artifact; deploy.yml redeploys it,
+offline, after a push that changes only the page's code. Generated files are never committed.
 """
 import glob, json, os, re, shlex, subprocess, sys
 
@@ -14,9 +14,11 @@ import replay_util  # noqa: E402
 from schema import shards  # noqa: E402
 
 REFRESH = os.path.join(ROOT, '.github', 'workflows', 'refresh.yml')
-RESTAMP = os.path.join(ROOT, '.github', 'workflows', 'restamp.yml')
-# What the refresh must commit: the page, its data (whole and split), the API files and the state files it keeps.
-OUTPUTS = {'index.html', 'data.json', 'data', 'api', 'model.json', 'cfb', 'odds'}
+DEPLOY = os.path.join(ROOT, '.github', 'workflows', 'deploy.yml')
+# What the refresh commits: the ledgers, the state the next build starts from.
+LEDGERS = {'model.json', 'cfb', 'odds'}
+# What the build generates for the site: published through the Pages artifact, never committed.
+GENERATED = {'index.html', 'data.json', 'data', 'api'}
 
 
 def test_shards_union_equals_data_json(tmp_path_factory):
@@ -91,11 +93,31 @@ def test_git_adds_parser():
     assert git_adds(s) == ['index.html', 'data.json', 'data', 'api']
 
 
-def test_refresh_commits_all_outputs():
-    saves = [s for s in script_blocks(REFRESH) if re.search(r'\bgit commit\b', s)]
+def test_refresh_commits_the_ledgers_and_deploys_the_site():
+    """The refresh gathers the site, commits exactly the ledgers (untracking any generated file main still tracks),
+    then deploys; pages.py serves every generated file."""
+    import pages
+    scripts = script_blocks(REFRESH)
+    saves = [s for s in scripts if re.search(r'\bgit commit\b', s)]
     assert len(saves) == 1, saves
-    added = set(git_adds(saves[0]))
-    assert OUTPUTS <= added, 'refresh.yml does not commit %s' % sorted(OUTPUTS - added)
+    assert set(git_adds(saves[0])) == LEDGERS
+    assert 'git rm -r -q --cached --ignore-unmatch index.html data.json data api' in saves[0].splitlines()
+    assert scripts.index('python pages.py _site') < scripts.index(saves[0])
+    assert GENERATED <= set(pages.REQUIRED + pages.OPTIONAL)
+    assert deploy_steps(REFRESH) == ['actions/upload-pages-artifact@v3', 'actions/deploy-pages@v4']
+
+
+def test_generated_files_are_not_tracked():
+    """git ignores the generated files and tracks none of them, so a local build can't commit one by accident."""
+    ignore = set(open(os.path.join(ROOT, '.gitignore'), encoding='utf-8').read().split('\n'))
+    assert {'/index.html', '/data.json', '/data/', '/api/'} <= ignore
+    tracked = subprocess.run(['git', 'ls-files', '--'] + sorted(GENERATED), cwd=ROOT, capture_output=True, text=True, check=True)
+    assert tracked.stdout == ''
+
+
+def deploy_steps(path):
+    """The Pages actions a workflow uses, in order."""
+    return re.findall(r'uses:\s*(actions/(?:upload-pages-artifact|deploy-pages)@\S+)', open(path, encoding='utf-8').read())
 
 
 def test_data_keys_name_shard_keys():
@@ -114,18 +136,17 @@ def concurrency_group(path):
     return re.search(r'^concurrency:\s*\n\s+group:\s*(\S+)', open(path, encoding='utf-8').read(), re.M).group(1)
 
 
-def test_restamp_commits_only_the_page_offline():
-    """The restamp workflow runs restamp.py and nothing that spends credits or reaches the network, commits only
-    index.html, triggers on the page's code, and queues behind (never alongside) the refresh."""
-    text = open(RESTAMP, encoding='utf-8').read()
-    scripts = script_blocks(RESTAMP)
-    saves = [s for s in scripts if re.search(r'\bgit commit\b', s)]
-    assert len(saves) == 1 and git_adds(saves[0]) == ['index.html'], saves
-    assert [s for s in scripts if s not in saves] == ['python restamp.py']
-    assert 'secrets.' not in text and 'pip install' not in text
-    assert concurrency_group(RESTAMP) == concurrency_group(REFRESH) == 'refresh-data'
+def test_deploy_redeploys_offline():
+    """The deploy workflow rebuilds the site from the published data (no build, no secrets, nothing committed),
+    triggers on the page's code, and queues behind (never alongside) the refresh."""
+    text = open(DEPLOY, encoding='utf-8').read()
+    assert script_blocks(DEPLOY) == ['python pages.py --live _site']
+    assert 'secrets.' not in text and 'pip install' not in text and 'git ' not in text
+    assert deploy_steps(DEPLOY) == ['actions/upload-pages-artifact@v3', 'actions/deploy-pages@v4']
+    assert concurrency_group(DEPLOY) == concurrency_group(REFRESH) == 'refresh-data'
     paths = re.search(r'^\s+paths:\s*\n((?:\s+- .*\n)+)', text, re.M).group(1)
-    assert [p.strip()[2:].strip("'") for p in paths.strip().split('\n')] == ['template.html', 'js/**', 'assets/**']
+    paths = {p.strip()[2:].strip("'") for p in paths.strip().split('\n')}
+    assert {'template.html', 'js/**', 'assets/**', 'pages.py', '.github/workflows/deploy.yml'} <= paths
 
 
 def test_restamp_uses_the_built_date(tmp_path):

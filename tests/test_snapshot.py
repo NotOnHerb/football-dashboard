@@ -13,8 +13,9 @@ GOLDEN = os.path.join(HERE, 'golden')
 EXPECTED = os.path.join(GOLDEN, 'expected_snapshot.json.gz')
 
 
-def run_snapshot(work):
-    """Writes the golden data.json and pick log into WORK, runs snapshot.main there, returns {file name: parsed json}."""
+def run_snapshot(work, data='data.json'):
+    """Writes the golden data.json and pick log into WORK, runs snapshot.main there on DATA (None: the published copy),
+    returns {file name: parsed json}."""
     from freezegun import freeze_time
     os.makedirs(os.path.join(work, 'odds'), exist_ok=True)
     with gzip.open(os.path.join(GOLDEN, 'expected_data.json.gz'), 'rb') as a, open(os.path.join(work, 'data.json'), 'wb') as b:
@@ -29,7 +30,7 @@ def run_snapshot(work):
     try:
         os.chdir(work)
         with freeze_time(now):
-            mod.main(os.path.join(work, 'out'))
+            mod.main(os.path.join(work, 'out'), data)
     finally:
         os.chdir(here)
     snap = os.path.join(work, 'out', 'snap')
@@ -42,6 +43,17 @@ def test_snapshot_matches_golden(tmp_path):
     assert sorted(got) == sorted(exp)
     bad = [f for f in exp if got[f] != exp[f]]
     assert not bad, 'snapshot files differ from the golden: %s' % bad
+
+
+def test_snapshot_reads_the_published_data_by_default(tmp_path, monkeypatch):
+    """With no data file named, the snapshot is made from the published data.json (git keeps none)."""
+    import pages
+    golden = json.load(gzip.open(os.path.join(GOLDEN, 'expected_data.json.gz'), 'rt', encoding='utf-8'))
+    asked = []
+    monkeypatch.setattr(pages, 'fetch_published', lambda name: asked.append(name) or golden)
+    got = run_snapshot(str(tmp_path), None)
+    assert asked == ['data.json']
+    assert got == json.load(gzip.open(EXPECTED, 'rt', encoding='utf-8'))
 
 
 if __name__ == '__main__' and sys.argv[1:] == ['bless']:

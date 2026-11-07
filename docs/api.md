@@ -6,8 +6,8 @@ the same numbers are also written with names: `api_export.py` turns `data.json` 
 
 ## The files
 
-The daily refresh runs `python api_export.py` right after `build.py` and commits `api/`, so the files are published
-next to the page: https://notonherb.github.io/football-dashboard/api/v1/index.json. Locally,
+The daily refresh runs `python api_export.py` right after `build.py` and deploys `api/` with the site (git keeps none
+of it), so the files are published next to the page: https://notonherb.github.io/football-dashboard/api/v1/index.json. Locally,
 `python api_export.py [data.json] [out_dir]` writes them (default `api/v1/`), and removes an API file from an earlier build
 that this one did not write (`picks_by_book.json`); other files in the folder are never touched, and a folder that holds a
 `data.json` is refused. The daily run's last step, `check_health.py --require-api --require-shards`, fails if `api/v1/index.json` or `data/index.json` is missing
@@ -63,7 +63,8 @@ the known books.
 
 `python -m mcp_server.server` (from the repo root; setup in `AGENTS.md` and `.mcp.json.example`) speaks MCP over stdio.
 
-Where the data comes from: the repo's `api/v1/` files by default; if that folder is missing, or `data.json` was built later
+Where the data comes from: the published files when `FD_API_URL` is set (`.mcp.json.example` sets it, since a fresh
+clone has no data files); otherwise a local build's `api/v1/` files; if that folder is missing, or `data.json` was built later
 than `api/v1/index.json` (a local `build.py` run), it builds the same documents in memory from `data.json`. Files are
 re-read when they change on disk; published files are re-fetched after 5 minutes. A network failure is an error, not an
 empty answer. Games, picks and props whose kickoff has passed are left out of `get_week_games`, `get_picks`, `get_props`,
