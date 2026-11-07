@@ -14,7 +14,7 @@ def grow(mk='spread', pt=-3, wk=9):
 
 
 def prow(mk='Rec yds', pt=50.5, gid='P1', wk=9):
-    return {'id': 'p|E1|%s|%s|%s' % (gid, mk, '' if pt is None else pt), 'k': 'p', 'wk': wk, 'tm': 'HM', 'gid': gid, 'mk': mk, 'pt': pt}
+    return {'id': 'p|E1|%s|%s|%s' % (gid, mk, '' if pt is None else pt), 'k': 'p', 'wk': wk, 'tm': 'HM', 'opp': 'AW', 'gid': gid, 'mk': mk, 'pt': pt}
 
 
 def log_row(wk, rec_yds=0, anytd=0):
@@ -64,8 +64,21 @@ def test_anytime_td_row_holds_yes():
     assert res(prow('Anytime TD', None), logs={'P1': [log_row(9, anytd=0)]}) == 'L'
 
 
-def test_player_who_did_not_play_is_void():
-    assert res(prow(), logs={'P1': [log_row(8, 80)]}) == 'V'
+def test_player_who_did_not_play_is_void_once_the_games_stats_are_in():
+    teammate = [log_row(9, 10)]                        # a teammate's week-9 row (opponent AW): the game's stats are posted
+    assert res(prow(), logs={'P1': [log_row(8, 80)], 'P2': teammate}) == 'V'
+
+
+def test_no_void_while_the_games_stats_have_not_posted():
+    """LOGMAX is the latest week of any game, so another game's week-9 rows must not void this game's props."""
+    other_game = [[9, 'ZZ'] + log_row(9, 10)[2:]]      # a week-9 row against a different opponent
+    assert res(prow(), logs={'P1': [log_row(8, 80)], 'P2': other_game}, logmax=9) is None
+    assert res(prow(), logs={'P1': [log_row(8, 80)]}) is None
+    assert res(prow(), logs={'P1': [log_row(9, 80)]}) == 'W'   # a player who has a row is graded either way
+
+
+def test_unknown_prop_market_is_left_ungraded():
+    assert res(prow('Sacks', 0.5)) is None
 
 
 def test_ungraded_until_the_score_and_stats_are_in():
@@ -111,3 +124,41 @@ def test_grade_rows_grades_each_id_once_and_skips_done():
                    'p|E1|P1|Rec yds|50.5': {'res': 'W', 'val': 80}}   # wk=None, id g|E1|spread|-3, stays ungraded
     assert lg.grade_rows(rows, finals(), logs, 9, done=out) == {}
     assert list(lg.grade_rows(rows, finals(), logs, 9, done={'g|E1|total|37.5': {'res': 'L'}})) == ['g|E1|spread|-2.5', 'p|E1|P1|Rec yds|50.5']
+
+
+# ---- real ledger rows (from the golden data.json) against the official pick grader
+
+def test_golden_ledger_rows_grade_like_the_official_picks():
+    """Rows built by ledger_rows from the golden slate, graded with invented scores and stats, agree with grade_pick on
+    every official pick in ODD.PK (mirrored when the pick took the side the row doesn't hold)."""
+    import gzip, json
+    from engine import ledger
+    O = json.load(gzip.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'golden', 'expected_data.json.gz'), 'rt', encoding='utf-8'))['ODD']
+    model = {'q': O['MQ'], 'cal': O['MC'], 'fit_at': None}
+    rows = ledger.ledger_rows(O['G'], O['P'], model, O['MB'], O['PK'], '2000-01-01T00:00')   # nothing has kicked off
+    fin = {}
+    for i, g in enumerate(O['G']):
+        asc, hsc = 17 + i % 7, 20 + (i * 3) % 11
+        fin[(g['wk'], g['a'], g['h'])] = (asc, hsc); fin[(g['wk'], g['h'])] = fin[(g['wk'], g['a'])] = (g['a'], g['h'], asc, hsc)
+    logs = {}
+    for i, p in enumerate(O['P']):
+        line = next((v[0] for v in p['b'].values() if v[0] is not None), None)
+        val = 1 if p['mk'] == 'Anytime TD' and i % 2 else 0 if p['mk'] == 'Anytime TD' else int((line or 0) + (-5 if i % 2 else 5))
+        w = next(g['wk'] for g in O['G'] if g['id'] == p['eid'])
+        row = [w, p['opp'], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        for c in (6, 7, 8, 9, 10, 11): row[c] = val
+        logs[p['gid']] = [row]
+    out = lg.grade_rows(rows, fin, logs, 99)
+    assert out and all(r['id'] in out for r in rows if r['k'] == 'g')   # every game row is graded
+    checked = 0
+    pk = {x['id']: x for x in O['PK']}
+    for r in rows:
+        if not r['pick']: continue
+        pid = ('g|%s|%s|%s' % (r['eid'], r['mk'], r['sd'])) if r['k'] == 'g' else ('p|%s|%s|%s|%s' % (r['eid'], r['gid'], r['mk'], r['sd']))
+        pick = dict(pk[pid]); pick.pop('res', None)
+        grading.grade_pick(pick, fin, logs, 99)
+        if r['id'] not in out:
+            assert pick.get('res') in (None, 'V'); continue
+        assert pick['res'] == lg.side_result(out[r['id']]['res'], r['sd'] in ledger.HOME_SIDES), pid
+        checked += 1
+    assert checked

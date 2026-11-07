@@ -8,7 +8,7 @@ and an official pick at the same line always get the same result.
 
 FINALS, LOGS and LOGMAX are the same as in engine.grading (build.py builds them from nflverse scores and data.json LOG).
 """
-from engine.grading import grade_pick
+from engine.grading import STAT, grade_pick
 
 HOME_GAME_SIDE = {'spread': 'hs', 'total': 'ov', 'ml': 'mh'}   # the side whose chance a game row holds (ledger HOME_SIDES)
 FLIP = {'W': 'L', 'L': 'W', 'P': 'P', 'V': 'V'}
@@ -21,17 +21,27 @@ def _rec(row):
         sd = HOME_GAME_SIDE.get(row['mk'])
         if sd is None: return None
         return {'k': 'g', 'wk': row['wk'], 'a': row['a'], 'h': row['h'], 'mk': row['mk'], 'sd': sd, 'pt': row['pt']}
+    if row['mk'] not in STAT: return None
     return {'k': 'p', 'wk': row['wk'], 'tm': row['tm'], 'gid': row['gid'], 'mk': row['mk'],
             'sd': 'y' if row['mk'] == 'Anytime TD' else 'o', 'pt': row['pt']}
 
 
-def grade_row(row, finals, logs, logmax):
+def posted_games(logs):
+    """The (week, opponent) pairs that have player rows in LOGS: a team's stats for a week are in once any of its
+    players has a row, and every one of its players who played has one (all-zero lines included)."""
+    return {(r[0], r[1]) for rows in logs.values() for r in rows}
+
+
+def grade_row(row, finals, logs, logmax, posted=None):
     """The result for ROW's held side: {'res': 'W'|'L'|'P'|'V'} plus 'fin' [away, home] (games) or 'val' (the player's
-    stat; props), or None while the score or that week's stats aren't in yet."""
+    stat; props), or None while the score or that week's stats aren't in yet. A prop is void only once its game's
+    stats are in (POSTED, from posted_games(LOGS)): LOGMAX is the latest week of any game, so one early game's stats
+    would otherwise void every prop of a final game whose stats haven't posted."""
     rec = _rec(row)
     if rec is None: return None
     grade_pick(rec, finals, logs, logmax)
     if rec.get('res') is None: return None
+    if rec['res'] == 'V' and (row['wk'], row['opp']) not in (posted_games(logs) if posted is None else posted): return None
     out = {'res': rec['res']}
     if 'fin' in rec: out['fin'] = rec['fin']
     if 'val' in rec: out['val'] = rec['val']
@@ -41,11 +51,11 @@ def grade_row(row, finals, logs, logmax):
 def grade_rows(rows, finals, logs, logmax, done=None):
     """Results for every row in ROWS that can be graded now: {row id: result}. Rows whose id is already in DONE (an
     earlier results dict) are left alone, and rows sharing an id are graded once."""
-    out = {}
+    out = {}; posted = posted_games(logs)
     for row in rows:
         rid = row['id']
         if rid in out or (done and rid in done): continue
-        res = grade_row(row, finals, logs, logmax)
+        res = grade_row(row, finals, logs, logmax, posted)
         if res is not None: out[rid] = res
     return out
 
