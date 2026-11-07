@@ -25,7 +25,7 @@ Both outputs are written to the paths given (nothing inside the repo by default)
 so run order and --since don't matter: a re-run adds no duplicate ids, keeps existing results, moves a first snapshot only
 to a strictly smaller (snapshot_ts, built, commit_at, content) and a last one only to a strictly larger; the merged
 ledger is the same whatever order the rows arrive in. Outputs written by earlier versions of this script stamped props with
-ODD.pat and have no 'built' field: a run that finds such a ledger refuses (exit 1, nothing written); regenerate both
+ODD.pat and have no 'built' or 'commit_at' field: a run that finds such a ledger refuses (exit 1, nothing written); regenerate both
 outputs from empty paths. A commit that
 can't be read or priced is skipped with a one-line reason; the run never aborts on one. If data.json at REF has no finals
 (ODD.FIN) or no weekly stats (LOG), the run warns on stderr, writes nothing and exits 1.
@@ -100,8 +100,8 @@ def replay(shas, load, log=print):
 
 def merge_rows(ledger, rows):
     """Merge ROWS into LEDGER ({id: {'first', 'last'}}) in place. A new id starts with first == last; an existing id's first
-    moves only to a strictly smaller (snapshot_ts, built) and its last only to a strictly larger one (a row without 'built'
-    counts as built at its snapshot_ts). So first is the smallest pair and last the largest of everything merged, whatever
+    moves only to a strictly smaller (snapshot_ts, built, commit_at, content) and its last only to a strictly larger one (a row
+    without 'built' counts as built at its snapshot_ts). So first is the smallest key and last the largest of everything merged, whatever
     order the rows arrive in or the --since of an earlier run, and a repeat changes nothing. Returns (new ids, moved
     firsts and lasts)."""
     new = moved = 0
@@ -184,16 +184,17 @@ class StaleOutput(Exception):
 
 
 def backfill(repo, since, ref, ledger_out, results_out, log=print):
-    """Replay, merge and grade; writes both files. Returns a summary dict. Raises NothingToGrade, before writing anything,
-    when data.json at REF has no ODD.FIN or no LOG."""
+    """Replay, merge and grade; writes both files. Returns a summary dict. Before writing anything, raises NothingToGrade
+    when data.json at REF has no ODD.FIN or no LOG, and StaleOutput when an existing ledger lacks 'built' or 'commit_at'."""
     data = json.loads(_git(repo, 'show', ref + ':data.json'))
     fin = (data.get('ODD') or {}).get('FIN'); stats = data.get('LOG')
     if not fin or not stats:
         raise NothingToGrade('data.json at %s has no %s: nothing to grade with; pass a --ref whose build finished' % (
             ref, ' or '.join(k for k, v in (('finals (ODD.FIN)', fin), ('weekly stats (LOG)', stats)) if not v)))
     ledger = _read(ledger_out); results = _read(results_out)
-    if any('built' not in e[part] for e in ledger.values() for part in ('first', 'last')):
-        raise StaleOutput('%s was written by an earlier version of this script (rows without "built", props stamped with ODD.pat): '
+    if any(not isinstance(e, dict) or not all(isinstance(e.get(part), dict) and e[part].get('built') and e[part].get('commit_at')
+                                              for part in ('first', 'last')) for e in ledger.values()):
+        raise StaleOutput('%s was written by an earlier version of this script (rows without "built" or "commit_at", props stamped with ODD.pat): '
                           'nothing written; regenerate %s and %s from empty paths' % (ledger_out, ledger_out, results_out))
     shas = commits_touching(repo, since, ref)
     rows, parsed, skipped, fallbacks = replay(shas, make_loader(repo), log)

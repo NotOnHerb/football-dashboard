@@ -150,14 +150,20 @@ def test_tied_snapshot_and_build_order_by_commit_time_then_content():
     assert _merged(a, b) == _merged(b, a) and bf.merge_rows(_merged(a, b), b + a) == (0, 0)
     c = at('2026-11-02T11:00:00+00:00', 'fit-C')                         # tied on commit time too: the content decides, the same either way
     assert _merged(a, c) == _merged(c, a)
-    legacy = [{k: v for k, v in r.items() if k != 'commit_at'} for r in a]   # no commit_at sorts before any commit time
-    led = _merged(b, legacy)
-    assert all(e['first'].get('commit_at') is None and e['last']['commit_at'] == '2026-11-02T11:05:00+00:00' for e in led.values())
 
 
 def test_a_ledger_from_an_earlier_version_is_refused_and_nothing_is_written(tmp_path):
     repo = make_repo(tmp_path); led = tmp_path / 'old_ledger.json'; res = tmp_path / 'old_results.json'
-    row = {k: v for k, v in bf.snapshot_rows(odd('2026-11-02T10:52'), tl.MODEL)[0].items() if k not in ('built', 'commit_at')}
+    full = bf.snapshot_rows(odd('2026-11-02T10:52'), tl.MODEL, {}, '2026-11-02T11:00:00+00:00')[0]
+    for drop in (('built', 'commit_at'), ('commit_at',)):                # no build stamp, or built but no commit time (the 8a14874 format)
+        row = {k: v for k, v in full.items() if k not in drop}
+        led.write_text(json.dumps({row['id']: {'first': row, 'last': row}})); res.write_text('{}')
+        try: bf.backfill(repo, '2026-10-27', 'HEAD', str(led), str(res), log=lambda s_: None); raise AssertionError('should have refused')
+        except bf.StaleOutput: pass
+    led.write_text(json.dumps({'x': 'not an entry'}))                    # a hand-edited entry is refused, not a traceback
+    try: bf.backfill(repo, '2026-10-27', 'HEAD', str(led), str(res), log=lambda s_: None); raise AssertionError('should have refused')
+    except bf.StaleOutput: pass
+    row = {k: v for k, v in full.items() if k not in ('built', 'commit_at')}
     led.write_text(json.dumps({row['id']: {'first': row, 'last': row}})); res.write_text('{}')
     before = (led.read_bytes(), res.read_bytes())
     try: bf.backfill(repo, '2026-10-27', 'HEAD', str(led), str(res), log=lambda s_: None); raise AssertionError('should have refused')
