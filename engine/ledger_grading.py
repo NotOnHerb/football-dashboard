@@ -4,7 +4,12 @@ A ledger row holds the chance of one side only (over, yes, home), so each row is
 the model leaned: 'W' means the over/yes/home side won, 'L' that it lost, 'P' a push, 'V' void (the player didn't
 play). The other side's result is the mirror image (W and L swap; P and V stay). The result is keyed by the row id,
 so the same line seen at several refreshes is graded once. Grading reuses engine.grading.grade_pick, so a ledger row
-and an official pick at the same line always get the same result.
+and an official pick at the same line get the same result, with one difference: grade_pick voids a prop as soon as any
+game that week has stats, and a ledger row waits (stays ungraded) until its own game's stats are in.
+
+Known limit: a player with no row in LOG for a final game grades 'V'. If nflverse weekly stats omit players who played
+but recorded no stat, those zero-stat overs and yes bets are voided instead of lost, which flatters the over side. Keep
+'V' out of calibration (score only W/L/P rows) and compare the void rate by market before trusting a calibration number.
 
 FINALS, LOGS and LOGMAX are the same as in engine.grading (build.py builds them from nflverse scores and data.json LOG).
 """
