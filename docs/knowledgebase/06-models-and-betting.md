@@ -24,19 +24,23 @@ Parts of the pick logic are re-implemented in `template.html` (single-book views
 
 ## Fair odds (`build.py:539-551` games, `build.py:612-623` props)
 
-All no-vig chances use Shin's method (`engine/odds.py`).
+The no-vig chances below use Shin's method (`engine/odds.py` `no_vig_shin`); Anytime TD and the blend's off-line
+fallback are the exceptions noted below.
 
-- **Game lines** (spread, total, moneyline): Pinnacle no-vig when Pinnacle posts the market. Otherwise the median
-  no-vig of the other books, which needs at least 3 books (at the consensus line for spreads and totals).
-  `fair.ref` records which source each market used (`Pinnacle` or `market`).
+- **Game lines** (spread, total, moneyline): Pinnacle no-vig when Pinnacle posts the market, at Pinnacle's own line
+  (which can differ from the consensus line; `game_ev` then moves the chance to the line being priced). Otherwise
+  the median no-vig of the other books, which needs at least 3 books (at the consensus line for spreads and totals).
+  `fair.ref` records which source each market used (`Pinnacle` or `market`); for spreads and totals it says
+  `market` even when fewer than 3 books leave the chance empty.
 - **Props**: the median no-vig across every book quoting both sides at the consensus line, which needs at least
   3 books. Pinnacle is one of those books when it posts the prop, with no special weight. Fewer than 3 books leaves
   the prop with no fair chance.
 - **Anytime TD**: books post only "yes", so the fair chance is the median implied chance across books divided by
   1.12 (a typical cut), capped at 0.95.
 
-When a prop's best price is on a line other than the consensus line, the blend (step 4 below) uses the first book
-posting both sides of that line, with the cut split proportionally (`engine/picks.py` `market_over`).
+The blend (step 4 below) prices each side at its best quote. When that quote's line isn't the prop's fair line, or
+the prop has no fair chance, the market chance comes from the first book (in the Odds API's book order) posting
+both sides of that line, with the cut split proportionally rather than by Shin (`engine/picks.py` `market_over`).
 
 ## Game-line picks (`build.py:654-756`)
 
