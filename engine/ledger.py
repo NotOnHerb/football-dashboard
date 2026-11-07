@@ -11,7 +11,8 @@ so no event is logged twice. Each row carries the forecasts to score head to hea
                     'book'    one book posting both sides of this line, cut split proportionally (market_over)
                     'td'      anytime TD: median implied chance / 1.12
             games   'Pinnacle' or 'market' (game 'fair.ref'); '+adj' when this line is off the fair line and the
-                    chance is moved the way game_ev moves it (then pf_n counts the books posting this line)
+                    chance is moved the way game_ev moves it (pf_n still counts the books
+                    behind the fair chance; line_n counts the books posting this line, games only)
   pin     Pinnacle's no-vig chance (Shin) when Pinnacle posts both sides of this line, else None
   P       the blended chance the dashboard uses, blend * pm + (1 - blend) * pf (props only; games aren't blended)
   o, u    the best {'pr','bk'} for the over/yes/home side and the under/away side at this line (u is None for TD)
@@ -118,7 +119,8 @@ def game_rows(game, pick_pts, stamps):
             row = {'id': 'g|%s|%s|%s' % (g['id'], mk, _key(pt)), 'k': 'g', 'eid': g['id'], 'wk': g['wk'], 't': g['t'], 'a': g['a'], 'h': g['h'],
                    'mk': mk, 'pt': pt, 'pm': _r(g['mod']['wp']) if mk == 'ml' and g.get('mod') else None, 'pf': _r(pf),
                    'pf_src': None if src is None else src + ('+adj' if moved else ''),
-                   'pf_n': 0 if src is None else len(at1) if moved else 1 if src == 'Pinnacle' else fair_n,
+                   'pf_n': 0 if src is None else 1 if src == 'Pinnacle' else fair_n,
+                   'line_n': fair_n if mk == 'ml' else len(at1 | at2),
                    'pin': _r(pv), 'P': None, 'o': _price(best_game_quote(g, s1, at1)), 'u': _price(best_game_quote(g, s2, at2))}
             if x and x_pt == pt:
                 _scored(row, x, pick_pts.get('g|%s|%s|%s' % (g['id'], mk, x['k'])))

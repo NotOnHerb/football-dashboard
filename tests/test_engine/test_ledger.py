@@ -169,6 +169,7 @@ def test_golden_slate_rows_are_unique_and_match_prop_side():
     assert len(ids) == len(set(ids))   # no row written twice
     rid = by_id(rows); checked = 0
     for p in O['P']:
+        if picks.started(p['ko'], datetime.datetime.fromisoformat(O['at'])): continue   # no rows once it kicked off
         x = picks.prop_side(p, model, O['MB'])
         if not x: continue
         r = rid['p|%s|%s|%s|%s' % (p['eid'], p['gid'], p['mk'], '' if x['q']['pt'] is None or x['sd'] == 'y' else x['q']['pt'])]
@@ -202,9 +203,10 @@ def test_events_started_by_the_snapshot_are_left_out():
     assert not ledger.ledger_rows([g], [p], MODEL, .5, [], TS)   # a stamp without a zone is read as UTC
 
 
-def test_moved_game_chance_counts_books_at_its_own_line():
+def test_game_rows_count_fair_books_and_books_at_the_line():
     b = {'X': {'s': [-3, 110, 3, -125]}, 'Y': {'s': [-3, 105, 3, -120]}, 'Z': {'s': [-3.5, 100, 3.5, -120]},
          'W': {'s': [-3.5, 102, 3.5, -122]}, 'V': {'s': [-3.5, 101, 3.5, -121]}}
     rows = by_id(rows_for([game(b=b, fair={'ref': {'s': 'market'}, 's': [-3.5, .48]})], [])[0])
     assert (rows['g|E1|spread|-3.5']['pf_src'], rows['g|E1|spread|-3.5']['pf_n']) == ('market', 3)
-    assert (rows['g|E1|spread|-3']['pf_src'], rows['g|E1|spread|-3']['pf_n']) == ('market+adj', 2)
+    assert (rows['g|E1|spread|-3']['pf_src'], rows['g|E1|spread|-3']['pf_n']) == ('market+adj', 3)   # the fair chance's books
+    assert (rows['g|E1|spread|-3.5']['line_n'], rows['g|E1|spread|-3']['line_n']) == (3, 2)           # the books at each line
