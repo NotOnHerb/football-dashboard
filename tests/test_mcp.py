@@ -285,6 +285,16 @@ def college_pick(data, **kw):
     return dict(base, **kw)
 
 
+def test_explain_unpriced_college_pick_says_the_price_was_not_checked(data, tmp_path):
+    from engine import rules as R
+    cp = college_pick(data, s=2, gap=1.5, pr=None)
+    priced = college_pick(data, id='c|2|hs', s=2, gap=1.5, pr=-110)
+    s = server_with(data, tmp_path, cfb_pk=[cp, priced], cfb_lg=[])
+    text = ' '.join(call(s, 'explain_pick', pick_id=cp['id'])['reasons'])
+    assert 'n/a' in text and 'could not be checked' in text and '%+d' % R.COLLEGE_UNPRICED_PRICE in text
+    assert 'could not be checked' not in ' '.join(call(s, 'explain_pick', pick_id=priced['id'])['reasons'])
+
+
 def test_explain_college_pick_uses_the_college_rules(data, tmp_path):
     from engine import rules as R
     cp = college_pick(data, s=1, gap=1.2)
