@@ -17,7 +17,8 @@ CODE = ['build.py', 'sources.py', 'restamp.py', 'template.html']
 CODE_DIRS = ['schema', 'engine', 'js', 'assets']   # packages build.py imports, and the page's scripts and styles
 # repo files the build reads (and the daily refresh keeps changing), frozen at record time
 STATE = ['model.json', 'boards/*.csv', 'odds/*.json', 'odds/props/*.json', 'cfb/fetch_log.txt',
-         'cfb/games_{s}.json', 'cfb/games_{p}.json', 'cfb/lines_{s}.json']
+         'cfb/games_{s}.json', 'cfb/games_{p}.json', 'cfb/lines_{s}.json',
+         'cfb/games_2023.json', 'cfb/games_2024.json', 'cfb/lines_2023.json', 'cfb/lines_2024.json', 'cfb/lines_2025.json']   # the last five: the college backtest's seasons (engine.college.BACKTEST_SEASONS)
 
 
 def key(url):
