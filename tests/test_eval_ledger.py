@@ -103,7 +103,7 @@ def test_too_few_games_gives_no_interval():
 def test_unfittable_rows_do_not_crash():
     rows = [dict(r, pm=r['pf']) for r in simulate(games=30, per_game=10, seed=12)]   # no gap: the weight can't be fit
     w = ev.weight(rows, boot=20)
-    assert w['c'] is None and w['lo'] is None and w['failed'] == 20
+    assert w['c'] is None and w['lo'] is None and w['fit_failed'] and w['failed'] == 0
     assert ev.report(rows, boot=20)['weight']['c'] is None
 
 
@@ -119,3 +119,29 @@ def test_latest_before_kickoff_keeps_one_row_per_line():
             dict(r, id='p|E1|P1|Rec yds|61.5', snapshot_ts='2026-11-06T10:52:00+00:00')]
     kept = ev.latest_before_kickoff(rows)
     assert [(x['id'], x['pf']) for x in kept] == [('p|E1|P1|Rec yds|60.5', .5), ('p|E1|P1|Rec yds|61.5', .5)]
+
+
+def test_many_failed_resamples_give_no_interval(monkeypatch):
+    real = ev._fit; calls = []
+    def flaky(X, y, iters=50):
+        calls.append(1)
+        return real(X, y, iters) if len(calls) == 1 or len(calls) % 10 else None   # every tenth resample fails
+    monkeypatch.setattr(ev, '_fit', flaky)
+    w = ev.weight(simulate(games=40, per_game=20, seed=14), boot=50)
+    assert w['c'] is not None and w['failed'] == 5 and w['lo'] is None and not w['fit_failed']
+
+
+def test_a_failed_main_fit_is_not_counted_as_resamples():
+    rows = [dict(r, pm=r['pf']) for r in simulate(games=5, per_game=10, seed=15)]
+    w = ev.weight(rows, boot=20)
+    assert w['fit_failed'] and w['failed'] == 0 and w['c'] is None
+
+
+def test_command_line_keeps_one_snapshot_per_line(tmp_path, capsys, monkeypatch):
+    import json
+    r = {'id': 'g|E1|ml|', 'eid': 'E1', 't': '2026-11-08T18:00:00Z', 'pm': .6, 'pf': .5, 'P': .55, 'y': 1}
+    path = tmp_path / 'graded.jsonl'
+    path.write_text('\n'.join(json.dumps(dict(r, snapshot_ts=ts)) for ts in ('2026-11-06T10:52:00+00:00', '2026-11-07T10:52:00+00:00')))
+    monkeypatch.setattr(sys, 'argv', ['eval_ledger.py', str(path)])
+    ev.main()
+    assert json.loads(capsys.readouterr().out)['scores']['n'] == 1

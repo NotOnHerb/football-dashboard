@@ -8,7 +8,7 @@ against the market?
     ev.reliability(rows, 'P')                       # forecast buckets: average chance said vs share that happened
     ev.weight(rows)                                 # the model's fitted weight, with a game-clustered interval
 
-    python analyst/eval_ledger.py graded.jsonl ...  # the same report from JSON Lines files of graded rows
+    python analyst/eval_ledger.py graded.jsonl ...  # latest_before_kickoff, then report, on JSON Lines files
 
 A graded row is a ledger row plus its outcome for the side the row holds (the over, yes, or home side): 'y' (1 or 0)
 or 'res' ('W' or 'L'; a push 'P' or void 'V' is left out). That is never the pick log's result, which grades the
@@ -29,6 +29,8 @@ import numpy as np
 
 EPS = 1e-4       # chances are kept inside [EPS, 1 - EPS] for log loss and log-odds
 MIN_GAMES = 20   # fewer games than this gives no interval: a resample of a handful of games says little
+MAX_FAILED = .05 # more failed resamples than this share gives no interval (failures sit near separation, so
+                 # dropping them would narrow it)
 
 
 def outcome(row):
@@ -151,21 +153,23 @@ def _fit(X, y, iters=50):
 def weight(rows, boot=1000, seed=0, min_games=MIN_GAMES):
     """The model's weight: fits y ~ a + b * logit(pf) + c * (logit(pm) - logit(pf)) on usable rows. Returns a, b
     (1 when the market is calibrated), c (the model's weight), a 95% game-clustered bootstrap interval for c (None
-    under MIN_GAMES games) and how many resamples couldn't be fit ('failed'; those are left out of the interval)."""
+    under MIN_GAMES games, or when more than MAX_FAILED of the resamples can't be fit), how many resamples couldn't
+    be fit ('failed') and whether the fit on all rows failed ('fit_failed')."""
     R = usable(rows); g, n_games = _games(R)
-    none = {'n': len(R), 'games': n_games, 'a': None, 'b': None, 'c': None, 'lo': None, 'hi': None, 'failed': 0}
+    none = {'n': len(R), 'games': n_games, 'a': None, 'b': None, 'c': None, 'lo': None, 'hi': None, 'failed': 0, 'fit_failed': False}
     if len(R) < 3: return none
     y = np.array([outcome(r) for r in R], dtype=float)
     lm = _logit([r['pf'] for r in R]); gap = _logit([r['pm'] for r in R]) - lm
     X = np.column_stack([np.ones(len(R)), lm, gap])
     beta = _fit(X, y)
-    if beta is None: return dict(none, failed=boot)
+    if beta is None: return dict(none, fit_failed=True)
     a, b, c = beta; lo = hi = None; failed = 0
     if n_games >= min_games:
         fits = [_fit(X[i], y[i]) for i in _resamples(g, n_games, boot, np.random.default_rng(seed))]
         cs = [f[2] for f in fits if f is not None]; failed = len(fits) - len(cs)
-        if cs: lo, hi = _interval(cs)
-    return {'n': len(R), 'games': n_games, 'a': float(a), 'b': float(b), 'c': float(c), 'lo': lo, 'hi': hi, 'failed': failed}
+        if cs and failed <= MAX_FAILED * len(fits): lo, hi = _interval(cs)
+    return {'n': len(R), 'games': n_games, 'a': float(a), 'b': float(b), 'c': float(c), 'lo': lo, 'hi': hi, 'failed': failed,
+            'fit_failed': False}
 
 
 def report(rows, boot=1000, seed=0, bins=10, min_games=MIN_GAMES):
@@ -182,6 +186,10 @@ def read_jsonl(paths):
     return rows
 
 
-if __name__ == '__main__':
+def main():
     if len(sys.argv) < 2: sys.exit('usage: python analyst/eval_ledger.py graded.jsonl [more.jsonl ...]')
-    print(json.dumps(report(read_jsonl(sys.argv[1:])), indent=1))
+    print(json.dumps(report(latest_before_kickoff(read_jsonl(sys.argv[1:]))), indent=1))
+
+
+if __name__ == '__main__':
+    main()
