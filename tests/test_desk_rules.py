@@ -3,7 +3,7 @@
 desk.html carries a generated copy of the prompt between markers; `python analyst/desk_rules.py` rewrites it.
 If someone changes a threshold in engine/rules.py (or edits the block by hand) and does not regenerate, this fails.
 """
-import copy, os, sys
+import copy, os, re, sys
 
 import pytest
 
@@ -42,12 +42,13 @@ def test_changing_a_rule_changes_the_desk_prompt():
     assert block != base and base == desk_rules.current_block(desk_html())
     assert 'no TD picks above +350; no moneylines above +200 or below -250' in block
     assert 'by 5+ points (I), 8+ (II), 12.5+ (III)' in block   # a fractional tier is not rounded
-    assert 'a pick needs level II,' in block
+    assert 'a pick needs level %s,' % desk_rules._ROMAN[r['pick']] in block
 
 
 def test_hand_edit_of_the_block_is_caught():
     html = desk_html()
-    edited = html.replace('no TD picks above +300', 'no TD picks above +400')
+    now = 'no TD picks above ' + desk_rules._price(RULES['tdmax'])
+    edited = html.replace(now, 'no TD picks above ' + desk_rules._price(RULES['tdmax'] + 50))
     assert edited != html and desk_rules.current_block(edited) != desk_rules.desk_block()
 
 
@@ -61,4 +62,5 @@ def test_a_pick_rule_the_sentence_cannot_state_is_refused():
 def test_one_generated_block_and_one_rules_assignment():
     html = desk_html()
     assert html.count(desk_rules.BEGIN) == 1 and html.count(desk_rules.END) == 1
-    assert html.count('var RULES=') == 1 and html.count('RULES=') == 1   # no second assignment that overrides the block
+    writes = re.findall(r'\bRULES\s*(\+?=)(?!=)', html)
+    assert writes == ['='] and html.count('var RULES=') == 1   # no second assignment or += that changes the block's prompt
