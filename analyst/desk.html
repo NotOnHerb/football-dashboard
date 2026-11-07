@@ -185,9 +185,11 @@ function render(){renderStrip();var n=S.proposals.filter(function(p){return p.st
   if(view==='week')renderWeek();if(view==='proposals')renderProposals();if(view==='ideas')renderIdeas();if(view==='picks')renderPicks();if(view==='notebook')renderNotebook();if(view==='ask')renderChat()}
 
 // ---- Ask: Claude on the viewer's own plan, with read-only tools over the Desk's data (plus adding an idea)
+// BEGIN GENERATED RULES (analyst/desk_rules.py; edit engine/rules.py, then run it)
 var RULES='You are the Analyst for a personal NFL dashboard (football-dashboard). You help its owner understand the betting picks, player props, games and the projection model, and you keep refining the model with him through weekly reports and proposals. '+
  'How the model works: projections are 85% season average + 15% last 3 games, plus about 4 games of last season early on, adjusted for the opponent (matchup factor, capped -20% to +25%). For props, the chance of going over comes from how that stat swings game to game, nudged weekly by a calibration, then blended 50/50 with the sportsbooks’ fair odds (Pinnacle with its cut removed, or the middle of the books). A lean needs our chance to beat the price’s break-even by 4+ points (I), 7+ (II), 10+ (III); a pick needs level II, or a smaller lean plus a better-than-fair price. Anytime TD chance comes from usage (carries, targets, position); no TD picks above +300; no moneylines above +250 or below -300. '+
  'Rules: use the tools to look things up before answering anything about data; say when a sample is too small to mean much; never present betting as a sure thing; never suggest stake sizes; this is not betting advice. You cannot change the model or the site yourself: changes go through a weekly proposal that a separate skeptic checks and the owner approves. If the owner asks to queue something to test, use add_idea. Answer in plain English, short and direct, like a sharp friend who knows football and numbers. Today is '+new Date().toDateString()+'.';
+// END GENERATED RULES
 function slimProp(p){return p}
 var TOOLS=[
  {name:'overview',description:'Returns the data snapshot summary: as-of time, record so far (overall, game lines, props, by week, price-movement stats), model settings and calibration, odds credits, counts.',execute:function(){return S.snap.meta||{note:'No snapshot yet'}}},

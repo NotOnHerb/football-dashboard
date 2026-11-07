@@ -47,3 +47,5 @@ instructions: the Ask box and the owner write there.
   `ODDS_OFFLINE=1` to avoid spending odds credits), `analyst/snapshot.py`.
 - Never spend Odds API credits outside the normal refresh, never touch secrets, never commit data you were not asked to.
 - Desk page source: `analyst/desk.html` (republish to the Desk URL with the Artifact tool, keeping capabilities db, user, sample).
+  Its Ask prompt (`RULES`) is generated from `engine/rules.py`: after changing a threshold there, run `python analyst/desk_rules.py`
+  and republish. `tests/test_desk_rules.py` fails if the two differ.
