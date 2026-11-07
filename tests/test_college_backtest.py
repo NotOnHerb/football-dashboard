@@ -81,6 +81,13 @@ def test_a_season_with_too_few_bets_is_refused_not_published():
     college.backtest_seasons(read_fixture)   # the full files pass
 
 
+def test_a_stricter_strategy_is_not_mistaken_for_incomplete_files(monkeypatch):
+    monkeypatch.setattr(college, 'COLLEGE_GAP_MIN', 1.5)
+    monkeypatch.setattr(college, 'COLLEGE_MIN_BOOKS', 4)
+    bt = college.backtest_seasons(read_fixture)   # fewer bets from the same files; must not raise
+    assert sum(bt['record']) < 314 + 249
+
+
 def test_the_record_follows_the_strategy(monkeypatch):
     g, l = read_fixture('games', 2025), read_fixture('lines', 2025)
     base = sum(college.backtest(g, l)['record'])
@@ -89,7 +96,6 @@ def test_the_record_follows_the_strategy(monkeypatch):
     monkeypatch.setattr(college, 'COLLEGE_GAP_MAX', 3)
     monkeypatch.setattr(college, 'COLLEGE_MIN_BOOKS', 4)
     assert sum(college.backtest(g, l)['record']) < base
-    monkeypatch.setattr(college, 'MIN_BETS_PER_SEASON', 0)   # a stricter rule leaves fewer bets than the real-data floor
     assert college.backtest_seasons(read_fixture, (2025,))['rule'] == 'with 4+ books, one book 1 to 3 points off the others'
 
 

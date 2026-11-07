@@ -667,6 +667,7 @@ CFB=None
 try:
     import statistics as _st2
     from engine.college import CFBD_BOOKS, backtest_seasons, best_number
+    BT=backtest_seasons(lambda kind,y:json.load(open('cfb/%s_%d.json'%(kind,y),encoding='utf-8')))   # first, so a refusal stops the section before picks reach the log; the record behind the page's "this rule's record"
     _now=datetime.datetime.now(datetime.timezone.utc)
     _start=lambda s:datetime.datetime.fromisoformat(s.replace('Z','+00:00'))
     cg=[g for g in json.load(open('cfb/games_%d.json'%SEASON)) if g['homeClassification']=='fbs' and g['awayClassification']=='fbs']
@@ -746,7 +747,6 @@ try:
         r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(decimal(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
     if not os.environ.get('ODDS_OFFLINE'): json.dump(CLOG,open(cpf,'w'))
     cd=[r for r in CLOG.values() if r.get('res')]
-    BT=backtest_seasons(lambda kind,y:json.load(open('cfb/%s_%d.json'%(kind,y),encoding='utf-8')))   # the record behind the page's "this rule's record"
     CFB={'G':CG,'PK':CP,'LG':sorted(CLOG.values(),key=lambda r:r['t'],reverse=True)[:200],
          'REC':{'w':sum(r['res']=='W' for r in cd),'l':sum(r['res']=='L' for r in cd),'p':sum(r['res']=='P' for r in cd),'u':round(sum(r['u'] for r in cd),2)},
          'BT':BT,
