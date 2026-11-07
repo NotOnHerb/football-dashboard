@@ -696,6 +696,7 @@ try:
         return None,False
     wks=sorted({g['week'] for g in upcoming})[:2]
     CG=[];CP=[]
+    COLLEGE_UNPRICED=-110   # units for a pick with no posted price are figured at this price, the one the backtest assumed
     for g in sorted([g for g in upcoming if g['week'] in wks],key=lambda g:g['startDate']):
         x=cl.get(g['id']) or {'lines':[]}; ls=[l for l in x['lines'] if l['provider'] in BKN]
         books={}
@@ -731,8 +732,8 @@ try:
             d,bn,s0=best
             if COLLEGE_GAP_MIN<=abs(d)<COLLEGE_GAP_MAX:
                 sd='hs' if d>0 else 'as'; pt=s0 if sd=='hs' else -s0
-                vv=books[bn]; prc=(vv[5] if sd=='hs' else vv[6]) if len(vv)>6 else None; prc=prc if prc is not None else -110
-                ok_price=prc>=COLLEGE_MIN_PRICE   # a better number at a worse price gives the edge back (the backtest assumed about -110)
+                vv=books[bn]; prc=(vv[5] if sd=='hs' else vv[6]) if len(vv)>6 else None   # None: this book's feed has no spread price (CollegeFootballData's has none); the page shows no price
+                ok_price=prc is None or prc>=COLLEGE_MIN_PRICE   # a better number at a worse price gives the edge back (the backtest assumed about -110); with no price there is nothing to check
                 oth=_st2.median([w[0] for b2,w in books.items() if b2!=bn and w[0] is not None])
                 if ok_price: CP.append({'id':'c|%s|%s'%(g['id'],sd),'k':'c','gid':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'sd':sd,'pt':pt,'pr':prc,'bk':bn,'gap':round(abs(d),1),'others':round(oth if sd=='hs' else -oth,1),'s':COLLEGE_STRONG_SCORE if abs(d)>=COLLEGE_GAP_STRONG else COLLEGE_MIN_SCORE,'lines':{b2:(w[0] if sd=='hs' else -w[0]) for b2,w in books.items() if w[0] is not None}})
                 if ok_price: row['pick']=CP[-1]['id']
@@ -747,7 +748,7 @@ try:
     for r_ in CLOG.values():
         if r_.get('res') is not None or r_['gid'] not in fin: continue
         ap,hp=fin[r_['gid']]; c_=((hp-ap) if r_['sd']=='hs' else (ap-hp))+r_['pt']
-        r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(decimal(r_['pr'])-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
+        r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(decimal(r_['pr'] if r_['pr'] is not None else COLLEGE_UNPRICED)-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
     if not os.environ.get('ODDS_OFFLINE'): json.dump(CLOG,open(cpf,'w'))
     cd=[r for r in CLOG.values() if r.get('res')]
     CFB={'G':CG,'PK':CP,'LG':sorted(CLOG.values(),key=lambda r:r['t'],reverse=True)[:200],
