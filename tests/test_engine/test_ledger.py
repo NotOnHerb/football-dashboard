@@ -183,3 +183,28 @@ def test_ledger_rows_are_json_and_deterministic():
     O, model = golden()
     a = ledger.ledger_rows(O['G'], O['P'], model, O['MB'], O['PK'], O['at'])
     assert json.dumps(a) == json.dumps(ledger.ledger_rows(O['G'], O['P'], model, O['MB'], O['PK'], O['at']))
+
+
+def test_away_spread_pick_lands_on_the_home_line_row():
+    g = game(b={'X': {'s': [-3, -140, 3, 110]}}, fair={'ref': {'s': 'market'}, 's': [-3, .5]}, mod={'m': -2.0, 't': 44.0, 'wp': .4})
+    rows, pk = rows_for([g], [])
+    assert [x['id'] for x in pk] == ['g|E1|spread|as'] and pk[0]['pt'] == 3
+    (r,) = [r for r in rows if r['pick']]
+    assert r['id'] == 'g|E1|spread|-3' and r['sd'] == 'as' and r['u'] == {'pr': 110, 'bk': 'X'}
+    assert math.isclose(1 - r['pf'], pk[0]['pc'], abs_tol=1e-4)
+
+
+def test_events_started_by_the_snapshot_are_left_out():
+    early = '2026-11-02T10:00:00Z'
+    g = dict(game(), t=early); p = dict(td_prop(), ko=early)
+    rows = ledger.ledger_rows([g, dict(game(), id='E2')], [p, td_prop('P5')], MODEL, .5, [], '2026-11-02T10:52:27+00:00')
+    assert {r['eid'] for r in rows if r['k'] == 'g'} == {'E2'} and [r['gid'] for r in rows if r['k'] == 'p'] == ['P5']
+    assert not ledger.ledger_rows([g], [p], MODEL, .5, [], TS)   # a stamp without a zone is read as UTC
+
+
+def test_moved_game_chance_counts_books_at_its_own_line():
+    b = {'X': {'s': [-3, 110, 3, -125]}, 'Y': {'s': [-3, 105, 3, -120]}, 'Z': {'s': [-3.5, 100, 3.5, -120]},
+         'W': {'s': [-3.5, 102, 3.5, -122]}, 'V': {'s': [-3.5, 101, 3.5, -121]}}
+    rows = by_id(rows_for([game(b=b, fair={'ref': {'s': 'market'}, 's': [-3.5, .48]})], [])[0])
+    assert (rows['g|E1|spread|-3.5']['pf_src'], rows['g|E1|spread|-3.5']['pf_n']) == ('market', 3)
+    assert (rows['g|E1|spread|-3']['pf_src'], rows['g|E1|spread|-3']['pf_n']) == ('market+adj', 2)

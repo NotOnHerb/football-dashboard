@@ -11,7 +11,7 @@ so no event is logged twice. Each row carries the forecasts to score head to hea
                     'book'    one book posting both sides of this line, cut split proportionally (market_over)
                     'td'      anytime TD: median implied chance / 1.12
             games   'Pinnacle' or 'market' (game 'fair.ref'); '+adj' when this line is off the fair line and the
-                    chance is moved the way game_ev moves it
+                    chance is moved the way game_ev moves it (then pf_n counts the books posting this line)
   pin     Pinnacle's no-vig chance (Shin) when Pinnacle posts both sides of this line, else None
   P       the blended chance the dashboard uses, blend * pm + (1 - blend) * pf (props only; games aren't blended)
   o, u    the best {'pr','bk'} for the over/yes/home side and the under/away side at this line (u is None for TD)
@@ -20,11 +20,14 @@ plus the engine's scoring: sd, ls, vs, s are the side prop_side or better_game_s
 value score and score, on the row at that side's line (None on the other rows); pick is True when that side is in the
 official picks passed in. Stamps: pj (props), mod (games), model_fit_at, snapshot_ts. Chances are rounded to 4 places.
 
-ledger_rows is pure: it reads data.json's ODD.G and ODD.P rows and returns new dicts.
+ledger_rows is pure: it reads data.json's ODD.G and ODD.P rows and returns new dicts. Events that kicked off by the
+snapshot are left out (a refresh during a slate carries in-play game lines and stale prop quotes).
 """
+import datetime
+
 from engine.odds import no_vig_shin
 from engine.picks import GAME_MARKETS, best_game_quote, best_prop_quote, better_game_side, game_ev, game_fair, \
-    market_over, model_p_over, prop_side
+    market_over, model_p_over, prop_side, started
 
 HOME_SIDES = ('o', 'y', 'hs', 'ov', 'mh')   # the side whose chance a row holds
 
@@ -114,7 +117,8 @@ def game_rows(game, pick_pts, stamps):
             src = ref.get({'spread': 's', 'total': 'o', 'ml': 'm'}[mk]) if pf is not None else None
             row = {'id': 'g|%s|%s|%s' % (g['id'], mk, _key(pt)), 'k': 'g', 'eid': g['id'], 'wk': g['wk'], 't': g['t'], 'a': g['a'], 'h': g['h'],
                    'mk': mk, 'pt': pt, 'pm': _r(g['mod']['wp']) if mk == 'ml' and g.get('mod') else None, 'pf': _r(pf),
-                   'pf_src': None if src is None else src + ('+adj' if moved else ''), 'pf_n': 0 if src is None else 1 if src == 'Pinnacle' else fair_n,
+                   'pf_src': None if src is None else src + ('+adj' if moved else ''),
+                   'pf_n': 0 if src is None else len(at1) if moved else 1 if src == 'Pinnacle' else fair_n,
                    'pin': _r(pv), 'P': None, 'o': _price(best_game_quote(g, s1, at1)), 'u': _price(best_game_quote(g, s2, at2))}
             if x and x_pt == pt:
                 _scored(row, x, pick_pts.get('g|%s|%s|%s' % (g['id'], mk, x['k'])))
@@ -125,12 +129,17 @@ def game_rows(game, pick_pts, stamps):
 
 def ledger_rows(games, props, model, blend, picks, snapshot_ts):
     """Every ledger row for one refresh: ODD.G rows GAMES and ODD.P rows PROPS priced with MODEL (model.json) and BLEND,
-    flagged against the official picks PICKS (ODD.PK), stamped with SNAPSHOT_TS. Games first, then props, in input order."""
+    flagged against the official picks PICKS (ODD.PK), stamped with SNAPSHOT_TS (ISO; no zone means UTC). Games
+    first, then props, in input order; events whose kickoff is at or before SNAPSHOT_TS are left out."""
+    now = datetime.datetime.fromisoformat(snapshot_ts.replace('Z', '+00:00'))
+    if now.tzinfo is None: now = now.replace(tzinfo=datetime.timezone.utc)
     pick_pts = {x['id']: (x.get('pt'),) for x in picks}
     weeks = {g['id']: g['wk'] for g in games}
     rows = []
     for g in games:
+        if started(g['t'], now): continue
         rows += game_rows(g, pick_pts, {'model_fit_at': (model or {}).get('fit_at'), 'snapshot_ts': snapshot_ts})
     for p in props:
+        if not p.get('ko') or started(p['ko'], now): continue
         rows += prop_rows(p, model, blend, pick_pts, weeks.get(p['eid']), {'pj': p['pj'], 'model_fit_at': (model or {}).get('fit_at'), 'snapshot_ts': snapshot_ts})
     return rows
