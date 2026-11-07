@@ -64,7 +64,7 @@ def test_usable_rows_need_an_outcome_and_both_chances():
 
 def test_paired_scores_on_a_small_example():
     rows = [{'eid': 'A', 'pm': .8, 'pf': .6, 'P': .7, 'y': 1}, {'eid': 'B', 'pm': .3, 'pf': .5, 'P': .4, 'y': 0}]
-    s = ev.scores(rows, boot=50, seed=0)
+    s = ev.scores(rows, boot=50, seed=0, min_games=1)
     assert s['n'] == 2 and s['games'] == 2
     assert math.isclose(s['brier']['market'], ((.6 - 1) ** 2 + .5 ** 2) / 2)
     assert math.isclose(s['brier']['blend'], ((.7 - 1) ** 2 + .4 ** 2) / 2)
@@ -91,3 +91,31 @@ def test_report_on_simulated_ledger():
     assert set(r) == {'scores', 'reliability', 'weight'}
     assert set(r['reliability']) == {'blend', 'model', 'market'}
     assert r['scores']['n'] == r['weight']['n'] == 1600
+
+
+def test_too_few_games_gives_no_interval():
+    rows = simulate(games=10, per_game=20, seed=11)
+    w = ev.weight(rows, boot=50); s = ev.scores(rows, boot=50)
+    assert w['c'] is not None and w['lo'] is None and w['hi'] is None and w['games'] == 10
+    assert s['brier']['blend_minus_market']['lo'] is None and s['brier']['blend_minus_market']['mean'] is not None
+
+
+def test_unfittable_rows_do_not_crash():
+    rows = [dict(r, pm=r['pf']) for r in simulate(games=30, per_game=10, seed=12)]   # no gap: the weight can't be fit
+    w = ev.weight(rows, boot=20)
+    assert w['c'] is None and w['lo'] is None and w['failed'] == 20
+    assert ev.report(rows, boot=20)['weight']['c'] is None
+
+
+def test_scores_interval_brackets_the_mean_on_a_season():
+    d = ev.scores(simulate(games=60, per_game=20, seed=13), boot=200)['log_loss']['model_minus_market']
+    assert d['lo'] < d['mean'] < d['hi']
+
+
+def test_latest_before_kickoff_keeps_one_row_per_line():
+    r = {'id': 'p|E1|P1|Rec yds|60.5', 'eid': 'E1', 't': '2026-11-08T18:00:00Z', 'pm': .6, 'pf': .5, 'P': .55, 'y': 1}
+    rows = [dict(r, snapshot_ts='2026-11-06T10:52:00+00:00', pf=.4), dict(r, snapshot_ts='2026-11-08T10:52:00+00:00'),
+            dict(r, snapshot_ts='2026-11-08T19:00:00+00:00', pf=.9),   # after kickoff: never a forecast
+            dict(r, id='p|E1|P1|Rec yds|61.5', snapshot_ts='2026-11-06T10:52:00+00:00')]
+    kept = ev.latest_before_kickoff(rows)
+    assert [(x['id'], x['pf']) for x in kept] == [('p|E1|P1|Rec yds|60.5', .5), ('p|E1|P1|Rec yds|61.5', .5)]
