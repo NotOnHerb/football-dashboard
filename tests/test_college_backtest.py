@@ -66,9 +66,19 @@ def test_best_number_is_the_book_furthest_from_the_others():
 
 
 def test_an_excluded_book_counts_in_the_median_but_never_supplies_the_number():
-    books = {'Pinnacle': [-6.0], 'DraftKings': [-3.0], 'ESPN BET': [-3.0], 'Bovada': [-3.0]}
-    d, book, _ = college.best_number(books)
-    assert book != 'Pinnacle' and d == 0
+    books = {'Pinnacle': [-6.0], 'DraftKings': [-3.0], 'ESPN BET': [-3.0]}
+    # with Pinnacle in the median DraftKings' others are -6 and -3 (median -4.5): gap +1.5; ESPN BET ties, and the first listed wins
+    assert college.best_number(books) == (1.5, 'DraftKings', -3.0)
+
+
+def test_a_season_with_too_few_bets_is_refused_not_published():
+    import pytest
+    def read(kind, year):
+        rows = read_fixture(kind, year)
+        return rows[:50] if kind == 'lines' else rows   # lines for only some games
+    with pytest.raises(ValueError, match='look incomplete'):
+        college.backtest_seasons(read)
+    college.backtest_seasons(read_fixture)   # the full files pass
 
 
 def test_the_record_follows_the_strategy(monkeypatch):
@@ -79,6 +89,7 @@ def test_the_record_follows_the_strategy(monkeypatch):
     monkeypatch.setattr(college, 'COLLEGE_GAP_MAX', 3)
     monkeypatch.setattr(college, 'COLLEGE_MIN_BOOKS', 4)
     assert sum(college.backtest(g, l)['record']) < base
+    monkeypatch.setattr(college, 'MIN_BETS_PER_SEASON', 0)   # a stricter rule leaves fewer bets than the real-data floor
     assert college.backtest_seasons(read_fixture, (2025,))['rule'] == 'with 4+ books, one book 1 to 3 points off the others'
 
 

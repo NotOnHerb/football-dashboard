@@ -2,13 +2,19 @@
 
 With COLLEGE_MIN_BOOKS+ books posting a spread, the one book whose spread is furthest from the median of the other books
 is the candidate; it is a pick when that gap is COLLEGE_GAP_MIN up to (not including) COLLEGE_GAP_MAX points. One bet per
-game. The thresholds are in engine/rules.py, so changing one changes both the picks and the record this module derives.
+game. The thresholds are in engine/rules.py, so changing COLLEGE_GAP_MIN, COLLEGE_GAP_MAX, COLLEGE_GAP_STRONG or
+COLLEGE_MIN_BOOKS changes both the picks and the record this module derives.
+
+The record's basis is narrower than the live picks': only the CollegeFootballData books (CFBD_BOOKS), at their saved
+(closing) lines, with no price filter because those lines carry no price (about -110 is assumed). COLLEGE_MIN_PRICE,
+COLLEGE_EXCLUDED_BOOKS and the Odds API books therefore change the picks but not the record.
 """
 import statistics
 
 from engine.rules import (COLLEGE_EXCLUDED_BOOKS, COLLEGE_GAP_MAX, COLLEGE_GAP_MIN, COLLEGE_GAP_STRONG, COLLEGE_MIN_BOOKS)
 
 BACKTEST_SEASONS = (2023, 2024, 2025)   # the seasons the record is counted over (earlier ones have too few books posting)
+MIN_BETS_PER_SEASON = 100   # a season with fewer bets than this means its saved files are incomplete (the smallest real one has 154)
 
 # CollegeFootballData provider name -> the book name the page uses (providers not listed are ignored)
 CFBD_BOOKS = {'DraftKings': 'DraftKings', 'ESPN Bet': 'ESPN BET', 'Bovada': 'Bovada', 'William Hill (New Jersey)': 'Caesars',
@@ -68,6 +74,11 @@ def backtest_seasons(read, seasons=BACKTEST_SEASONS):
     read(kind, year) returns the parsed cfb/<kind>_<year>.json ('games' or 'lines'). by_season is the level II (big gap)
     record of each season, as the page has always shown it."""
     per = {y: backtest(read('games', y), read('lines', y)) for y in seasons}
+    for y, r in per.items():
+        n = sum(r['record']) + r['push']
+        if n < MIN_BETS_PER_SEASON:
+            raise ValueError('college backtest %d: only %d bets from cfb/games_%d.json and cfb/lines_%d.json (expected at least %d); '
+                             'the saved files look incomplete' % (y, n, y, y, MIN_BETS_PER_SEASON))
     tot = lambda k: [sum(r[k][0] for r in per.values()), sum(r[k][1] for r in per.values())]
     return {'rule': 'with %d+ books, one book %g to %g points off the others' % (COLLEGE_MIN_BOOKS, COLLEGE_GAP_MIN, COLLEGE_GAP_MAX),
             'record': [tot('l2')[0] + tot('l1')[0], tot('l2')[1] + tot('l1')[1]], 'l2': tot('l2'), 'l1': tot('l1'),
