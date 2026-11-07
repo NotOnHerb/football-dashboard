@@ -1,2 +1,2 @@
-2026-11-03T10:49
-2026: 888 games, 1176 with lines, providers {'DraftKings': 1176, 'Bovada': 676}
+2026-11-07T10:35
+2026: 888 games, 1246 with lines, providers {'DraftKings': 1246, 'Bovada': 676}
