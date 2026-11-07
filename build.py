@@ -723,7 +723,7 @@ try:
         row={'id':g['id'],'wk':g['week'],'t':g['startDate'],'a':a,'h':h,'ac':g.get('awayConference'),'hc':g.get('homeConference'),'neutral':bool(g['neutralSite']),
              'books':books,'sp':_st2.median(sps) if sps else None,'ou':_st2.median(ous) if ous else None,'wp':None if wp is None else round(wp,3),'mod':mod}
         # best number: with 3+ books, the one book whose spread is 1 to 3 points off the others, one bet per game
-        # (engine/college.py has the rule; its record over 2023-25 is derived below, as CFB.BT: level II is a gap of COLLEGE_GAP_STRONG or more)
+        # (engine/college.py has the rule; its record over 2023-25 is derived at the top of this block, as CFB.BT: level II is a gap of COLLEGE_GAP_STRONG or more)
         if len(sps)>=COLLEGE_MIN_BOOKS and _start(g['startDate'])>_now:
             d,bn,s0=best_number(books)
             if COLLEGE_GAP_MIN<=abs(d)<COLLEGE_GAP_MAX:

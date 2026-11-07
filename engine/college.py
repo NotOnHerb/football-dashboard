@@ -51,7 +51,8 @@ def books_from_lines(lines):
 
 
 def backtest(games, lines):
-    """What the rule above would have done on finished games: {'record': [w, l], 'l2': [w, l], 'l1': [w, l], 'push': n}.
+    """What the rule above would have done on finished games: {'record': [w, l], 'l2': [w, l], 'l1': [w, l], 'push': n, 'covered': n}.
+    covered is how many of the games had lines from COVERAGE_BOOKS+ books, whatever the rule chose (the completeness check).
     games: cfb/games_<year>.json rows (both teams FBS, completed, with points are used); lines: cfb/lines_<year>.json rows.
     l2 is gaps of COLLEGE_GAP_STRONG or more, l1 the smaller gaps. Closing lines, no price filter (the lines carry no price);
     pushes are counted apart. The caller adds up seasons."""

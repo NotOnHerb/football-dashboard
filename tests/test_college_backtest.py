@@ -82,10 +82,11 @@ def test_a_season_with_too_few_bets_is_refused_not_published():
 
 
 def test_a_stricter_strategy_is_not_mistaken_for_incomplete_files(monkeypatch):
-    monkeypatch.setattr(college, 'COLLEGE_GAP_MIN', 1.5)
-    monkeypatch.setattr(college, 'COLLEGE_MIN_BOOKS', 4)
+    monkeypatch.setattr(college, 'COLLEGE_GAP_MIN', 1.5)   # only the big gaps
     bt = college.backtest_seasons(read_fixture)   # fewer bets from the same files; must not raise
-    assert sum(bt['record']) < 314 + 249
+    assert bt['l1'] == [0, 0] and 0 < sum(bt['l2']) == sum(bt['record']) < 314 + 249
+    monkeypatch.setattr(college, 'COLLEGE_MIN_BOOKS', 4)   # all four books must post: few games, maybe none
+    college.backtest_seasons(read_fixture)   # still not refused: the files are the same
 
 
 def test_the_record_follows_the_strategy(monkeypatch):
@@ -97,6 +98,12 @@ def test_the_record_follows_the_strategy(monkeypatch):
     monkeypatch.setattr(college, 'COLLEGE_MIN_BOOKS', 4)
     assert sum(college.backtest(g, l)['record']) < base
     assert college.backtest_seasons(read_fixture, (2025,))['rule'] == 'with 4+ books, one book 1 to 3 points off the others'
+
+
+def test_covered_games_per_season():
+    """The completeness check's inputs: finished FBS games with lines from 3+ books, in the saved files."""
+    got = [college.backtest(read_fixture('games', y), read_fixture('lines', y))['covered'] for y in (2023, 2024, 2025)]
+    assert got == [684, 732, 714] and min(got) > college.MIN_COVERED_GAMES
 
 
 def test_derived_record_matches_the_figures_the_page_always_showed():
