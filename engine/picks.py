@@ -146,14 +146,23 @@ def prop_side(prop, model, blend, books=None):
     return o or u
 
 
+GAME_MARKETS = (('hs', 'as', 'spread'), ('ov', 'un', 'total'), ('mh', 'ma', 'ml'))   # (side 1, side 2, market)
+
+
+def better_game_side(game, s1, s2, books=None):
+    """The better-scoring of two opposite game sides (game_side), S1 on a tie; None when no book has either."""
+    x1, x2 = game_side(game, s1, books), game_side(game, s2, books)
+    return x2 if x1 and x2 and x2['s'] > x1['s'] else (x1 or x2)
+
+
 def game_picks(games, now, books=None):
     """Official game picks (spread, total, moneyline; the better side of each) for games not started by NOW,
     strongest first."""
     PK = []
     for g in games:
         if started(g['t'], now): continue
-        for a1, a2, mk_ in (('hs', 'as', 'spread'), ('ov', 'un', 'total'), ('mh', 'ma', 'ml')):
-            x1, x2 = game_side(g, a1, books), game_side(g, a2, books); x = (x2 if x1 and x2 and x2['s'] > x1['s'] else (x1 or x2)) if (x1 or x2) else None
+        for a1, a2, mk_ in GAME_MARKETS:
+            x = better_game_side(g, a1, a2, books)
             if x and x['s'] >= RULES['pick']:
                 q = x['q']; PK.append({'id': 'g|%s|%s|%s' % (g['id'], mk_, x['k']), 'k': 'g', 'eid': g['id'], 'wk': g['wk'], 't': g['t'], 'a': g['a'], 'h': g['h'], 'mk': mk_, 'sd': x['k'], 'pt': q['pt'], 'pr': q['pr'], 'bk': q['bk'], 's': x['s'], 'v': None if x['v'] is None else round(x['v'], 4), 'ms': x['ms'], 'vs': x['vs'], 'pc': None if x['v'] is None else round((x['v'] + 1) / decimal(q['pr']), 4), 'srt': x['s'] + (x['v'] or 0) * 5})
     PK.sort(key=lambda x: -x['srt'])
