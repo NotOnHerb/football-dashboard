@@ -10,6 +10,7 @@ Runs from the refresh workflow; skips itself if model.json is less than 6 days o
 """
 import os, json, datetime, numpy as np, pandas as pd
 import sources
+from engine.projections import base_projection
 
 SEASON = sources.SEASON
 W, K0, BLEND = .85, 4, .5          # recipe weights and how much we trust our model vs the market's fair chance
@@ -44,13 +45,6 @@ def relevant(pos, att, car, tgt, k):
     return pos in ('RB', 'WR', 'TE') and (car + tgt) >= 5
 
 
-def base(h, prior):
-    c = W * h.mean() + (1 - W) * h[-3:].mean()
-    if prior is not None and not np.isnan(prior):
-        c = (len(h) * c + K0 * prior) / (len(h) + K0)
-    return c
-
-
 def fitlog(X, y, l2=1.0, it=3000, lr=.5):
     mu, sd = X.mean(0), X.std(0) + 1e-9
     Z = np.c_[np.ones(len(X)), (X - mu) / sd]; w = np.zeros(Z.shape[1])
@@ -68,7 +62,7 @@ def main():
         cur, prev = D[y], D[y - 1]
         pg = prev.groupby('player_id'); pn = pg.size()
         pm = pg[list(MK.values())].mean()
-        for pid, g in cur.sort_values('week').groupby('player_id'):
+        for pid, g in cur.sort_values('week', kind='stable').groupby('player_id'):
             pos = g.position.iloc[-1]
             if pos not in ('QB', 'RB', 'WR', 'TE'): continue
             pri = pm.loc[pid] if pid in pm.index and pn[pid] >= 4 else None
@@ -81,7 +75,7 @@ def main():
                     if k == 'Anytime TD':
                         if i >= 4: tdX.append([c_, t_, pos == 'RB', pos == 'TE']); tdy.append(v[i])
                         continue
-                    mu = base(v[:i], None if pri is None else pri[col])
+                    mu = base_projection(v[:i], None if pri is None else pri[col], W, K0)
                     if mu > 0:
                         if y == SEASON - 1: ratio[k].append(v[i] / mu)   # swing pattern learned from last season...
                         else: pairs[k].append((v[i], mu))              # ...and checked against this season's games

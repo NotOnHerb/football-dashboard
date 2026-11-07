@@ -12,6 +12,7 @@ A row: pid, pos, season, week, team, opp, att/car/tgt (per-game usage before thi
 import json, numpy as np, pandas as pd, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import sources, model_fit
+from engine.projections import base_projection
 
 MK = model_fit.MK
 _cache = {}
@@ -25,7 +26,7 @@ def rows(seasons, min_prior_games=3):
     for s in seasons:
         cur, prev = weekly(s), weekly(s - 1)
         pg = prev.groupby('player_id'); pn = pg.size(); pm = pg[list(MK.values())].mean()
-        for pid, g in cur.sort_values('week').groupby('player_id'):
+        for pid, g in cur.sort_values('week', kind='stable').groupby('player_id'):
             pos = g.position.iloc[-1]
             if pos not in ('QB', 'RB', 'WR', 'TE'): continue
             att, car, tgt = g.attempts.values, g.carries.values, g.targets.values
@@ -41,10 +42,8 @@ def rows(seasons, min_prior_games=3):
 def relevant(r, k): return model_fit.relevant(r['pos'], r['att'], r['car'], r['tgt'], k)
 
 def current_recipe(h, prior):
-    m = json.load(open('model.json')); w, k0 = m['w'], m['k0']
-    c = w * h.mean() + (1 - w) * h[-3:].mean()
-    if prior is not None and not np.isnan(prior): c = (len(h) * c + k0 * prior) / (len(h) + k0)
-    return c
+    m = json.load(open('model.json'))
+    return base_projection(h, prior, m['w'], m['k0'])
 
 def mae(R, k, recipe=current_recipe):
     xs = [(recipe(r[k + '|hist'], r[k + '|prior']), r[k + '|act']) for r in R if relevant(r, k)]

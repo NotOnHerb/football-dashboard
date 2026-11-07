@@ -12,6 +12,11 @@ on:
 permissions:
   contents: write
 
+# One refresh at a time, so two runs never push at once. A second run waits its turn.
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -20,11 +25,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pandas numpy
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      # The next two steps can fail without stopping the run; a failure shows as a warning on the run page.
       - name: Refit the projection model (weekly; skips itself if fresh)
-        run: python model_fit.py || echo 'model fit failed, keeping the saved model'
+        run: python model_fit.py || echo "::warning::Model fit failed, keeping the saved model"
       - name: College games and lines (CollegeFootballData)
-        run: python cfb_fetch.py || echo 'college fetch failed'
+        run: python cfb_fetch.py || echo "::warning::College fetch failed, keeping the saved college data"
         env:
           CFBD_KEY: ${{ secrets.CFBD_KEY }}
       - run: python build.py
@@ -33,13 +41,22 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           ODDS_PLAN: ${{ vars.ODDS_PLAN || 'free' }}
           ODDS_PROPS: ${{ github.event.inputs.props || 'auto' }}
+      # Named-field JSON for agents (api/v1/). Standard library only. A failure only warns so the site still saves and
+      # the previous api files stay; check_health.py (last step) then fails the run because api/v1 is older than data.json.
+      - name: Export the API files
+        run: python api_export.py || echo "::warning::API export failed, keeping the previous api files"
       - name: Save the new site
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add index.html data.json
+          git add index.html data.json data
           if [ -f model.json ]; then git add model.json; fi
           if [ -d cfb ]; then git add cfb; fi
           if [ -d odds ]; then git add odds; fi
+          if [ -d api ]; then git add api; fi
           git diff --staged --quiet || git commit -m "Refresh data"
           git push
+      # Runs after the save, so the site and pick ledgers are kept even when a section failed.
+      # A failure here fails the run, which notifies the owner.
+      - name: Check every section built
+        run: python check_health.py --require-api --require-shards

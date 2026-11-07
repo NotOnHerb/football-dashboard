@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "football-dashboard": {
+      "command": "uv",
+      "args": ["run", "--no-project", "--python", "3.12", "--with", "mcp==2.3.0", "python", "-m", "mcp_server.server"],
+      "env": {
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}

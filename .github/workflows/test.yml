@@ -1,0 +1,48 @@
+name: Test
+
+# Runs the golden test on code changes. The daily data-only commits don't trigger it.
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - build.py
+      - sources.py
+      - template.html
+      - model_fit.py
+      - cfb_fetch.py
+      - check_health.py
+      - restamp.py
+      - api_export.py
+      - 'mcp_server/**'
+      - 'analyst/**'
+      - 'schema/**'
+      - 'engine/**'
+      - 'js/**'
+      - 'assets/**'
+      - 'tests/**'
+      - 'requirements*.txt'
+      - .github/workflows/test.yml
+      - .github/workflows/restamp.yml
+
+permissions:
+  contents: read
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Install the browser for the page test
+        run: python -m playwright install --with-deps chromium
+      - name: Golden and page tests
+        run: python -m pytest -q
