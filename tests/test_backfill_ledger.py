@@ -66,14 +66,15 @@ def test_one_snapshot_gives_first_equal_last_and_ids_are_unique(tmp_path):
     assert led['p|E1|P1|Anytime TD|']['first']['snapshot_ts'] == '2026-11-02T10:52'
 
 
-def test_repeated_snapshot_ts_adds_nothing():
-    rows = bf.snapshot_rows(odd('2026-11-02T10:52'), tl.MODEL)
+def test_a_repeated_snapshot_adds_nothing():
+    rows = bf.snapshot_rows(odd('2026-11-02T10:52'), tl.MODEL, None, '2026-11-02T11:00:00+00:00')
     led = {}
     assert bf.merge_rows(led, rows) == (len(rows), 0)
-    again = copy.deepcopy(rows)
-    for r in again: r['o'] = {'pr': 999, 'bk': 'Q'}                  # same snapshot_ts, different content
     before = copy.deepcopy(led)
-    assert bf.merge_rows(led, again) == (0, 0) and led == before
+    assert bf.merge_rows(led, copy.deepcopy(rows)) == (0, 0) and led == before   # a refresh re-committing identical odds
+    other = copy.deepcopy(rows)
+    for r in other: r['o'] = {'pr': 999, 'bk': 'Q'}                              # same stamps, different content: decided by content,
+    assert _merged(rows, other) == _merged(other, rows)                          # the same whichever arrives first
 
 
 def test_older_snapshot_moves_first_only_and_run_order_does_not_matter():
@@ -138,6 +139,36 @@ def test_builds_sharing_a_prop_snapshot_ts_order_by_build_time():
     assert led['p|E1|P2|Rec yds|60.5']['last']['snapshot_ts'] == '2026-11-02T10:30'
 
 
+def test_tied_snapshot_and_build_order_by_commit_time_then_content():
+    cache = {'E1': '2026-11-02T09:00'}
+    def at(commit_at, fit):                                              # one build time, committed twice with different content
+        return bf.snapshot_rows(odd('2026-11-02T10:52'), dict(tl.MODEL, fit_at=fit), cache, commit_at)
+    a = at('2026-11-02T11:00:00+00:00', 'fit-A'); b = at('2026-11-02T11:05:00+00:00', 'fit-B')
+    for order in (a + b, b + a):
+        led = _merged(order)
+        assert all(e['first']['model_fit_at'] == 'fit-A' and e['last']['model_fit_at'] == 'fit-B' for e in led.values())
+    assert _merged(a, b) == _merged(b, a) and bf.merge_rows(_merged(a, b), b + a) == (0, 0)
+    c = at('2026-11-02T11:00:00+00:00', 'fit-C')                         # tied on commit time too: the content decides, the same either way
+    assert _merged(a, c) == _merged(c, a)
+    legacy = [{k: v for k, v in r.items() if k != 'commit_at'} for r in a]   # no commit_at sorts before any commit time
+    led = _merged(b, legacy)
+    assert all(e['first'].get('commit_at') is None and e['last']['commit_at'] == '2026-11-02T11:05:00+00:00' for e in led.values())
+
+
+def test_a_ledger_from_an_earlier_version_is_refused_and_nothing_is_written(tmp_path):
+    repo = make_repo(tmp_path); led = tmp_path / 'old_ledger.json'; res = tmp_path / 'old_results.json'
+    row = {k: v for k, v in bf.snapshot_rows(odd('2026-11-02T10:52'), tl.MODEL)[0].items() if k not in ('built', 'commit_at')}
+    led.write_text(json.dumps({row['id']: {'first': row, 'last': row}})); res.write_text('{}')
+    before = (led.read_bytes(), res.read_bytes())
+    try: bf.backfill(repo, '2026-10-27', 'HEAD', str(led), str(res), log=lambda s_: None); raise AssertionError('should have refused')
+    except bf.StaleOutput as ex: assert str(led) in str(ex) and str(res) in str(ex)
+    assert (led.read_bytes(), res.read_bytes()) == before
+    p = subprocess.run([sys.executable, os.path.join(ROOT, 'analyst', 'backfill_ledger.py'), '--repo', repo, '--since', '2026-10-27',
+                        '--ledger-out', str(led), '--results-out', str(res)], capture_output=True, text=True)
+    assert p.returncode == 1 and p.stdout == '' and 'regenerate' in p.stderr and str(led) in p.stderr and str(res) in p.stderr
+    assert (led.read_bytes(), res.read_bytes()) == before
+
+
 def _merged(*parts):
     led = {}
     for part in parts: bf.merge_rows(led, part)
@@ -150,10 +181,11 @@ def test_loader_reads_each_events_fetch_time_from_the_commit(tmp_path):
     open(os.path.join(repo, 'odds', 'props', 'E2.json'), 'w').write('not json')
     subprocess.run(['git', '-C', repo, 'add', 'odds'], check=True)
     commit(repo, '2026-11-02T12:00:00Z', {'ODD': odd('2026-11-02T10:52')})
-    _, _, fetched = bf.make_loader(repo)(subprocess.run(['git', '-C', repo, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip())
-    assert fetched == {'E1': '2026-11-01T08:00:00+00:00'}   # the unreadable file is left out
+    _, _, fetched, when = bf.make_loader(repo)(subprocess.run(['git', '-C', repo, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip())
+    assert fetched == {'E1': '2026-11-01T08:00:00+00:00'} and when.startswith('2026-11-02T12:00:00')   # the unreadable file is left out
     rows, parsed, _, fallbacks = bf.replay(bf.commits_touching(repo, '2026-10-27', 'HEAD'), bf.make_loader(repo), lambda s: None)
     assert {r['snapshot_ts'] for r in rows if r['k'] == 'p'} == {'2026-11-01T08:00:00+00:00'} and fallbacks == 0
+    assert {r['commit_at'][:19] for r in rows} == {'2026-11-02T12:00:00'}   # every row says which commit built it
 
 
 def test_replay_skips_a_bad_commit_without_aborting():
@@ -172,7 +204,7 @@ def test_events_without_a_cache_time_are_logged_and_counted():
     docs = {'a': (o, tl.MODEL, {}), 'b': (o, tl.MODEL, {'E1': '2026-11-02T09:00'}), 'c': (o, tl.MODEL, None)}
     rows, parsed, skipped, fallbacks = bf.replay(['a', 'b', 'c'], docs.get, logged.append)
     assert parsed == ['a', 'b', 'c'] and fallbacks == 2 and len(logged) == 2     # a and c each fall back for E1; b does not
-    assert all('E1' in m and 'ODD.pat' in m for m in logged)
+    assert all('E1' in m and 'ODD.pat or ODD.at' in m for m in logged)
 
 
 def test_malformed_commit_in_a_real_repo_is_skipped(tmp_path):

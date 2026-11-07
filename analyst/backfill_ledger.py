@@ -5,8 +5,8 @@ python analyst/backfill_ledger.py --ledger-out LEDGER.json --results-out RESULTS
 Replays every commit that touched data.json since SINCE up to REF: each commit's ODD (games G, props P, blend MB, picks PK)
 and the model.json at the same commit go through engine.ledger.ledger_rows. Rows merge into a ledger keyed by row id,
 {id: {'first': row, 'last': row}}: the first and the last pre-kickoff snapshot of each line (one snapshot gives first == last).
-Snapshots are ordered by (snapshot_ts, built): 'built' is a field this script adds to every row, the ODD.at of the commit
-that built it. Many builds carry one prop quote unchanged (same snapshot_ts), each with its own pj, P, pick flag and
+Snapshots are ordered by (snapshot_ts, built, commit_at, content): 'built' and 'commit_at' are fields this script adds to
+every row, the ODD.at and the commit time (%cI) of the commit that built it; the row's own JSON breaks any last tie. Many builds carry one prop quote unchanged (same snapshot_ts), each with its own pj, P, pick flag and
 model_fit_at; 'last' is the latest build of the latest quote and 'first' the earliest build of the earliest quote, so for
 an unchanged quote 'first' means the earliest build that carried it, not the moment it was quoted. Then
 every id is graded for the side its row holds (engine.ledger_grading) from the finals and weekly stats in data.json at
@@ -15,7 +15,7 @@ REF, giving results {id: {'res', 'fin' | 'val'}}.
 Stamps: ODD.at is when the game lines were fetched; game rows are stamped and cut at kickoff with it. A prop row is stamped
 (and cut at kickoff) with the fetch time of its own event's cache, odds/props/<eid>.json 'fetched' at that commit: ODD.pat
 is only the newest of those, so it would date an older event's quotes too late. A prop with no readable cache file falls
-back to ODD.pat, then to 'at' (each such event is logged per commit and counted in the summary). A prop whose event had
+back to ODD.pat, then to ODD.at (each such event is logged per commit and counted in the summary). A prop whose event had
 kicked off by the commit's own ODD.at is dropped: sources.py keeps old caches, so a later build still carries it.
 
 Pass --ref main (or origin/main): the default HEAD is wherever the checkout is, and in a worktree that can be a stale
@@ -23,9 +23,10 @@ branch point. --since is a UTC date, taken at 00:00 UTC; commits are filtered on
 
 Both outputs are written to the paths given (nothing inside the repo by default). If a file exists it is loaded and merged,
 so run order and --since don't matter: a re-run adds no duplicate ids, keeps existing results, moves a first snapshot only
-to a strictly smaller (snapshot_ts, built) and a last one only to a strictly larger (an equal pair: no change); the merged
+to a strictly smaller (snapshot_ts, built, commit_at, content) and a last one only to a strictly larger; the merged
 ledger is the same whatever order the rows arrive in. Outputs written by earlier versions of this script stamped props with
-ODD.pat and have no 'built' field: regenerate them from empty paths. A commit that
+ODD.pat and have no 'built' field: a run that finds such a ledger refuses (exit 1, nothing written); regenerate both
+outputs from empty paths. A commit that
 can't be read or priced is skipped with a one-line reason; the run never aborts on one. If data.json at REF has no finals
 (ODD.FIN) or no weekly stats (LOG), the run warns on stderr, writes nothing and exits 1.
 """
@@ -46,9 +47,15 @@ def _ts(s):
 
 # ---- pure logic (no git)
 
+_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+
+
 def _key(row):
-    """The order snapshots of one id go in: when the quote was taken, then which build carried it."""
-    return _ts(row['snapshot_ts']), _ts(row.get('built') or row['snapshot_ts'])
+    """The order snapshots of one id go in: when the quote was taken, which build carried it, when that build was committed
+    (a row without 'commit_at' sorts first), and the row's own JSON so that even a full tie resolves the same way every time."""
+    c = row.get('commit_at')
+    return (_ts(row['snapshot_ts']), _ts(row.get('built') or row['snapshot_ts']), _ts(c) if c else _EPOCH,
+            json.dumps(row, sort_keys=True, separators=(',', ':')))
 
 
 def live_props(odd):
@@ -58,35 +65,35 @@ def live_props(odd):
 
 
 def fallback_events(odd, fetched):
-    """The events among ODD's live props with no cache fetch time in FETCHED (their props are stamped with ODD.pat)."""
+    """The events among ODD's live props with no cache fetch time in FETCHED (their props are stamped with ODD.pat, or ODD.at without one)."""
     return sorted({p['eid'] for p in live_props(odd) if not (fetched or {}).get(p['eid'])})
 
 
-def snapshot_rows(odd, model, fetched=None):
-    """Ledger rows for one commit's ODD and its MODEL, each with 'built' = ODD.at. Game rows are stamped ODD.at; prop rows
+def snapshot_rows(odd, model, fetched=None, commit_at=''):
+    """Ledger rows for one commit's ODD and its MODEL, each with 'built' = ODD.at and 'commit_at' = COMMIT_AT (the commit time). Game rows are stamped ODD.at; prop rows
     (of events not yet started at ODD.at) with FETCHED[eid], the fetch time of the prop's own event cache (else ODD.pat,
-    else at), and cut at kickoff by that time. One ledger_rows call per distinct time, props only kept."""
+    else ODD.at), and cut at kickoff by that time. One ledger_rows call per distinct time, props only kept."""
     at = odd['at']; pat = odd.get('pat') or at; fetched = fetched or {}
     rows = ledger_rows(odd['G'], [], model, odd['MB'], odd['PK'], at)
     groups = {}
     for p in live_props(odd): groups.setdefault(fetched.get(p['eid']) or pat, []).append(p)
     for ts, ps in groups.items(): rows += [r for r in ledger_rows(odd['G'], ps, model, odd['MB'], odd['PK'], ts) if r['k'] == 'p']
-    return [dict(r, built=at) for r in rows]
+    return [dict(r, built=at, commit_at=commit_at) for r in rows]
 
 
 def replay(shas, load, log=print):
     """Rows from every commit in SHAS: LOAD(sha) returns (ODD dict, model dict, {eid: props cache fetch time}). Returns (rows,
-    parsed shas, [(sha, reason)] for the commits skipped, events stamped with ODD.pat for want of a cache time, summed over
+    parsed shas, [(sha, reason)] for the commits skipped, events stamped with ODD.pat or ODD.at for want of a cache time, summed over
     commits). A commit that raises is skipped (LOG gets a one-line reason), never fatal."""
     rows = []; parsed = []; skipped = []; fallbacks = 0
     for sha in shas:
         try:
-            odd, model, fetched = load(sha)
-            got = snapshot_rows(odd, model, fetched); fb = fallback_events(odd, fetched)
+            odd, model, fetched, *more = load(sha)    # a fourth item, if any, is the commit time
+            got = snapshot_rows(odd, model, fetched, *more); fb = fallback_events(odd, fetched)
         except Exception as ex:
             why = '%s: %s' % (type(ex).__name__, str(ex).splitlines()[0][:100] if str(ex) else '')
             skipped.append((sha, why)); log('skip %s  %s' % (sha[:7], why)); continue
-        if fb: log('%s  %d event(s) with no readable props cache, stamped with ODD.pat: %s' % (sha[:7], len(fb), ', '.join(fb)))
+        if fb: log('%s  %d event(s) with no readable props cache, stamped with ODD.pat or ODD.at: %s' % (sha[:7], len(fb), ', '.join(fb)))
         rows += got; parsed.append(sha); fallbacks += len(fb)
     return rows, parsed, skipped, fallbacks
 
@@ -142,9 +149,9 @@ def commits_touching(repo, since, ref):
 
 
 def make_loader(repo):
-    """A LOAD(sha) for replay: (data.json's ODD, model.json, {eid: odds/props/<eid>.json 'fetched'}) as of that commit. Before
+    """A LOAD(sha) for replay: (data.json's ODD, model.json, {eid: odds/props/<eid>.json 'fetched'}, commit time %cI) as of that commit. Before
     model.json existed (first committed 2026-10-29) the build ran without a model, so a commit with no model.json gets
-    model None, as the refresh did. A props cache file that can't be read is left out (its props fall back to ODD.pat)."""
+    model None, as the refresh did. A props cache file that can't be read is left out (its props fall back to ODD.pat, then ODD.at)."""
     def load(sha):
         odd = json.loads(_git(repo, 'show', sha + ':data.json'))['ODD']
         has = subprocess.run(['git', '-C', repo, 'cat-file', '-e', sha + ':model.json'], capture_output=True).returncode == 0
@@ -152,7 +159,8 @@ def make_loader(repo):
         for path in _git(repo, 'ls-tree', '--name-only', sha, 'odds/props/').decode().split():
             try: fetched[os.path.basename(path)[:-5]] = json.loads(_git(repo, 'show', sha + ':' + path))['fetched']
             except Exception: pass
-        return odd, json.loads(_git(repo, 'show', sha + ':model.json')) if has else None, fetched
+        when = _git(repo, 'show', '-s', '--format=%cI', sha).decode().strip()
+        return odd, json.loads(_git(repo, 'show', sha + ':model.json')) if has else None, fetched, when
     return load
 
 
@@ -171,6 +179,10 @@ class NothingToGrade(Exception):
     """data.json at the end ref has no finals or no weekly stats (its odds section probably failed)."""
 
 
+class StaleOutput(Exception):
+    """An existing ledger file was written by an earlier version of this script (rows without 'built')."""
+
+
 def backfill(repo, since, ref, ledger_out, results_out, log=print):
     """Replay, merge and grade; writes both files. Returns a summary dict. Raises NothingToGrade, before writing anything,
     when data.json at REF has no ODD.FIN or no LOG."""
@@ -180,6 +192,9 @@ def backfill(repo, since, ref, ledger_out, results_out, log=print):
         raise NothingToGrade('data.json at %s has no %s: nothing to grade with; pass a --ref whose build finished' % (
             ref, ' or '.join(k for k, v in (('finals (ODD.FIN)', fin), ('weekly stats (LOG)', stats)) if not v)))
     ledger = _read(ledger_out); results = _read(results_out)
+    if any('built' not in e[part] for e in ledger.values() for part in ('first', 'last')):
+        raise StaleOutput('%s was written by an earlier version of this script (rows without "built", props stamped with ODD.pat): '
+                          'nothing written; regenerate %s and %s from empty paths' % (ledger_out, ledger_out, results_out))
     shas = commits_touching(repo, since, ref)
     rows, parsed, skipped, fallbacks = replay(shas, make_loader(repo), log)
     new, moved = merge_rows(ledger, rows)
@@ -197,8 +212,8 @@ def main(argv=None):
     ap.add_argument('--repo', default=ROOT)
     a = ap.parse_args(argv)
     try: s = backfill(a.repo, a.since, a.ref, a.ledger_out, a.results_out)
-    except NothingToGrade as ex: print('error:', ex, file=sys.stderr); sys.exit(1)
-    print('commits %d: parsed %d, skipped %d | ids %d (+%d new, %d first/last moved) | graded %d (+%d) | events stamped with pat: %d' % (
+    except (NothingToGrade, StaleOutput) as ex: print('error:', ex, file=sys.stderr); sys.exit(1)
+    print('commits %d: parsed %d, skipped %d | ids %d (+%d new, %d first/last moved) | graded %d (+%d) | events stamped with pat/at: %d' % (
         s['commits'], s['parsed'], len(s['skipped']), s['ids'], s['new_ids'], s['moved'], s['graded'], s['newly_graded'], s['fallbacks']))
     return s
 
