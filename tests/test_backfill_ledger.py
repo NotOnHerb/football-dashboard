@@ -10,9 +10,9 @@ import test_ledger as tl  # noqa: E402  (fixture builders: game(), yds_prop(), t
 REPEAT_TS = '2026-11-03T10:52'
 
 
-def odd(at, b=None, pat=None, fin=()):
+def odd(at, b=None, pat=None, fin=(), pk=()):
     prop = tl.yds_prop(b=b)
-    return {'MB': .5, 'G': [tl.game()], 'P': [prop, tl.td_prop()], 'PK': [], 'FIN': [list(f) for f in fin], 'at': at, 'pat': pat or at}
+    return {'MB': .5, 'G': [tl.game()], 'P': [prop, tl.td_prop()], 'PK': list(pk), 'FIN': [list(f) for f in fin], 'at': at, 'pat': pat or at}
 
 
 def commit(repo, date, data, model=tl.MODEL, msg='Refresh data'):
@@ -109,6 +109,41 @@ def test_a_prop_whose_own_cache_was_fetched_after_kickoff_is_left_out():
     assert not [r for r in bf.snapshot_rows(o, tl.MODEL, {'E1': '2026-11-08T19:00'}) if r['k'] == 'p']   # kickoff 2026-11-08T18:00Z
 
 
+def test_a_build_after_kickoff_drops_props_whose_cache_was_fetched_before_it():
+    o = odd('2026-11-08T18:30')                                          # built after the 18:00Z kickoff, still carrying the old cache
+    assert not bf.snapshot_rows(o, tl.MODEL, {'E1': '2026-11-07T10:00'})   # games and props both gone
+    assert bf.fallback_events(o, {}) == []                               # started events aren't counted as fallbacks
+
+
+def test_builds_sharing_a_prop_snapshot_ts_order_by_build_time():
+    pk = tl.rows_for([tl.game()], [tl.yds_prop(), tl.td_prop(), tl.td_prop('P3', pj=.7)])[1]
+    cache = {'E1': '2026-11-02T09:00'}                                   # one quote, carried through two builds
+    def built(at, pk):
+        o = odd(at, pk=pk); o['P'].append(tl.td_prop('P3', pj=.7)); return bf.snapshot_rows(o, tl.MODEL, cache)
+    early = built('2026-11-02T10:52', pk)
+    late = built('2026-11-03T10:52', [])                                 # same quote, no pick flags this build
+    assert {r['built'] for r in early if r['k'] == 'p'} == {'2026-11-02T10:52'} and {r['snapshot_ts'] for r in late if r['k'] == 'p'} == {'2026-11-02T09:00'}
+    flagged = [r['id'] for r in early if r['k'] == 'p' and r['pick']]
+    assert flagged                                                       # the builds differ in a pick flag
+    for order in (early + late, late + early):
+        led = {}; bf.merge_rows(led, order)
+        for i in flagged:
+            assert led[i]['first']['built'] == '2026-11-02T10:52' and led[i]['first']['pick'] is True
+            assert led[i]['last']['built'] == '2026-11-03T10:52' and led[i]['last']['pick'] is False
+        assert led == _merged(early, late)
+        assert bf.merge_rows(led, early + late) == (0, 0)
+    # a later quote still beats a later build of an older quote
+    newer_quote = bf.snapshot_rows(odd('2026-11-02T11:00'), tl.MODEL, {'E1': '2026-11-02T10:30'})
+    led = {}; bf.merge_rows(led, late + newer_quote)
+    assert led['p|E1|P2|Rec yds|60.5']['last']['snapshot_ts'] == '2026-11-02T10:30'
+
+
+def _merged(*parts):
+    led = {}
+    for part in parts: bf.merge_rows(led, part)
+    return led
+
+
 def test_loader_reads_each_events_fetch_time_from_the_commit(tmp_path):
     repo = str(tmp_path / 'repo'); os.makedirs(os.path.join(repo, 'odds', 'props')); subprocess.run(['git', 'init', '-q', repo], check=True)
     json.dump({'fetched': '2026-11-01T08:00:00+00:00', 'data': {}}, open(os.path.join(repo, 'odds', 'props', 'E1.json'), 'w'))
@@ -117,19 +152,27 @@ def test_loader_reads_each_events_fetch_time_from_the_commit(tmp_path):
     commit(repo, '2026-11-02T12:00:00Z', {'ODD': odd('2026-11-02T10:52')})
     _, _, fetched = bf.make_loader(repo)(subprocess.run(['git', '-C', repo, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip())
     assert fetched == {'E1': '2026-11-01T08:00:00+00:00'}   # the unreadable file is left out
-    rows, parsed, _ = bf.replay(bf.commits_touching(repo, '2026-10-27', 'HEAD'), bf.make_loader(repo), lambda s: None)
-    assert {r['snapshot_ts'] for r in rows if r['k'] == 'p'} == {'2026-11-01T08:00:00+00:00'}
+    rows, parsed, _, fallbacks = bf.replay(bf.commits_touching(repo, '2026-10-27', 'HEAD'), bf.make_loader(repo), lambda s: None)
+    assert {r['snapshot_ts'] for r in rows if r['k'] == 'p'} == {'2026-11-01T08:00:00+00:00'} and fallbacks == 0
 
 
 def test_replay_skips_a_bad_commit_without_aborting():
-    good = odd('2026-11-02T10:52'); logged = []
-    docs = {'a': (good, tl.MODEL), 'b': ({'MB': .5}, tl.MODEL), 'd': (good, tl.MODEL)}
+    good = odd('2026-11-02T10:52'); logged = []; cache = {'E1': '2026-11-02T09:00'}
+    docs = {'a': (good, tl.MODEL, cache), 'b': ({'MB': .5}, tl.MODEL, cache), 'd': (good, tl.MODEL, cache)}
     def load_(sha):
         if sha == 'e': raise ValueError('bad json')
         return docs[sha]
-    rows, parsed, skipped = bf.replay(['a', 'b', 'e', 'd'], load_, logged.append)
+    rows, parsed, skipped, fallbacks = bf.replay(['a', 'b', 'e', 'd'], load_, logged.append)
     assert parsed == ['a', 'd'] and [s for s, _ in skipped] == ['b', 'e'] and len(logged) == 2 and 'bad json' in logged[1]
-    assert len(rows) == 2 * len(bf.snapshot_rows(good, tl.MODEL))
+    assert len(rows) == 2 * len(bf.snapshot_rows(good, tl.MODEL, cache)) and fallbacks == 0
+
+
+def test_events_without_a_cache_time_are_logged_and_counted():
+    logged = []; o = odd('2026-11-02T10:52')
+    docs = {'a': (o, tl.MODEL, {}), 'b': (o, tl.MODEL, {'E1': '2026-11-02T09:00'}), 'c': (o, tl.MODEL, None)}
+    rows, parsed, skipped, fallbacks = bf.replay(['a', 'b', 'c'], docs.get, logged.append)
+    assert parsed == ['a', 'b', 'c'] and fallbacks == 2 and len(logged) == 2     # a and c each fall back for E1; b does not
+    assert all('E1' in m and 'ODD.pat' in m for m in logged)
 
 
 def test_malformed_commit_in_a_real_repo_is_skipped(tmp_path):
@@ -213,7 +256,7 @@ def test_commit_without_model_json_is_priced_without_a_model(tmp_path):
     with open(os.path.join(repo, 'data.json'), 'w') as f: json.dump({'ODD': odd('2026-11-03T10:52'), 'META': 2}, f)
     subprocess.run(['git', '-C', repo, 'add', 'data.json'], check=True)
     subprocess.run(['git', '-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'x'], check=True, env=env)
-    rows, parsed, skipped = bf.replay(bf.commits_touching(repo, '2026-10-27', 'HEAD'), bf.make_loader(repo), lambda s: None)
+    rows, parsed, skipped, _ = bf.replay(bf.commits_touching(repo, '2026-10-27', 'HEAD'), bf.make_loader(repo), lambda s: None)
     by = {r['id']: r for r in rows if r['snapshot_ts'] == '2026-11-03T10:52'}
     assert len(parsed) == 2 and not skipped
     assert by['p|E1|P2|Rec yds|60.5']['pm'] is None and by['p|E1|P2|Rec yds|60.5']['pf'] == .5
