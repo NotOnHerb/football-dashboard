@@ -103,6 +103,9 @@ def explain(pick, rules, others=None):
                        'points, else %s. This one scored %s.' % (
                            R.COLLEGE_MIN_BOOKS, R.COLLEGE_GAP_MIN, R.COLLEGE_GAP_MAX, ', '.join(R.COLLEGE_EXCLUDED_BOOKS),
                            R.COLLEGE_MIN_PRICE, R.COLLEGE_STRONG_SCORE, R.COLLEGE_GAP_STRONG, R.COLLEGE_MIN_SCORE, p.get('score')))
+        if pr is None:
+            reasons.append('This book posts no spread price, so the price rule could not be checked; a win is graded as if it paid %+d.'
+                           % R.COLLEGE_UNPRICED_PRICE)
     else:
         reasons.append('%s: %s %s at %s.' % (describe(p), side, fmt_quote(pt, pr), p.get('book')))
         vs, ls, ms = p.get('value_score'), p.get('lean_score'), p.get('model_score')

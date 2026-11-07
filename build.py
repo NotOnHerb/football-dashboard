@@ -696,7 +696,7 @@ try:
         return None,False
     wks=sorted({g['week'] for g in upcoming})[:2]
     CG=[];CP=[]
-    COLLEGE_UNPRICED=-110   # units for a pick with no posted price are figured at this price, the one the backtest assumed
+    from engine.rules import COLLEGE_UNPRICED_PRICE   # units for a pick with no posted price are figured at this price, the one the backtest assumed
     for g in sorted([g for g in upcoming if g['week'] in wks],key=lambda g:g['startDate']):
         x=cl.get(g['id']) or {'lines':[]}; ls=[l for l in x['lines'] if l['provider'] in BKN]
         books={}
@@ -748,7 +748,7 @@ try:
     for r_ in CLOG.values():
         if r_.get('res') is not None or r_['gid'] not in fin: continue
         ap,hp=fin[r_['gid']]; c_=((hp-ap) if r_['sd']=='hs' else (ap-hp))+r_['pt']
-        r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(decimal(r_['pr'] if r_['pr'] is not None else COLLEGE_UNPRICED)-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
+        r_['res']='W' if c_>0 else 'L' if c_<0 else 'P'; r_['fin']=[ap,hp]; r_['u']=round(decimal(r_['pr'] if r_['pr'] is not None else COLLEGE_UNPRICED_PRICE)-1,3) if r_['res']=='W' else -1 if r_['res']=='L' else 0
     if not os.environ.get('ODDS_OFFLINE'): json.dump(CLOG,open(cpf,'w'))
     cd=[r for r in CLOG.values() if r.get('res')]
     CFB={'G':CG,'PK':CP,'LG':sorted(CLOG.values(),key=lambda r:r['t'],reverse=True)[:200],
